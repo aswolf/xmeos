@@ -17,66 +17,73 @@ class EosRef(object):
     # fd_dcoor
 
     coor_opt_id = ['E', 'P', 'V', 'T']
-
+    coor_name = ['energy', 'press', 'vol', 'temp']
 
     @abstractmethod
-    def __init__( self, eos_mod, prime_coor_id, param_d=None ):
-        assert hasattr(eos_mod, 'energy_V') \
-            'eos_mod must implement energy_V( V_a, param_d )'
-        assert hasattr(eos_mod, 'press_V') \
-            'eos_mod must implement press_V( V_a, param_d )'
-        self.eos_mod = eos_mod
+    def __init__( self, prime_coor_id, param_d=None ):
         self.param_d = param_d
-        set_prime_coor( prime_coor_id )
+        set_prime_coor_id( prime_coor_id )
+        set_fd_dcoor()
 
 
-    @abstractmethod
+    # Example of desired automatic behavior:
+    # if prime_coor_id = 'V':
+    #   * energy_V, press_V, temp_V are provided by subclasses
+    #   * vol_E, vol_P, vol_T are provided numerically by inference
+    #   * All others are provided by chained function calls
+    #     (energy_P, energy_T, press_E, press_T, temp_E, temp_P)
+    #      e.g., energy_P: return energy_V( vol_P( P_a ) )
+    # for param( prime coor ):
+    #   func provided by user model
+    # for
     def energy( coor_a, param_d=self.param_d ):
+        globals()['energy_'+self.prime_coor_id]( coor_a, param_d )
         pass
-    @abstractmethod
     def press( coor_a, param_d=self.param_d ):
+        globals()['press_'+self.prime_coor_id]( coor_a, param_d )
         pass
-    @abstractmethod
     def vol( coor_a, param_d=self.param_d ):
+        globals()['vol_'+self.prime_coor_id]( coor_a, param_d )
         pass
-    @abstractmethod
     def temp( coor_a, param_d=self.param_d ):
+        globals()['temp_'+self.prime_coor_id]( coor_a, param_d )
         pass
 
-    def set_prime_coor( prime_coor_id ):
+    def set_prime_coor_id( prime_coor_id ):
         assert prime_coor_id is str 'prime_coor_id must be a string'
         assert prime_coor_id in self.coor_opt_id 'prime_coor_id must be \
             one of the following options: ' + coor_opt_id
         self.prime_coor_id = prime_coor_id
         pass
 
-    def energy_P( P_a, param_d=self.param_d ):
-        return infer_coor( P_a, press_E, param_d )
     def energy_V( V_a, param_d=self.param_d ):
         return infer_coor( V_a, vol_E, param_d )
-    def energy_T( T_a, param_d=self.param_d ):
-        return infer_coor( T_a, temp_E, param_d )
-
-    def press_E( E_a, param_d=self.param_d ):
-        return infer_coor( E_a, energy_P, param_d )
     def press_V( V_a, param_d=self.param_d ):
         return infer_coor( V_a, vol_P, param_d )
-    def press_T( T_a, param_d=self.param_d ):
-        return infer_coor( T_a, temp_P, param_d )
+    def temp_V( V_a, param_d=self.param_d ):
+        return infer_coor( V_a, vol_T, param_d )
 
-    def vol_E( E_a, param_d=self.param_d ):
-        return infer_coor( E_a, energy_V, param_d )
+
+    def energy_P( P_a, param_d=self.param_d ):
+        return infer_coor( P_a, press_E, param_d )
     def vol_P( P_a, param_d=self.param_d ):
         return infer_coor( P_a, press_V, param_d )
+    def temp_P( P_a, param_d=self.param_d ):
+        return infer_coor( P_a, press_T, param_d )
+
+    def energy_T( T_a, param_d=self.param_d ):
+        return infer_coor( T_a, temp_E, param_d )
+    def press_T( T_a, param_d=self.param_d ):
+        return infer_coor( T_a, temp_P, param_d )
     def vol_T( T_a, param_d=self.param_d ):
         return infer_coor( T_a, temp_V, param_d )
 
+    def press_E( E_a, param_d=self.param_d ):
+        return infer_coor( E_a, energy_P, param_d )
+    def vol_E( E_a, param_d=self.param_d ):
+        return infer_coor( E_a, energy_V, param_d )
     def temp_E( E_a, param_d=self.param_d ):
         return infer_coor( E_a, energy_T, param_d )
-    def temp_P( P_a, param_d=self.param_d ):
-        return infer_coor( P_a, press_T, param_d )
-    def temp_V( V_a, param_d=self.param_d ):
-        return infer_coor( V_a, vol_T, param_d )
 
 
     def infer_coor( coor0_a, coor0_func, param_d ):
