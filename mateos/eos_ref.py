@@ -16,8 +16,8 @@ class EosRef(object):
     # * try read dcoor val from param_d, otherwise use default values in
     # fd_dcoor
 
-    coor_opt_id = ['E', 'P', 'V', 'T']
-    coor_name = ['energy', 'press', 'vol', 'temp']
+    coor_opt_id = ['E', 'P', 'V', 'T', 'S']
+    coor_name = ['energy', 'press', 'vol', 'temp', 'entropy']
 
     @abstractmethod
     def __init__( self, prime_coor_id, param_d=None ):
