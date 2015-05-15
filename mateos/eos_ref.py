@@ -16,16 +16,49 @@ class EosRef(object):
     # * try read dcoor val from param_d, otherwise use default values in
     # fd_dcoor
 
-    coor_opt_id = ['E', 'P', 'V', 'T', 'S']
-    coor_name = ['energy', 'press', 'vol', 'temp', 'entropy']
+    coor_opt_d = {'E': 'energy', 'P': 'press', 'V': 'vol',
+                  'T': 'temp', 'S': 'entropy'}
 
     @abstractmethod
-    def __init__( self, prime_coor_id, param_d=None ):
+    def __init__( self, prime_coor_id, const_coor_d, param_d=None ):
         self.param_d = param_d
-        set_prime_coor_id( prime_coor_id )
+
+        # validate and set prime and const coors
+        check_coor_id( prime_coor_id )
+        check_const_coor_d( const_coor_d )
+        self.prime_coor_id = prime_coor_id
+        self.const_coor_d = const_coor_d
+
+        # set general func behavior based on prim and const coors
+        set_prime_coor_funcs( prime_coor_id, const_coor_d )
+        set_second_coor_funcs( prime_coor_id, const_coor_d )
+        set_infer_coor_funcs( prime_coor_id, const_coor_d )
         set_fd_dcoor()
 
+    def check_coor_id( coor_id ):
+        coor_opt_id = self.coor_opt_d.keys()
+        try:
+            assert coor_id is str 'coor_id must be a string'
+            assert coor_id in coor_opt_id 'coor_id must in coor_opt_id: '\
+                + coor_opt_id
+        except:
+            [assert icoor_id is str 'coor_id must be a string'
+             for icoor_id in coor_id]
+            [assert icoor_id in coor_opt_id
+             'coor_id must in coor_opt_d: ' + coor_opt_id
+             for icoor_id in coor_id]
+        pass
 
+    def check_const_coor_d( const_coor_d ):
+        try:
+            [assert np.isscalar(val) or val is None for val in const_coor_id.values()]
+        except Exception as e:
+            print( 'const_coor_d is not valid' )
+            raise e
+        check_coor_id( const_coor_d.keys() )
+        pass
+
+    # Use globals()[str] = func() to set generic func behavior
     # Example of desired automatic behavior:
     # if prime_coor_id = 'V':
     #   * energy_V, press_V, temp_V are provided by subclasses
@@ -36,25 +69,27 @@ class EosRef(object):
     # for param( prime coor ):
     #   func provided by user model
     # for
-    def energy( coor_a, param_d=self.param_d ):
-        globals()['energy_'+self.prime_coor_id]( coor_a, param_d )
-        pass
-    def press( coor_a, param_d=self.param_d ):
-        globals()['press_'+self.prime_coor_id]( coor_a, param_d )
-        pass
-    def vol( coor_a, param_d=self.param_d ):
-        globals()['vol_'+self.prime_coor_id]( coor_a, param_d )
-        pass
-    def temp( coor_a, param_d=self.param_d ):
-        globals()['temp_'+self.prime_coor_id]( coor_a, param_d )
+    def set_prime_coor_funcs( prime_coor_id, const_coor_d ):
         pass
 
-    def set_prime_coor_id( prime_coor_id ):
-        assert prime_coor_id is str 'prime_coor_id must be a string'
-        assert prime_coor_id in self.coor_opt_id 'prime_coor_id must be \
-            one of the following options: ' + coor_opt_id
-        self.prime_coor_id = prime_coor_id
+    def set_second_coor_funcs( prime_coor_id, const_coor_d ):
         pass
+
+    def set_infer_coor_funcs( prime_coor_id, const_coor_d ):
+        pass
+
+    # def energy( coor_a, param_d=self.param_d ):
+    #     globals()['energy_'+self.prime_coor_id]( coor_a, param_d )
+    #     pass
+    # def press( coor_a, param_d=self.param_d ):
+    #     globals()['press_'+self.prime_coor_id]( coor_a, param_d )
+    #     pass
+    # def vol( coor_a, param_d=self.param_d ):
+    #     globals()['vol_'+self.prime_coor_id]( coor_a, param_d )
+    #     pass
+    # def temp( coor_a, param_d=self.param_d ):
+    #     globals()['temp_'+self.prime_coor_id]( coor_a, param_d )
+    #     pass
 
     def energy_V( V_a, param_d=self.param_d ):
         return infer_coor( V_a, vol_E, param_d )
