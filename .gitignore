@@ -1,0 +1,20 @@
+#compiled python
+*.pyc
+__pycache__
+#temp vim files
+.*.swp
+.*.swo
+#database binary files
+*.db
+#temp ipython notebook files
+.ipynb_checkpoints
+# ropeproject from python mode in vim?
+.ropeproject
+
+# Ingore pdf files and temp latex files
+*.pdf
+*.aux
+*.log
+*.blg
+*.bbl
+*.gz
