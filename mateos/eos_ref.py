@@ -6,6 +6,8 @@ from abc import ABCMeta, abstractmethod
 class EosRef(object):
     """
     Abstract Equation of State class for reference thermodynamic path
+
+    has a EosMod
     """
 
     __metaclass__ = ABCMeta
@@ -20,7 +22,7 @@ class EosRef(object):
                   'T': 'temp', 'S': 'entropy'}
 
     @abstractmethod
-    def __init__( self, prime_coor_id, const_coor_d, param_d=None ):
+    def __init__( self, prime_coor_id, const_coor_d, eos_mod, param_d=None ):
         self.param_d = param_d
 
         # validate and set prime and const coors
@@ -28,12 +30,14 @@ class EosRef(object):
         check_const_coor_d( const_coor_d )
         self.prime_coor_id = prime_coor_id
         self.const_coor_d = const_coor_d
+        self.eos_mod = eos_mod
 
         # set general func behavior based on prim and const coors
         set_prime_coor_funcs( prime_coor_id, const_coor_d )
         set_second_coor_funcs( prime_coor_id, const_coor_d )
         set_infer_coor_funcs( prime_coor_id, const_coor_d )
         set_fd_dcoor()
+        pass
 
     def check_coor_id( coor_id ):
         coor_opt_id = self.coor_opt_d.keys()
@@ -58,6 +62,16 @@ class EosRef(object):
         check_coor_id( const_coor_d.keys() )
         pass
 
+    def get_eos_mod_func(func_nm):
+        eos_mod_func = getattr( self.eos_mod, func_nm )
+
+        if eos_mod_func is None:
+            return lambda ( coor_a, param_d ):
+                raise NotImplementedError('This func must be provided by '+
+                                          'user eos_ref class')
+        else:
+            return eos_mod_func
+
     # Use globals()[str] = func() to set generic func behavior
     # Example of desired automatic behavior:
     # if prime_coor_id = 'V':
@@ -69,10 +83,33 @@ class EosRef(object):
     # for param( prime coor ):
     #   func provided by user model
     # for
+
+    # Evaluate grid of funcs (energy,press,vol,temp,entropy) vs (E,P,V,T,S)
+    def set_coor_func_grid( prime_coor_id, const_coor_d ):
+        pass
+
     def set_prime_coor_funcs( prime_coor_id, const_coor_d ):
+        for [key,val] in self.coor_opt_d.items():
+            func_nm = val + '_' + prime_coor_id
+            const_val = const_coor_d.get(key)
+            if const_val is not None:
+                globals()[func_nm] = lambda ( coor_a, param_d ):
+                    const_val*np.ones( coor_a.shape )
+            else:
+                globals()[func_nm] = get_eos_mod_func(func_nm)
         pass
 
     def set_second_coor_funcs( prime_coor_id, const_coor_d ):
+        for [key_func,val_func] in self.coor_opt_d.items():
+            for [key_coor,val_coor] in self.coor_opt_d.items():
+
+            func_nm = val + '_' + prime_coor_id
+            const_val = const_coor_d.get(key)
+            if const_val is not None:
+                globals()[func_nm] = lambda ( coor_a, param_d ):
+                    const_val*np.ones( coor_a.shape )
+            else:
+                globals()[func_nm] = get_eos_mod_func(func_nm)
         pass
 
     def set_infer_coor_funcs( prime_coor_id, const_coor_d ):
