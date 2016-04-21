@@ -86,6 +86,36 @@ class EosRef(object):
 
     # Evaluate grid of funcs (energy,press,vol,temp,entropy) vs (E,P,V,T,S)
     def set_coor_func_grid( prime_coor_id, const_coor_d ):
+        for [key_func,val_func] in self.coor_opt_d.items():
+            for [key_coor,val_coor] in self.coor_opt_d.items():
+                func_nm = val_func + '_' + key_coor
+
+                # diag element of grid X_X
+                if key_func == key_coor:
+                    globals()[func_nm] = lambda ( coor_a, param_d ): coor_a
+                # X_const
+                elif  key_coor == const_coor_d.keys()[0]:
+                    globals()[func_nm] = lambda ( coor_a, param_d ):
+                        raise RuntimeError('The EosRef cannot be given as '+
+                                           'a func of the constant coordinate '+
+                                           const_coor_d.keys[0])
+                # const_X
+                elif  key_func == const_coor_d.keys()[0]:
+                    globals()[func_nm] = lambda ( coor_a, param_d ):
+                        const_coor_d.values()[0]*np.ones(coor_a.shape)
+                # X_prime
+                elif  key_coor == prime_coor_id:
+                    globals()[func_nm] = get_eos_mod_func(self.eos_mod)
+                # prime_X
+                elif  key_func == prime_coor_id:
+                    globals()[func_nm] = lambda ( coor_a, param_d ):
+                        infer_coor( )
+                    # NOTE: need to fix infer
+                # X_Y
+                else:
+                    # NOTE: need to fix
+                    # prime_coor = prime_Y
+                    # X_prime
         pass
 
     def set_prime_coor_funcs( prime_coor_id, const_coor_d ):

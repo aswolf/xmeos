@@ -1,2 +1,14 @@
-This is directory contains the actual code for the project or library.
-It is organized logically with subdirs with sensible names.
+
+-- EosMod
+ |-- CompressMod
+   |-- BirchMurn3
+ |-- ThermMod
+   |-- MieGrun
+     |-- MieGrunDebye
+ |-- GammaMod
+   |-- GammaPowLaw
+ |-- FullMod
+   |-- ThermPressMod
+
+
+eos_d['modtype_d']
