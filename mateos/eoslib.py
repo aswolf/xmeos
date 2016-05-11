@@ -262,6 +262,53 @@ class CompressMod(EosMod):
     def press( self, V_a, eos_d ):
         """Returns Press variation along compression curve."""
 
+    # Standard Methods (can be replaced with analytic expressions
+    def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
+
+
+        if (paramname is 'E0') and (fname is 'energy'):
+            return np.ones(V_a.shape)
+
+        try:
+            fun = getattr(self, fname)
+            # print fun
+            # fun = locals()[fname]
+            # val0_a = fun(self, V_a, eos_d)
+
+            # Note that self is implicitly included
+            val0_a = fun( V_a, eos_d)
+
+        except:
+            assert False, 'That is not a valid function name ' + \
+                '(e.g. it should be press or energy)'
+
+        try:
+            param = self.get_params( [paramname], eos_d )[0]
+        except:
+            assert False, 'This is not a valid parameter name'
+
+
+
+        # set param value in eos_d dict
+        # print 'Orig, shifted vals'
+        # print param
+        # print param*(1.0+dxfrac)
+        globals()['set_param']( [paramname], [param*(1.0+dxfrac)], eos_d )
+
+        # print 'val array'
+        # print val0_a
+        # print fun(V_a, eos_d)
+
+        # Note that self is implicitly included
+        dval_a = fun(V_a, eos_d) - val0_a
+
+        # reset param to original value
+        globals()['set_param']( [paramname], [param], eos_d )
+
+        deriv_a = dval_a/dxfrac
+        return deriv_a
+
+
 
     # Standard methods, but not required for all applications, so
     # object that inherits CompressMod must override method if function needed
@@ -564,6 +611,47 @@ class MieGrunDebye(MieGrun):
             return np.exp( logfval_a )
 
         #
+
+#====================================================================
+class GenRosenfeldTaranzona(ThermMod):
+    """
+    Generalized Rosenfeld-Taranzona Equation of State Model (Rosenfeld1998)
+    - Cv takes on general form of shifted power-law as in original
+    Rosenfeld-Taranzona model, but the exponent and high-temp limit are
+    parameters rather than fixed
+    - only applicable to isochores
+    - must provide a method to evaluate properties along isochore
+    """
+    __metaclass__ = ABCMeta
+
+    def press( self, V_a, T_a, eos_d ):
+        V_a, T_a = fill_array( V_a, T_a )
+
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        gamma_mod, = self.get_modtypes( ['GammaMod'], eos_d )
+
+        # Needed functions
+        energy_therm_a = self.energy( V_a, T_a, eos_d )
+        gamma_a = gamma_mod.gamma( V_a, eos_d )
+
+        press_therm_a = PV_ratio*(gamma_a/V_a)*energy_therm_a
+        return press_therm_a
+
+
+    # Standard methods, but not required for all applications, so
+    # object that inherits CompressMod must override method if function needed
+    def energy( self, V_a, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        raise NotImplementedError("'energy' function not implimented for this model")
+
+    def entropy( self, V_a, T_a, eos_d ):
+        """Returns Entropy."""
+        raise NotImplementedError("'entropy' function not implimented for this model")
+
+    def heat_capacity( self, V_a, T_a, eos_d ):
+        """Calculate Heat Capacity usin."""
+
+        bth, mth, nth = self.get_params( ['bth','mth','nth'], eos_d )
 
 #====================================================================
 class ThermPressMod(FullMod):
