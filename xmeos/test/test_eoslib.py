@@ -73,8 +73,8 @@ class BaseTestCompressMod(object):
 
         PTOL = 3*Prange/Nsamp
 
-        print self
-        print PTOL*Prange
+        # print self
+        # print PTOL*Prange
 
 
         # def plot_press_mismatch(Vmod_a,press_a,press_num_a):
@@ -103,20 +103,29 @@ class BaseTestCompressMod(object):
         compress_mod = eos_d['modtype_d']['CompressMod']
         scale_a, param_a = compress_mod.get_param_scale( eos_d)
 
-        dEdV0_a = compress_mod.param_deriv( 'energy', 'V0', Vmod_a, eos_d, dxfrac=dxfrac)
-        dEdK0_a = compress_mod.param_deriv( 'energy', 'K0', Vmod_a, eos_d, dxfrac=dxfrac)
-        dEdKP0_a = compress_mod.param_deriv( 'energy', 'KP0', Vmod_a, eos_d, dxfrac=dxfrac)
-        dEdE0_a = compress_mod.param_deriv( 'energy', 'E0', Vmod_a, eos_d, dxfrac=dxfrac)
+        Eperturb_num_a = np.zeros((param_a.size,Nsamp))
+        for ind,param in enumerate(param_a):
+            Eperturb_num_a[ind,:] = compress_mod.param_deriv\
+                ( 'energy', param, Vmod_a, eos_d, dxfrac=dxfrac)
+
+
+        # dEdV0_a = compress_mod.param_deriv( 'energy', 'V0', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdK0_a = compress_mod.param_deriv( 'energy', 'K0', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdKP0_a = compress_mod.param_deriv( 'energy', 'KP0', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdKP20_a = compress_mod.param_deriv( 'energy', 'KP20', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdE0_a = compress_mod.param_deriv( 'energy', 'E0', Vmod_a, eos_d, dxfrac=dxfrac)
 
         Eperturb_a, scale_a, param_a = compress_mod.energy_perturb(Vmod_a, eos_d)
 
-        Eperturb_num_a = np.vstack((dEdV0_a,dEdK0_a,dEdKP0_a,dEdE0_a))
+        # Eperturb_num_a = np.vstack((dEdV0_a,dEdK0_a,dEdKP0_a,dEdKP20_a,dEdE0_a))
         max_error_a = np.max(np.abs(Eperturb_a-Eperturb_num_a),axis=1)
+
+        # try:
+        # except:
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
-
-
 
 #        eoslib.set_param( ['V0'], [1.01*param_d['V0']], eos_d )
 #        energy_dV_a = compress_mod.energy(Vmod_a,eos_d)
@@ -237,6 +246,9 @@ class TestTaitCompressMod(BaseTest4thOrdCompressMod):
         eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
         pass
 
+    def test_energy_perturb_eval(self):
+        self.do_test_energy_perturb_eval()
+        pass
 #====================================================================
 # class TestTaitCompressMod(Test4thOrdCompressMod):
 #     def load_compress_mod(self, eos_d):

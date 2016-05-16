@@ -584,13 +584,22 @@ class Vinet(CompressMod):
 
 #====================================================================
 class Tait(CompressMod):
+    def get_param_scale( self, eos_d):
+        """Return scale values for each parameter"""
+        V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        param_a = np.array(['V0','K0','KP0','KP20','E0'])
+        scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
+
+        return scale_a, param_a
+
     def eos_to_abc_params(self, K0, KP0, KP20):
         a = (KP0 + 1.0)/(K0*KP20 + KP0 + 1.0)
         b = -KP20/(KP0+1.0) + KP0/K0
         c = (K0*KP20 + KP0 + 1.0)/(-K0*KP20 + KP0**2 + KP0)
 
         return a,b,c
-
 
     def press( self, V_a, eos_d ):
         V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
@@ -618,6 +627,52 @@ class Tait(CompressMod):
         energy_a = E0 - (V0/b)/PV_ratio*( a*c/(c-1)*eta_a*eta_pow_a - a*eta_pow_a + a - 1)
 
         return energy_a
+
+    def energy_perturb( self, V_a, eos_d ):
+        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+
+        V0, K0, KP0, KP20, E0 = \
+            self.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        vratio_a = V_a/V0
+
+        fstrain_a = 0.5*(vratio_a**(-2.0/3) - 1)
+
+        press_a = self.press( V_a, eos_d )
+        eta_a = b*press_a + 1.0
+        eta_pow_a = eta_a**(-c)
+
+        scale_a, param_a = self.get_param_scale( eos_d )
+
+        # [V0,K0,KP0,KP20,E0]
+        dEdp_a = np.ones((5, V_a.size))
+        # dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
+        dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c)
+        dEdp_a[-1,:] = 1.0
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        dEdabc_a = np.vstack\
+            ([V0*eta_a/(a*b*(c-1))*(-a*eta_pow_a + a*(1-c)),
+              V0/(b**2*(c-1))*((-a*eta_pow_a+a-1)*(c-1) + c*a*eta_a*eta_pow_a),
+              -a*V0/(b*(c-1)**2)*eta_a*eta_pow_a*(-c+(c-1)*(1-np.log(eta_a)))])
+        abc_jac = np.array([[-KP20*(KP0+1)/(K0*KP20+KP0+1)**2,
+                             K0*KP20/(K0*KP20+KP0+1)**2,
+                             -K0*(KP0+1)/(K0*KP20+KP0+1)**2],
+                            [-KP0/K0**2, KP20/(KP0+1)**2 + 1./K0, -1.0/(KP0+1)],
+                            [KP20*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
+                             (-K0*KP20+KP0**2+KP0-(2*KP0+1)*(K0*KP20+KP0+1))/\
+                             (-K0*KP20+KP0**2+KP0)**2,
+                             K0*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2]])
+
+        dEdp_a[1:4,:] = 1.0/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
+
+
+        Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
+        #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+
+        return Eperturb_a, scale_a, param_a
 
 #====================================================================
 class GammaPowLaw(GammaMod):
