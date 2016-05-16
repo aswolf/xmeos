@@ -236,7 +236,6 @@ class EosMod(object):
         return tuple( modtype_l )
 
 #====================================================================
-#====================================================================
 class CompressMod(EosMod):
     """
     Abstract Equation of State class for reference Compression curves
@@ -264,17 +263,14 @@ class CompressMod(EosMod):
 
     # Standard Methods (can be replaced with analytic expressions
     def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
+        scale_a, param_a = self.get_param_scale( eos_d )
+        scale = scale_a[param_a==paramname][0]
+        # print 'scale: ' + np.str(scale)
 
-
-        if (paramname is 'E0') and (fname is 'energy'):
-            return np.ones(V_a.shape)
-
+        #if (paramname is 'E0') and (fname is 'energy'):
+        #    return np.ones(V_a.shape)
         try:
             fun = getattr(self, fname)
-            # print fun
-            # fun = locals()[fname]
-            # val0_a = fun(self, V_a, eos_d)
-
             # Note that self is implicitly included
             val0_a = fun( V_a, eos_d)
 
@@ -284,20 +280,15 @@ class CompressMod(EosMod):
 
         try:
             param = self.get_params( [paramname], eos_d )[0]
+            dparam = scale*dxfrac
+            # print 'param: ' + np.str(param)
+            # print 'dparam: ' + np.str(dparam)
         except:
             assert False, 'This is not a valid parameter name'
 
 
-
         # set param value in eos_d dict
-        # print 'Orig, shifted vals'
-        # print param
-        # print param*(1.0+dxfrac)
-        globals()['set_param']( [paramname], [param*(1.0+dxfrac)], eos_d )
-
-        # print 'val array'
-        # print val0_a
-        # print fun(V_a, eos_d)
+        globals()['set_param']( [paramname,], [param+dparam,], eos_d )
 
         # Note that self is implicitly included
         dval_a = fun(V_a, eos_d) - val0_a
@@ -309,12 +300,21 @@ class CompressMod(EosMod):
         return deriv_a
 
 
-
     # Standard methods, but not required for all applications, so
     # object that inherits CompressMod must override method if function needed
     def energy( self, V_a, eos_d ):
         """Returns Energy along compression curve."""
         raise NotImplementedError("'energy' function not implimented for this model")
+
+    def energy_perturb( self, V_a, eos_d ):
+        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+        raise NotImplementedError("'energy_perturb' function not implimented for this model")
+
+    def get_param_scale( self, eos_d):
+        """Return scale values for each parameter"""
+        scale_a, param_a = self.get_param_scale( eos_d )
+        raise NotImplementedError("'get_param_scale' function not implimented for this model")
+        # return scale_a, param_a
 
     def bulk_mod( self, V_a, eos_d ):
         """Returns Bulk Modulus variation along compression curve."""
@@ -422,6 +422,200 @@ class BirchMurn3(CompressMod):
 
         energy_a = E0 + 9.0/2*(V0*K0/PV_ratio)*\
             ( KP0*fstrain_a**3 + fstrain_a**2*(1-4*fstrain_a) )
+
+        return energy_a
+
+#====================================================================
+class BirchMurn4(CompressMod):
+    def calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20 ):
+        a1 = 3./2*(KP0-nexp-2)
+        a2 = 3./2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11./9*nexp**2)
+        return a1,a2
+
+    def press( self, V_a, eos_d ):
+        # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
+        # press_a = self.gen_finite_strain_mod.press( V_a, eos_d )
+        V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        nexp = +2.0
+
+        vratio_a = V_a/V0
+        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+
+        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
+
+        press_a = 3.0*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
+            fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
+        return press_a
+
+    def energy( self, V_a, eos_d ):
+        # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
+        # energy_a = self.gen_finite_strain_mod.energy( V_a, eos_d )
+        V0, K0, KP0, KP20, E0 = self.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+        nexp = +2.0
+
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        vratio_a = V_a/V0
+        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+
+        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
+
+
+        energy_a = E0 + 9.0*(V0*K0/PV_ratio)*\
+            ( 0.5*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
+
+        return energy_a
+
+#====================================================================
+class GenFiniteStrain(CompressMod):
+    """
+    Generalized Finite Strain EOS from Jeanloz1989b
+
+    Note: nexp=2 yields Birch Murnaghan (eulerian strain) EOS
+          nexp=-2 yields lagragian strain EOS
+    """
+
+    def calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20=None, KP30=None):
+        a1 = 3./2*(KP0-nexp-2)
+        if KP20 is None:
+            return a1
+        else:
+            a2 = 3./2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11./9*nexp**2)
+            if KP30 is None:
+                return a1,a2
+            else:
+                a3 = 1./8*(9*K0**2*KP30 + 6*(6*KP0-5*nexp-6)*K0*KP20
+                           +((3*KP0-5*nexp-6)**2 +10*nexp**2 + 30*nexp + 18)*KP0
+                           -(50./3*nexp**3 + 70*nexp**2 + 90*nexp + 36))
+                return a1,a2,a3
+
+    def press( self, V_a, eos_d ):
+        V0, K0, KP0, KP20, nexp = self.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
+
+        vratio_a = V_a/V0
+        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+
+        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
+
+        press_a = 3.0*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
+            fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
+        return press_a
+
+    def energy( self, V_a, eos_d ):
+        V0, K0, KP0, KP20, E0, nexp = self.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        vratio_a = V_a/V0
+        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+
+        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
+
+
+        energy_a = E0 + 9.0*(V0*K0/PV_ratio)*\
+            ( 0.5*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
+
+        return energy_a
+
+#====================================================================
+class Vinet(CompressMod):
+    def get_param_scale( self, eos_d):
+        """Return scale values for each parameter"""
+        V0, K0, KP0 = self.get_params( ['V0','K0','KP0'], eos_d )
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        param_a = np.array(['V0','K0','KP0','E0'])
+        scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
+
+        return scale_a, param_a
+
+    def press( self, V_a, eos_d ):
+        V0, K0, KP0 = self.get_params( ['V0','K0','KP0'], eos_d )
+
+        eta = 3./2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1./3)
+
+        press_a = 3*K0*(1-x_a)*x_a**(-2)*np.exp(eta*(1-x_a))
+
+        return press_a
+
+    def energy( self, V_a, eos_d ):
+        V0, K0, KP0, E0 = self.get_params( ['V0','K0','KP0','E0'], eos_d )
+        # print V0
+        # print K0
+        # print KP0
+        # print E0
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        eta = 3./2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1./3)
+
+
+        energy_a = E0 + 9*K0*V0/PV_ratio/eta**2*\
+            (1 + (eta*(1-x_a)-1)*np.exp(eta*(1-x_a)))
+
+        return energy_a
+
+    def energy_perturb( self, V_a, eos_d ):
+        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+
+        V0, K0, KP0, E0 = self.get_params( ['V0','K0','KP0','E0'], eos_d )
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        eta = 3./2*(KP0-1)
+        vratio_a = V_a/V0
+        x = vratio_a**(1./3)
+
+        scale_a, param_a = self.get_param_scale( eos_d )
+
+        dEdp_a = 1.0/PV_ratio*np.vstack\
+            ([-3*K0*(eta**2*x*(x-1) + 3*eta*(x-1) - 3*np.exp(eta*(x-1)) + 3)\
+              *np.exp(-eta*(x-1))/eta**2,
+              -9*V0*(eta*(x-1) - np.exp(eta*(x-1)) + 1)*np.exp(-eta*(x-1))/eta**2,
+              27*K0*V0*(2*eta*(x-1) + eta*(-x + (x-1)*(eta*(x-1) + 1) + 1)
+                        -2*np.exp(eta*(x-1)) + 2)*np.exp(-eta*(x-1))/(2*eta**3),
+              PV_ratio*np.ones(V_a.shape)])
+
+        Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
+        #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+
+        return Eperturb_a, scale_a, param_a
+
+#====================================================================
+class Tait(CompressMod):
+    def eos_to_abc_params(self, K0, KP0, KP20):
+        a = (KP0 + 1.0)/(K0*KP20 + KP0 + 1.0)
+        b = -KP20/(KP0+1.0) + KP0/K0
+        c = (K0*KP20 + KP0 + 1.0)/(-K0*KP20 + KP0**2 + KP0)
+
+        return a,b,c
+
+
+    def press( self, V_a, eos_d ):
+        V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
+        vratio_a = V_a/V0
+
+        press_a = 1.0/b*(((vratio_a + a - 1.0)/a)**(-1.0/c) - 1.0)
+
+        return press_a
+
+    def energy( self, V_a, eos_d ):
+        V0, K0, KP0, KP20, E0 = \
+            self.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
+        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+
+        vratio_a = V_a/V0
+
+        fstrain_a = 0.5*(vratio_a**(-2.0/3) - 1)
+
+        press_a = self.press( V_a, eos_d )
+        eta_a = b*press_a + 1.0
+        eta_pow_a = eta_a**(-c)
+        #  NOTE: Need to simplify energy expression here
+        energy_a = E0 - (V0/b)/PV_ratio*( a*c/(c-1)*eta_a*eta_pow_a - a*eta_pow_a + a - 1)
 
         return energy_a
 

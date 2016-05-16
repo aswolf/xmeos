@@ -2,6 +2,7 @@ import numpy as np
 import eoslib
 import pytest
 import matplotlib.pyplot as plt
+from abc import ABCMeta, abstractmethod
 
 #====================================================================
 # Define "slow" tests
@@ -20,11 +21,17 @@ slow = pytest.mark.skipif(
 # def test_false():
 #     assert False, 'test_false'
 
-class TestCompressMod(object):
+# class Test4thOrdCompressMod(TestCompressMod):
+
+#====================================================================
+class BaseTestCompressMod(object):
 
     # def __init__(self):
     #     self.init_params(eos_d)
 
+    @abstractmethod
+    def load_compress_mod(self, eos_d):
+        assert False, 'must implement load_compress_mod()'
 
     def init_params(self,eos_d):
         # Set model parameter values
@@ -36,81 +43,210 @@ class TestCompressMod(object):
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
         eoslib.set_const( [], [], eos_d )
-        compress_mod = eoslib.BirchMurn3(path_const='S')
-        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        self.load_compress_mod( eos_d )
+
         eoslib.set_param( param_key_a, param_val_a, eos_d )
 
         return eos_d
 
-    def test_press_eval(self):
+    def test_press(self):
+        TOL = 1e-4
+
+        Nsamp = 10001
         eos_d = self.init_params({})
 
         param_d = eos_d['param_d']
-        Vmod_a = np.linspace(.7,1.1,11)*param_d['V0']
+        Vmod_a = np.linspace(.7,1.1,Nsamp)*param_d['V0']
+        dV = Vmod_a[1] - Vmod_a[0]
 
         compress_mod = eos_d['modtype_d']['CompressMod']
 
-        press_0_a = compress_mod.press(Vmod_a,eos_d)
-        energy_0_a = compress_mod.energy(Vmod_a,eos_d)
+        press_a = compress_mod.press(Vmod_a,eos_d)
+        energy_a = compress_mod.energy(Vmod_a,eos_d)
 
-        eos_d = self.init_params(eos_d)
-        eoslib.set_param( ['V0'], [1.01*param_d['V0']], eos_d )
-        energy_dV_a = compress_mod.energy(Vmod_a,eos_d)
-        dEdV_a = (energy_dV_a-energy_0_a)/(.01*param_d['V0'])
+        press_num_a = -eos_d['const_d']['PV_ratio']*np.gradient(energy_a,dV)
 
-        eos_d = self.init_params(eos_d)
-        eoslib.set_param( ['K0'], [1.01*param_d['K0']], eos_d )
-        energy_dK_a = compress_mod.energy(Vmod_a,eos_d)
-        dEdK_a = (energy_dK_a-energy_0_a)/(.01*param_d['K0'])
+        Prange = np.max(press_a)-np.min(press_a)
+        press_diff_a = press_num_a-press_a
+        #Exclude 1st and last points to avoid numerical derivative errors
+        Perr =  np.max(np.abs(press_diff_a/Prange))
 
-        eos_d = self.init_params(eos_d)
-        eoslib.set_param( ['KP0'], [1.01*param_d['KP0']], eos_d )
-        energy_dKP_a = compress_mod.energy(Vmod_a,eos_d)
-        dEdKP_a = (energy_dKP_a-energy_0_a)/(.01*param_d['KP0'])
+        PTOL = 3*Prange/Nsamp
 
-        eos_d = self.init_params(eos_d)
-        dEdE_a = np.ones(energy_0_a.shape)
-
-        basis_a = np.vstack((dEdE_a/np.mean(dEdE_a),
-                             dEdV_a/np.mean(dEdV_a),
-                             dEdK_a/np.mean(dEdK_a),
-                             dEdKP_a/np.mean(dEdKP_a)))
-
-        from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        print self
+        print PTOL*Prange
 
 
-        plt.clf()
-        plt.rc('text', usetex=True)
-        for i in range(10):
-            rcoeff_a = np.random.randn(4)
-            rmod_a = np.dot(rcoeff_a,basis_a)
-            rmod_a /= np.sqrt(np.mean(rmod_a**2))
-            plt.plot(Vmod_a/param_d['V0'],rmod_a,'-')
+        # def plot_press_mismatch(Vmod_a,press_a,press_num_a):
+        #     plt.figure()
+        #     plt.ion()
+        #     plt.clf()
+        #     plt.plot(Vmod_a,press_num_a,'bx',Vmod_a,press_a,'r-')
+        #     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
-        plt.plot(Vmod_a/param_d['V0'],0.0*Vmod_a,'k--')
-        plt.xlim(.7,1.1)
+        # plot_press_mismatch(Vmod_a,press_a,press_num_a)
 
-        plt.xlabel('$V / V0$')
-        plt.ylabel('Relative Energy Shift')
-        plt.savefig('test/compress-eos-energy-random-perturb.png',dpi=350)
+        assert np.abs(Perr) < PTOL, '(Press error)/Prange, ' + np.str(Perr) + \
+            ', must be less than PTOL'
 
-        plt.clf()
-        plt.rc('text', usetex=True)
-        hlbl = plt.plot(Vmod_a/param_d['V0'], dEdE_a/np.sqrt(np.mean(dEdE_a**2)),'k-',
-                        Vmod_a/param_d['V0'], dEdV_a/np.sqrt(np.mean(dEdV_a**2)),'r-',
-                        Vmod_a/param_d['V0'], dEdK_a/np.sqrt(np.mean(dEdK_a**2)),'b-',
-                        Vmod_a/param_d['V0'], dEdKP_a/np.sqrt(np.mean(dEdKP_a**2)),'g-',
-                        Vmod_a/param_d['V0'], 0.0*Vmod_a, 'k--')
-        plt.xlim(.7,1.1)
-        plt.ylim(-.5,+3)
-        # plt.rc('font', family='serif')
+    def do_test_energy_perturb_eval(self):
+        TOL = 1e-4
+        dxfrac = 1e-6
 
-        plt.legend(hlbl[:-1],[r'$\delta E_0$',r'$\delta V_0$',r'$\delta K_0$',
-                              r"$\delta K'_0$"])
-        # assert False, 'test_press_eval'
-        plt.xlabel('$V / V_0$')
-        plt.ylabel('Scaled Relative Energy Shift')
-        plt.savefig('test/compress-eos-energy-perturb-basis.png',dpi=350)
+        Nsamp = 10001
+        eos_d = self.init_params({})
+
+        param_d = eos_d['param_d']
+        Vmod_a = np.linspace(.7,1.1,Nsamp)*param_d['V0']
+        dV = Vmod_a[1] - Vmod_a[0]
+
+        compress_mod = eos_d['modtype_d']['CompressMod']
+        scale_a, param_a = compress_mod.get_param_scale( eos_d)
+
+        dEdV0_a = compress_mod.param_deriv( 'energy', 'V0', Vmod_a, eos_d, dxfrac=dxfrac)
+        dEdK0_a = compress_mod.param_deriv( 'energy', 'K0', Vmod_a, eos_d, dxfrac=dxfrac)
+        dEdKP0_a = compress_mod.param_deriv( 'energy', 'KP0', Vmod_a, eos_d, dxfrac=dxfrac)
+        dEdE0_a = compress_mod.param_deriv( 'energy', 'E0', Vmod_a, eos_d, dxfrac=dxfrac)
+
+        Eperturb_a, scale_a, param_a = compress_mod.energy_perturb(Vmod_a, eos_d)
+
+        Eperturb_num_a = np.vstack((dEdV0_a,dEdK0_a,dEdKP0_a,dEdE0_a))
+        max_error_a = np.max(np.abs(Eperturb_a-Eperturb_num_a),axis=1)
+
+        assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
+            'less than TOL.'
+
+
+
+#        eoslib.set_param( ['V0'], [1.01*param_d['V0']], eos_d )
+#        energy_dV_a = compress_mod.energy(Vmod_a,eos_d)
+#        dEdV_a = (energy_dV_a-energy_0_a)/(.01*param_d['V0'])
+#
+#        eos_d = self.init_params(eos_d)
+#        eoslib.set_param( ['K0'], [1.01*param_d['K0']], eos_d )
+#        energy_dK_a = compress_mod.energy(Vmod_a,eos_d)
+#        dEdK_a = (energy_dK_a-energy_0_a)/(.01*param_d['K0'])
+#
+#        eos_d = self.init_params(eos_d)
+#        eoslib.set_param( ['KP0'], [1.01*param_d['KP0']], eos_d )
+#        energy_dKP_a = compress_mod.energy(Vmod_a,eos_d)
+#        dEdKP_a = (energy_dKP_a-energy_0_a)/(.01*param_d['KP0'])
+#
+#        eos_d = self.init_params(eos_d)
+#        dEdE_a = np.ones(energy_0_a.shape)
+#
+#        basis_a = np.vstack((dEdE_a/np.mean(dEdE_a),
+#                             dEdV_a/np.mean(dEdV_a),
+#                             dEdK_a/np.mean(dEdK_a),
+#                             dEdKP_a/np.mean(dEdKP_a)))
+#
+#        from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+#
+#
+#        plt.clf()
+#        plt.rc('text', usetex=True)
+#        for i in range(10):
+#            rcoeff_a = np.random.randn(4)
+#            rmod_a = np.dot(rcoeff_a,basis_a)
+#            rmod_a /= np.sqrt(np.mean(rmod_a**2))
+#            plt.plot(Vmod_a/param_d['V0'],rmod_a,'-')
+#
+#        plt.plot(Vmod_a/param_d['V0'],0.0*Vmod_a,'k--')
+#        plt.xlim(.7,1.1)
+#
+#        plt.xlabel('$V / V0$')
+#        plt.ylabel('Relative Energy Shift')
+#        plt.savefig('test/compress-eos-energy-random-perturb.png',dpi=350)
+#
+#        plt.clf()
+#        plt.rc('text', usetex=True)
+#        hlbl = plt.plot(Vmod_a/param_d['V0'], dEdE_a/np.sqrt(np.mean(dEdE_a**2)),'k-',
+#                        Vmod_a/param_d['V0'], dEdV_a/np.sqrt(np.mean(dEdV_a**2)),'r-',
+#                        Vmod_a/param_d['V0'], dEdK_a/np.sqrt(np.mean(dEdK_a**2)),'b-',
+#                        Vmod_a/param_d['V0'], dEdKP_a/np.sqrt(np.mean(dEdKP_a**2)),'g-',
+#                        Vmod_a/param_d['V0'], 0.0*Vmod_a, 'k--')
+#        plt.xlim(.7,1.1)
+#        plt.ylim(-.5,+3)
+#        # plt.rc('font', family='serif')
+#
+#        plt.legend(hlbl[:-1],[r'$\delta E_0$',r'$\delta V_0$',r'$\delta K_0$',
+#                              r"$\delta K'_0$"])
+#        # assert False, 'test_press_eval'
+#        plt.xlabel('$V / V_0$')
+#        plt.ylabel('Scaled Relative Energy Shift')
+#        plt.savefig('test/compress-eos-energy-perturb-basis.png',dpi=350)
+
+#====================================================================
+class BaseTest4thOrdCompressMod(BaseTestCompressMod):
+    def init_params(self,eos_d):
+        # Use parents init_params method
+        eos_d = super(BaseTest4thOrdCompressMod,self).init_params(eos_d)
+
+        # Add K''0 param
+        KP20 = -1.1*eos_d['param_d']['KP0']/eos_d['param_d']['K0']
+        eoslib.set_param( ['KP20'], [KP20], eos_d )
+
+        return eos_d
+
+#====================================================================
+class TestVinetCompressMod(BaseTestCompressMod):
+    def load_compress_mod(self, eos_d):
+        compress_mod = eoslib.Vinet(path_const='S')
+        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        pass
+
+    def test_energy_perturb_eval(self):
+        self.do_test_energy_perturb_eval()
+        pass
+
+#====================================================================
+class TestBM3CompressMod(BaseTestCompressMod):
+    def load_compress_mod(self, eos_d):
+        compress_mod = eoslib.BirchMurn3(path_const='S')
+        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        pass
+
+#====================================================================
+class TestBM4CompressMod(BaseTest4thOrdCompressMod):
+    def load_compress_mod(self, eos_d):
+        compress_mod = eoslib.BirchMurn4(path_const='S')
+        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        pass
+
+#====================================================================
+class TestGenFiniteStrainCompressMod(BaseTest4thOrdCompressMod):
+    def init_params(self,eos_d):
+        # Use parents init_params method
+        eos_d = super(TestGenFiniteStrainCompressMod,self).init_params(eos_d)
+
+        # Add nexp param
+        nexp = +2.0
+        eoslib.set_param( ['nexp'], [nexp], eos_d )
+
+        return eos_d
+
+    def load_compress_mod(self, eos_d):
+        compress_mod = eoslib.GenFiniteStrain(path_const='S')
+        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        pass
+
+#====================================================================
+class TestTaitCompressMod(BaseTest4thOrdCompressMod):
+    def load_compress_mod(self, eos_d):
+        compress_mod = eoslib.Tait(path_const='S')
+        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        pass
+
+#====================================================================
+# class TestTaitCompressMod(Test4thOrdCompressMod):
+#     def load_compress_mod(self, eos_d):
+#         compress_mod = eoslib.Tait(path_const='S')
+#         eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+#         pass
+#
+#     def test_press(self):
+#         self.do_test_press()
+
 
 
 #     def press_ad_resid( param_a, eos_d, V_a, P_a, Perr_a=1.0,
@@ -389,12 +525,3 @@ class TestCompressMod(object):
 #         eoslib.init_const( self.eos_d )
 #         eoslib.set_modtype( [], [], self.eos_d )
 #         eoslib.set_param( param_name_l, param_val_a, self.eos_d)
-
-class TestObject(object):
-
-    def test_true(self):
-        assert True, 'test_true'
-
-    def test_false(self):
-        assert False, 'test_false'
-
