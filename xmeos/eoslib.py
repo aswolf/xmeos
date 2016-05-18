@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
 import scipy.interpolate as interpolate
+import matplotlib.pyplot as plt
 
 #====================================================================
 #     EOSMod: Equation of State Model
@@ -24,6 +25,19 @@ def set_const( name_l, val_l, eos_d ):
 
     for name, val in zip( name_l, val_l ):
         const_d[name] = val
+
+    pass
+
+#====================================================================
+def set_arg( name_l, val_l, eos_d ):
+    if 'arg_d' in eos_d.keys():
+        arg_d = eos_d['arg_d']
+    else:
+        arg_d = {}
+        eos_d['arg_d'] = arg_d
+
+    for name, val in zip( name_l, val_l ):
+        arg_d[name] = val
 
     pass
 
@@ -263,8 +277,8 @@ class CompressMod(EosMod):
 
     # Standard Methods (can be replaced with analytic expressions
     def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
-        scale_a, param_a = self.get_param_scale( eos_d )
-        scale = scale_a[param_a==paramname][0]
+        scale_a, paramkey_a = self.get_param_scale( eos_d )
+        scale = scale_a[paramkey_a==paramname][0]
         # print 'scale: ' + np.str(scale)
 
         #if (paramname is 'E0') and (fname is 'energy'):
@@ -312,9 +326,9 @@ class CompressMod(EosMod):
 
     def get_param_scale( self, eos_d):
         """Return scale values for each parameter"""
-        scale_a, param_a = self.get_param_scale( eos_d )
+        scale_a, paramkey_a = self.get_param_scale( eos_d )
         raise NotImplementedError("'get_param_scale' function not implimented for this model")
-        # return scale_a, param_a
+        # return scale_a, paramkey_a
 
     def bulk_mod( self, V_a, eos_d ):
         """Returns Bulk Modulus variation along compression curve."""
@@ -323,6 +337,132 @@ class CompressMod(EosMod):
     def bulk_mod_deriv( self, V_a, eos_d ):
         """Returns Bulk Modulus Deriv (K') variation along compression curve."""
         raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
+
+#====================================================================
+class ExpandMod(CompressMod):
+    def get_submodels( self, eos_d ):
+        expand_pos_mod = eos_d['arg_d']['ExpandPosMod']
+        expand_neg_mod = eos_d['arg_d']['ExpandNegMod']
+        return expand_pos_mod, expand_neg_mod
+
+    def validate_shared_param_scale(self, scale_pos_a, paramkey_pos_a,
+                                    scale_neg_a, paramkey_neg_a ):
+        TOL = 1e-4
+        assert np.all(np.in1d(paramkey_pos_a,paramkey_neg_a)),\
+            'paramkey_neg_a must be a superset of paramkey_pos_a'
+        assert len(paramkey_neg_a) <= len(paramkey_pos_a)+1,\
+            'paramkey_neg_a must have at most one more parameter than paramkey_neg_a'
+
+        # shared_mask = np.in1d(paramkey_neg_a,paramkey_pos_a)
+        # paramkey_shared_a = paramkey_neg_a[shared_mask]
+        # scale_shared_a = scale_neg_a[shared_mask]
+
+        ind_pos_a = np.array([np.where(paramkey_neg_a==paramkey)[0][0] \
+                              for paramkey in paramkey_pos_a])
+        # scale_a[ind_pos_a] = scale_pos_a
+
+        assert np.all(np.log(scale_neg_a[ind_pos_a]/scale_pos_a)<TOL),\
+            'Shared param scales must match to within TOL.'
+
+        return ind_pos_a
+
+        # scale
+
+        # paramkey_neg_a
+        # ind_neg_a = np.array([np.where(paramkey_neg_a==paramkey)[0][0] \
+        #                       for paramkey in paramkey_pos_a])
+
+        # # paramkey_unshared_a = paramkey_neg_a[np.logical_not(shared_mask)]
+        # # scale_unshared_a = paramkey_neg_a[np.logical_not(shared_mask)]
+
+        # scale_shared_pos_a = np.array([scale_pos_a[paramkey_pos_a==paramkey]
+        #                                for paramkey in paramkey_shared_a])
+
+        # assert np.all(np.abs(np.log(scale_shared_pos_a/scale_shared_a))<TOL),\
+        #     'Shared param scales must match to within TOL.'
+        # pass
+
+    def get_param_scale( self, eos_d, output_ind=False ):
+        """Return scale values for each parameter"""
+
+        expand_pos_mod, expand_neg_mod = self.get_submodels( eos_d )
+
+        scale_pos_a, paramkey_pos_a = expand_pos_mod.get_param_scale( eos_d )
+        scale_neg_a, paramkey_neg_a = expand_neg_mod.get_param_scale( eos_d )
+
+        ind_pos_a = self.validate_shared_param_scale(scale_pos_a,paramkey_pos_a,
+                                                     scale_neg_a,paramkey_neg_a)
+
+        # Since negative expansion EOS model params are a superset of those
+        # required for the positive compression model, we can simply return the
+        # scale and paramkey values from the negative expansion model
+        scale_a = scale_neg_a
+        paramkey_a = paramkey_neg_a
+
+        if output_ind:
+            return scale_a, paramkey_a, ind_pos_a
+        else:
+            return scale_a, paramkey_a
+
+    def press( self, V_a, eos_d ):
+        expand_pos_mod, expand_neg_mod = self.get_submodels( eos_d )
+
+        press_a = expand_pos_mod.press( V_a, eos_d )
+
+        V0 = self.get_params( ['V0'], eos_d )
+        ind_exp = np.where( V_a > V0 )[0]
+
+        if ind_exp.size>0:
+            press_a[ind_exp] = expand_neg_mod.press( V_a[ind_exp], eos_d )
+
+        return press_a
+
+    def energy( self, V_a, eos_d ):
+
+        expand_pos_mod, expand_neg_mod = self.get_submodels( eos_d )
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        # energy_pos_a = expand_pos_mod.energy( V_a, eos_d )
+        # energy_neg_a = expand_neg_mod.energy( V_a, eos_d )
+
+        energy_a = expand_pos_mod.energy( V_a, eos_d )
+
+        V0 = self.get_params( ['V0'], eos_d )
+        ind_exp = np.where( V_a > V0 )[0]
+
+        if ind_exp.size>0:
+            energy_a[ind_exp] = expand_neg_mod.energy( V_a[ind_exp], eos_d )
+
+        return energy_a
+
+    def energy_perturb( self, V_a, eos_d ):
+        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+
+        expand_pos_mod, expand_neg_mod = self.get_submodels( eos_d )
+
+        scale_a, paramkey_a, ind_pos = self.get_param_scale( eos_d,
+                                                            output_ind=True )
+
+        # Eval positive press values
+        Eperturb_pos_a = expand_pos_mod.energy_perturb( V_a, eos_d )[0]
+        Nparam_pos = Eperturb_pos_a.shape[0]
+
+        Eperturb_a = np.zeros((paramkey_a.size, V_a.size))
+        Eperturb_a[ind_pos,:] = Eperturb_pos_a
+
+        # Overwrite negative pressure Expansion regions
+        V0, = self.get_params( ['V0'], eos_d )
+        ind_exp = np.where( V_a > V0 )[0]
+
+        if ind_exp.size>0:
+            Eperturb_neg_a = expand_neg_mod.energy_perturb( V_a[ind_exp],
+                                                           eos_d )[0]
+            Eperturb_a[:,ind_exp] = Eperturb_neg_a
+
+
+        # Eperturb_neg_full_a = expand_neg_mod.energy_perturb( V_a, eos_d )[0]
+
+        return Eperturb_a, scale_a, paramkey_a
 
 #====================================================================
 class ThermMod(EosMod):
@@ -523,10 +663,10 @@ class Vinet(CompressMod):
         V0, K0, KP0 = self.get_params( ['V0','K0','KP0'], eos_d )
         PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
 
-        param_a = np.array(['V0','K0','KP0','E0'])
+        paramkey_a = np.array(['V0','K0','KP0','E0'])
         scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
 
-        return scale_a, param_a
+        return scale_a, paramkey_a
 
     def press( self, V_a, eos_d ):
         V0, K0, KP0 = self.get_params( ['V0','K0','KP0'], eos_d )
@@ -567,7 +707,7 @@ class Vinet(CompressMod):
         vratio_a = V_a/V0
         x = vratio_a**(1./3)
 
-        scale_a, param_a = self.get_param_scale( eos_d )
+        scale_a, paramkey_a = self.get_param_scale( eos_d )
 
         dEdp_a = 1.0/PV_ratio*np.vstack\
             ([-3*K0*(eta**2*x*(x-1) + 3*eta*(x-1) - 3*np.exp(eta*(x-1)) + 3)\
@@ -580,7 +720,7 @@ class Vinet(CompressMod):
         Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
         #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
-        return Eperturb_a, scale_a, param_a
+        return Eperturb_a, scale_a, paramkey_a
 
 #====================================================================
 class Tait(CompressMod):
@@ -589,10 +729,10 @@ class Tait(CompressMod):
         V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
         PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
 
-        param_a = np.array(['V0','K0','KP0','KP20','E0'])
+        paramkey_a = np.array(['V0','K0','KP0','KP20','E0'])
         scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
 
-        return scale_a, param_a
+        return scale_a, paramkey_a
 
     def eos_to_abc_params(self, K0, KP0, KP20):
         a = (KP0 + 1.0)/(K0*KP20 + KP0 + 1.0)
@@ -618,13 +758,12 @@ class Tait(CompressMod):
 
         vratio_a = V_a/V0
 
-        fstrain_a = 0.5*(vratio_a**(-2.0/3) - 1)
-
         press_a = self.press( V_a, eos_d )
         eta_a = b*press_a + 1.0
         eta_pow_a = eta_a**(-c)
         #  NOTE: Need to simplify energy expression here
-        energy_a = E0 - (V0/b)/PV_ratio*( a*c/(c-1)*eta_a*eta_pow_a - a*eta_pow_a + a - 1)
+        energy_a = E0 + (V0/b)/PV_ratio*(a*c/(c-1)-1)\
+            - (V0/b)/PV_ratio*( a*c/(c-1)*eta_a*eta_pow_a - a*eta_pow_a + a - 1)
 
         return energy_a
 
@@ -638,30 +777,31 @@ class Tait(CompressMod):
 
         vratio_a = V_a/V0
 
-        fstrain_a = 0.5*(vratio_a**(-2.0/3) - 1)
-
         press_a = self.press( V_a, eos_d )
         eta_a = b*press_a + 1.0
         eta_pow_a = eta_a**(-c)
 
-        scale_a, param_a = self.get_param_scale( eos_d )
+        scale_a, paramkey_a = self.get_param_scale( eos_d )
 
         # [V0,K0,KP0,KP20,E0]
         dEdp_a = np.ones((5, V_a.size))
         # dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
-        dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c)
+        dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c) \
+            + 1.0/(PV_ratio*b)*(a*c/(c-1)-1)
         dEdp_a[-1,:] = 1.0
 
         # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
         dEdabc_a = np.vstack\
-            ([V0*eta_a/(a*b*(c-1))*(-a*eta_pow_a + a*(1-c)),
-              V0/(b**2*(c-1))*((-a*eta_pow_a+a-1)*(c-1) + c*a*eta_a*eta_pow_a),
-              -a*V0/(b*(c-1)**2)*eta_a*eta_pow_a*(-c+(c-1)*(1-np.log(eta_a)))])
+            ([V0*eta_a/(a*b*(c-1))*(-a*eta_pow_a + a*(1-c))+c*V0/(b*(c-1)),
+              V0/(b**2*(c-1))*((-a*eta_pow_a+a-1)*(c-1) + c*a*eta_a*eta_pow_a) \
+              - V0/b**2*(a*c/(c-1) - 1),
+              -a*V0/(b*(c-1)**2)*eta_a*eta_pow_a*(-c+(c-1)*(1-np.log(eta_a)))\
+              +a*V0/(b*(c-1))*(1-c/(c-1))])
         abc_jac = np.array([[-KP20*(KP0+1)/(K0*KP20+KP0+1)**2,
                              K0*KP20/(K0*KP20+KP0+1)**2,
                              -K0*(KP0+1)/(K0*KP20+KP0+1)**2],
                             [-KP0/K0**2, KP20/(KP0+1)**2 + 1./K0, -1.0/(KP0+1)],
-                            [KP20*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
+                            [KP20*(KP0**2+2.*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
                              (-K0*KP20+KP0**2+KP0-(2*KP0+1)*(K0*KP20+KP0+1))/\
                              (-K0*KP20+KP0**2+KP0)**2,
                              K0*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2]])
@@ -672,7 +812,7 @@ class Tait(CompressMod):
         Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
         #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
-        return Eperturb_a, scale_a, param_a
+        return Eperturb_a, scale_a, paramkey_a
 
 #====================================================================
 class GammaPowLaw(GammaMod):
