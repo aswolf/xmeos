@@ -5,8 +5,8 @@ import scipy.interpolate as interpolate
 import matplotlib.pyplot as plt
 
 #====================================================================
-#     EOSMod: Equation of State Model
-#      eoslib- library of common equation of state models
+#     xmeos: Xtal-Melt Equation of State package
+#      models - library of equation of state models
 #====================================================================
 
 #====================================================================

@@ -1,5 +1,5 @@
 import numpy as np
-import eoslib
+import models
 import pytest
 import matplotlib.pyplot as plt
 from abc import ABCMeta, abstractmethod
@@ -43,10 +43,10 @@ class BaseTestCompressMod(object):
         param_key_a = ['V0','K0','KP0','E0']
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
-        eoslib.set_const( [], [], eos_d )
+        models.set_const( [], [], eos_d )
         self.load_compress_mod( eos_d )
 
-        eoslib.set_param( param_key_a, param_val_a, eos_d )
+        models.set_param( param_key_a, param_val_a, eos_d )
 
         return eos_d
 
@@ -243,15 +243,15 @@ class BaseTest4thOrdCompressMod(BaseTestCompressMod):
 
         # Add K''0 param
         KP20 = -1.1*eos_d['param_d']['KP0']/eos_d['param_d']['K0']
-        eoslib.set_param( ['KP20'], [KP20], eos_d )
+        models.set_param( ['KP20'], [KP20], eos_d )
 
         return eos_d
 
 #====================================================================
 class TestVinetCompressMod(BaseTestCompressMod):
     def load_compress_mod(self, eos_d):
-        compress_mod = eoslib.Vinet(path_const='S')
-        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        compress_mod = models.Vinet(path_const='S')
+        models.set_modtype( ['CompressMod'], [compress_mod], eos_d )
         pass
 
     def test_energy_perturb_eval(self):
@@ -261,15 +261,15 @@ class TestVinetCompressMod(BaseTestCompressMod):
 #====================================================================
 class TestBM3CompressMod(BaseTestCompressMod):
     def load_compress_mod(self, eos_d):
-        compress_mod = eoslib.BirchMurn3(path_const='S')
-        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        compress_mod = models.BirchMurn3(path_const='S')
+        models.set_modtype( ['CompressMod'], [compress_mod], eos_d )
         pass
 
 #====================================================================
 class TestBM4CompressMod(BaseTest4thOrdCompressMod):
     def load_compress_mod(self, eos_d):
-        compress_mod = eoslib.BirchMurn4(path_const='S')
-        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        compress_mod = models.BirchMurn4(path_const='S')
+        models.set_modtype( ['CompressMod'], [compress_mod], eos_d )
         pass
 
 #====================================================================
@@ -280,20 +280,20 @@ class TestGenFiniteStrainCompressMod(BaseTest4thOrdCompressMod):
 
         # Add nexp param
         nexp = +2.0
-        eoslib.set_param( ['nexp'], [nexp], eos_d )
+        models.set_param( ['nexp'], [nexp], eos_d )
 
         return eos_d
 
     def load_compress_mod(self, eos_d):
-        compress_mod = eoslib.GenFiniteStrain(path_const='S')
-        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        compress_mod = models.GenFiniteStrain(path_const='S')
+        models.set_modtype( ['CompressMod'], [compress_mod], eos_d )
         pass
 
 #====================================================================
 class TestTaitCompressMod(BaseTest4thOrdCompressMod):
     def load_compress_mod(self, eos_d):
-        compress_mod = eoslib.Tait(path_const='S')
-        eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+        compress_mod = models.Tait(path_const='S')
+        models.set_modtype( ['CompressMod'], [compress_mod], eos_d )
         pass
 
     def test_energy_perturb_eval(self):
@@ -310,8 +310,8 @@ class TestCompareCompressMods(object):
         param_key_a = ['V0','K0','KP0','E0']
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
-        eoslib.set_const( [], [], eos_d )
-        eoslib.set_param( param_key_a, param_val_a, eos_d )
+        models.set_const( [], [], eos_d )
+        models.set_param( param_key_a, param_val_a, eos_d )
 
         return eos_d
 
@@ -319,9 +319,9 @@ class TestCompareCompressMods(object):
         eos_vinet_d = self.init_params({})
         eos_tait_d = self.init_params({})
 
-        eoslib.set_modtype( ['CompressMod'], [eoslib.Vinet(path_const='S')],
+        models.set_modtype( ['CompressMod'], [models.Vinet(path_const='S')],
                            eos_vinet_d )
-        eoslib.set_modtype( ['CompressMod'], [eoslib.Tait(path_const='S')],
+        models.set_modtype( ['CompressMod'], [models.Tait(path_const='S')],
                            eos_tait_d )
 
         return eos_vinet_d, eos_tait_d
@@ -371,7 +371,7 @@ class TestCompareCompressMods(object):
 
         eos_vinet_d, eos_tait_d = self.get_eos_mods()
         KP20 = -1.1*eos_tait_d['param_d']['KP0']/eos_tait_d['param_d']['K0']
-        eoslib.set_param( ['KP20'], [KP20], eos_tait_d )
+        models.set_param( ['KP20'], [KP20], eos_tait_d )
 
         energy_vin_a, Vmod_vin_a = self.calc_energy( eos_vinet_d )
         energy_tait_a, Vmod_tait_a = self.calc_energy( eos_tait_d )
@@ -439,12 +439,12 @@ class TestCompareCompressMods(object):
 class TestExpandCompressMod(BaseTest4thOrdCompressMod):
     def load_compress_mod(self, eos_d):
 
-        compress_mod   = eoslib.ExpandMod(path_const='S')
-        expand_pos_mod = eoslib.Vinet(path_const='S')
-        expand_neg_mod = eoslib.Tait(path_const='S')
+        compress_mod   = models.ExpandMod(path_const='S')
+        expand_pos_mod = models.Vinet(path_const='S')
+        expand_neg_mod = models.Tait(path_const='S')
 
-        eoslib.set_modtype(['CompressMod'],[compress_mod], eos_d )
-        eoslib.set_arg(['ExpandPosMod','ExpandNegMod'],
+        models.set_modtype(['CompressMod'],[compress_mod], eos_d )
+        models.set_arg(['ExpandPosMod','ExpandNegMod'],
                        [expand_pos_mod, expand_neg_mod], eos_d )
         pass
 
@@ -536,8 +536,8 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 #====================================================================
 # class TestTaitCompressMod(Test4thOrdCompressMod):
 #     def load_compress_mod(self, eos_d):
-#         compress_mod = eoslib.Tait(path_const='S')
-#         eoslib.set_modtype( ['CompressMod'], [compress_mod], eos_d )
+#         compress_mod = models.Tait(path_const='S')
+#         models.set_modtype( ['CompressMod'], [compress_mod], eos_d )
 #         pass
 #
 #     def test_press(self):
@@ -548,8 +548,8 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 #     def press_ad_resid( param_a, eos_d, V_a, P_a, Perr_a=1.0,
 #                        param_key_a=param_ad_key_a ):
 #         # param_conv_a = param_conv_f(param_a)
-#         # eoslib.set_param( param_key_a, param_conv_a, eos_d )
-#         eoslib.set_param( param_key_a, param_a, eos_d )
+#         # models.set_param( param_key_a, param_conv_a, eos_d )
+#         models.set_param( param_key_a, param_a, eos_d )
 #         Pmod_a = eos_d['modtype_d']['CompressMod'].press( V_a, eos_d)
 #         resid_a = (Pmod_a - P_a)/Perr_a
 #
@@ -565,7 +565,7 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 #
 #     paramf_ad_UM_a = optimize.leastsq(press_ad_resid_UM_f,param0_ad_a)[0]
 #
-#     eoslib.set_param( param_ad_key_a, paramf_ad_UM_a, eos_d )
+#     models.set_param( param_ad_key_a, paramf_ad_UM_a, eos_d )
 #
 #
 #     plt.clf()
@@ -589,7 +589,7 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 #
 #         V_a = VT_a[:,0]
 #         T_a = VT_a[:,1]
-#         eoslib.set_param( param_key_a, param_a, eos_d )
+#         models.set_param( param_key_a, param_a, eos_d )
 #         Pmod_a = eos_d['modtype_d']['ThermPressMod'].press( V_a, T_a, eos_d)
 #         return Pmod_a
 #
@@ -600,7 +600,7 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 #         else:
 #             param_a =  param_conv_f( param_in_a )
 #
-#         eoslib.set_param( param_key_a, param_a, eos_d )
+#         models.set_param( param_key_a, param_a, eos_d )
 #         Pmod_a = eos_d['modtype_d']['CompressMod'].press( V_a, eos_d)
 #         return Pmod_a
 #
@@ -678,7 +678,7 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 #                     param_conv_f=param_conv_f, param_key_a=param_key_a ):
 #         param_conv_a = param_conv_f(param_a)
 #         print param_conv_a
-#         eoslib.set_param( param_key_a, param_conv_a, eos_d )
+#         models.set_param( param_key_a, param_conv_a, eos_d )
 #         Pmod_a = eos_d['modtype_d']['ThermPressMod'].press( V_a, T_a, eos_d)
 #         resid_a = (Pmod_a - P_a)/Perr_a
 #
@@ -818,22 +818,22 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 #
 #
 #     def __init__(self):
-#         eoslib.init_const( self.eos_d )
-#         eoslib.set_modtype( [], [], self.eos_d )
-#         eoslib.set_param( param_name_l, param_val_a, self.eos_d)
+#         models.init_const( self.eos_d )
+#         models.set_modtype( [], [], self.eos_d )
+#         models.set_param( param_name_l, param_val_a, self.eos_d)
 
 ###################################
-#        eoslib.set_param( ['V0'], [1.01*param_d['V0']], eos_d )
+#        models.set_param( ['V0'], [1.01*param_d['V0']], eos_d )
 #        energy_dV_a = compress_mod.energy(Vmod_a,eos_d)
 #        dEdV_a = (energy_dV_a-energy_0_a)/(.01*param_d['V0'])
 #
 #        eos_d = self.init_params(eos_d)
-#        eoslib.set_param( ['K0'], [1.01*param_d['K0']], eos_d )
+#        models.set_param( ['K0'], [1.01*param_d['K0']], eos_d )
 #        energy_dK_a = compress_mod.energy(Vmod_a,eos_d)
 #        dEdK_a = (energy_dK_a-energy_0_a)/(.01*param_d['K0'])
 #
 #        eos_d = self.init_params(eos_d)
-#        eoslib.set_param( ['KP0'], [1.01*param_d['KP0']], eos_d )
+#        models.set_param( ['KP0'], [1.01*param_d['KP0']], eos_d )
 #        energy_dKP_a = compress_mod.energy(Vmod_a,eos_d)
 #        dEdKP_a = (energy_dKP_a-energy_0_a)/(.01*param_d['KP0'])
 #
