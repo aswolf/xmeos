@@ -209,13 +209,15 @@ def fill_array( var1, var2 ):
 #====================================================================
 class EosMod(object):
     """
-    Abstract Equation of State class for reference thermodynamic path
+    Abstract Equation of State Parent Base class
     """
     __metaclass__ = ABCMeta
 
     def __init__( self ):
         pass
 
+
+    # Must always impliment press function
     def get_params( self, name_l, eos_d ):
         """
         Retrieve list of desired params stored in eos_d['param_d']
@@ -249,33 +251,12 @@ class EosMod(object):
 
         return tuple( modtype_l )
 
-#====================================================================
-class CompressMod(EosMod):
-    """
-    Abstract Equation of State class for reference Compression curves
-    """
-    __metaclass__ = ABCMeta
+    def get_param_scale( self, eos_d):
+        """Return scale values for each parameter"""
+        scale_a, paramkey_a = self.get_param_scale( eos_d )
+        raise NotImplementedError("'get_param_scale' function not implimented for this model")
+        # return scale_a, paramkey_a
 
-    path_opts = ['T','S']
-    def __init__( self, path_const='T', level_const=300 ):
-        assert path_const in self.path_opts, path_const + ' is not a valid ' + \
-            'path const. You must select one of: ' + path_opts
-        self.path_const = path_const
-        self.level_const = level_const
-        pass
-
-    def get_path_const( self ):
-        return self.path_const
-
-    def get_level_const( self ):
-        return self.level_const
-
-    # Must always impliment press function
-    @abstractmethod
-    def press( self, V_a, eos_d ):
-        """Returns Press variation along compression curve."""
-
-    # Standard Methods (can be replaced with analytic expressions
     def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
         scale_a, paramkey_a = self.get_param_scale( eos_d )
         scale = scale_a[paramkey_a==paramname][0]
@@ -316,6 +297,33 @@ class CompressMod(EosMod):
 
     # Standard methods, but not required for all applications, so
     # object that inherits CompressMod must override method if function needed
+#====================================================================
+class CompressMod(EosMod):
+    """
+    Abstract Equation of State class for reference Compression curves
+    """
+    __metaclass__ = ABCMeta
+
+    path_opts = ['T','S']
+    def __init__( self, path_const='T', level_const=300 ):
+        assert path_const in self.path_opts, path_const + ' is not a valid ' + \
+            'path const. You must select one of: ' + path_opts
+        self.path_const = path_const
+        self.level_const = level_const
+        pass
+
+
+    def get_path_const( self ):
+        return self.path_const
+
+    def get_level_const( self ):
+        return self.level_const
+
+    @abstractmethod
+    def press( self, V_a, eos_d ):
+        """Returns Press variation along compression curve."""
+
+    # Standard Methods (can be replaced with analytic expressions
     def energy( self, V_a, eos_d ):
         """Returns Energy along compression curve."""
         raise NotImplementedError("'energy' function not implimented for this model")
@@ -324,12 +332,6 @@ class CompressMod(EosMod):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
         raise NotImplementedError("'energy_perturb' function not implimented for this model")
 
-    def get_param_scale( self, eos_d):
-        """Return scale values for each parameter"""
-        scale_a, paramkey_a = self.get_param_scale( eos_d )
-        raise NotImplementedError("'get_param_scale' function not implimented for this model")
-        # return scale_a, paramkey_a
-
     def bulk_mod( self, V_a, eos_d ):
         """Returns Bulk Modulus variation along compression curve."""
         raise NotImplementedError("'bulk_mod' function not implimented for this model")
@@ -337,6 +339,82 @@ class CompressMod(EosMod):
     def bulk_mod_deriv( self, V_a, eos_d ):
         """Returns Bulk Modulus Deriv (K') variation along compression curve."""
         raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
+
+#====================================================================
+class ThermMod(EosMod):
+    """
+    Abstract Equation of State class for thermally induced variations
+    """
+    __metaclass__ = ABCMeta
+
+    path_opts = ['P','V']
+    def __init__( self, path_const='V', level_const=np.nan ):
+        assert path_const in self.path_opts, path_const + ' is not a valid ' + \
+            'path const. You must select one of: ' + path_opts
+        self.path_const = path_const
+        self.level_const = level_const
+        pass
+
+
+    # Standard methods, but not required for all applications, so
+    # object that inherits CompressMod must override method if function needed
+    def press( self, V_a, T_a, eos_d ):
+        """Returns thermal contribution to pressure."""
+        raise NotImplementedError("'press' function not implimented for this model")
+
+    def energy( self, V_a, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        raise NotImplementedError("'energy' function not implimented for this model")
+
+    def entropy( self, V_a, T_a, eos_d ):
+        """Returns Entropy."""
+        raise NotImplementedError("'entropy' function not implimented for this model")
+
+    def heat_capacity( self, V_a, T_a, eos_d ):
+        """Returns Heat Capacity."""
+        raise NotImplementedError("'heat_capacity' function not implimented for this model")
+
+#====================================================================
+class GammaMod(EosMod):
+    """
+    Abstract Equation of State class for Gruneisen Parameter curves
+    """
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def gamma( self, V_a, eos_d ):
+        """Returns Gruneisen Param (gamma) variation due to compression."""
+
+    @abstractmethod
+    def temp( self, V_a, T0, eos_d ):
+        """Returns Gruneisen Param (gamma) variation due to compression."""
+#====================================================================
+class FullMod(EosMod):
+    """
+    Abstract Equation of State class for Full Model (combines all EOS terms)
+    """
+    __metaclass__ = ABCMeta
+
+
+    @abstractmethod
+    def press( self, V_a, T_a, eos_d ):
+        """Returns Press variation along compression curve."""
+
+    # Standard methods, but not required for all applications, so
+    # object that inherits CompressMod must override method if function needed
+    def energy( self, V_a, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        raise NotImplementedError("'energy' function not implimented for this model")
+
+    def therm_exp( self, V_a, T_a, eos_d ):
+        """Returns Thermal Expansion."""
+        raise NotImplementedError("'bulk_mod' function not implimented for this model")
+
+    def bulk_mod( self, V_a, T_a, eos_d ):
+        """Returns Bulk Modulus variation along compression curve."""
+        raise NotImplementedError("'bulk_mod' function not implimented for this model")
+
+#====================================================================
 
 #====================================================================
 class ExpandMod(CompressMod):
@@ -463,83 +541,6 @@ class ExpandMod(CompressMod):
         # Eperturb_neg_full_a = expand_neg_mod.energy_perturb( V_a, eos_d )[0]
 
         return Eperturb_a, scale_a, paramkey_a
-
-#====================================================================
-class ThermMod(EosMod):
-    """
-    Abstract Equation of State class for thermally induced variations
-    """
-    __metaclass__ = ABCMeta
-
-    path_opts = ['P','V']
-    def __init__( self, path_const='V', level_const=np.nan ):
-        assert path_const in self.path_opts, path_const + ' is not a valid ' + \
-            'path const. You must select one of: ' + path_opts
-        self.path_const = path_const
-        self.level_const = level_const
-        pass
-
-
-    @abstractmethod
-    def press( self, V_a, T_a, eos_d ):
-        """Returns Press variation along compression curve."""
-
-    # Standard methods, but not required for all applications, so
-    # object that inherits CompressMod must override method if function needed
-    def energy( self, V_a, T_a, eos_d ):
-        """Returns Thermal Component of Energy."""
-        raise NotImplementedError("'energy' function not implimented for this model")
-
-    def entropy( self, V_a, T_a, eos_d ):
-        """Returns Entropy."""
-        raise NotImplementedError("'entropy' function not implimented for this model")
-
-    def heat_capacity( self, V_a, T_a, eos_d ):
-        """Returns Heat Capacity."""
-        raise NotImplementedError("'heat_capacity' function not implimented for this model")
-
-#====================================================================
-class GammaMod(EosMod):
-    """
-    Abstract Equation of State class for Gruneisen Parameter curves
-    """
-    __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def gamma( self, V_a, eos_d ):
-        """Returns Gruneisen Param (gamma) variation due to compression."""
-
-    @abstractmethod
-    def temp( self, V_a, T0, eos_d ):
-        """Returns Gruneisen Param (gamma) variation due to compression."""
-#====================================================================
-class FullMod(EosMod):
-    """
-    Abstract Equation of State class for Full Model (combines all EOS terms)
-    """
-    __metaclass__ = ABCMeta
-
-
-    @abstractmethod
-    def press( self, V_a, T_a, eos_d ):
-        """Returns Press variation along compression curve."""
-
-    # Standard methods, but not required for all applications, so
-    # object that inherits CompressMod must override method if function needed
-    def energy( self, V_a, T_a, eos_d ):
-        """Returns Thermal Component of Energy."""
-        raise NotImplementedError("'energy' function not implimented for this model")
-
-    def therm_exp( self, V_a, T_a, eos_d ):
-        """Returns Thermal Expansion."""
-        raise NotImplementedError("'bulk_mod' function not implimented for this model")
-
-    def bulk_mod( self, V_a, T_a, eos_d ):
-        """Returns Bulk Modulus variation along compression curve."""
-        raise NotImplementedError("'bulk_mod' function not implimented for this model")
-
-#====================================================================
-
 #====================================================================
 class BirchMurn3(CompressMod):
     def press( self, V_a, eos_d ):
@@ -1013,34 +1014,59 @@ class GenRosenfeldTaranzona(ThermMod):
     """
     __metaclass__ = ABCMeta
 
-    def press( self, V_a, T_a, eos_d ):
-        V_a, T_a = fill_array( V_a, T_a )
+    def get_param_scale( self, eos_d):
+        """Return scale values for each parameter"""
+        acoef, bcoef, mexp, nfac = self.get_params\
+            ( ['acoef','bcoef','mexp','nfac'], eos_d )
 
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
-        gamma_mod, = self.get_modtypes( ['GammaMod'], eos_d )
+        acoef_scl = 1.0 # This cannot be well-determined without more info
+        # ...like a reference temp or energy variation
+        bcoef_scl = np.abs(bcoef)
+        mexp_scl = 3./5
+        nfac_scl = 1.0
+        paramkey_a = np.array(['acoef','bcoef','mexp','nfac'])
+        scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,nfac_scl])
 
-        # Needed functions
-        energy_therm_a = self.energy( V_a, T_a, eos_d )
-        gamma_a = gamma_mod.gamma( V_a, eos_d )
-
-        press_therm_a = PV_ratio*(gamma_a/V_a)*energy_therm_a
-        return press_therm_a
+        return scale_a, paramkey_a
 
 
-    # Standard methods, but not required for all applications, so
-    # object that inherits CompressMod must override method if function needed
+    def calc_acoef( self, V_a, eos_d ):
+        "Simple fixed coefficient value appropriate for isochores"
+        acoef, = self.get_params( ['acoef'], eos_d )
+        return acoef
+
+    def calc_bcoef( self, V_a, eos_d ):
+        "Simple fixed coefficient value appropriate for isochores"
+        bcoef, = self.get_params( ['bcoef'], eos_d )
+        return bcoef
+
     def energy( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
-        raise NotImplementedError("'energy' function not implimented for this model")
+        mexp, nfac = self.get_params( ['mexp','nfac'], eos_d )
+        kB = self.get_consts( ['kboltz'], eos_d )# eV/K
+
+        acoef = self.calc_acoef( V_a, eos_d )
+        bcoef = self.calc_bcoef( V_a, eos_d )
+
+        energy_a = acoef + bcoef*T_a**m + 3./2*nfac*kB*T_a
+
+        return energy_a
+
+    def heat_capacity( self, V_a, T_a, eos_d ):
+        """Calculate Heat Capacity usin."""
+        mexp, nfac = self.get_params( ['mexp','nfac'], eos_d )
+        kB = self.get_consts( ['kboltz'], eos_d )# eV/K
+
+        acoef = self.calc_acoef( V_a, eos_d )
+        bcoef = self.calc_bcoef( V_a, eos_d )
+
+        heat_capacity_a = mexp*bcoef*T_a**(mexp-1) + 3./2*nfac*kB
+
+        return heat_capacity_a
 
     def entropy( self, V_a, T_a, eos_d ):
         """Returns Entropy."""
         raise NotImplementedError("'entropy' function not implimented for this model")
-
-    def heat_capacity( self, V_a, T_a, eos_d ):
-        """Calculate Heat Capacity usin."""
-
-        bth, mth, nth = self.get_params( ['bth','mth','nth'], eos_d )
 
 #====================================================================
 class ThermPressMod(FullMod):

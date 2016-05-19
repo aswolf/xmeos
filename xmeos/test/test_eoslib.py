@@ -136,6 +136,106 @@ class BaseTestCompressMod(object):
             'less than TOL.'
 
 #====================================================================
+class BaseTestThermMod(object):
+
+    # def __init__(self):
+    #     self.init_params(eos_d)
+
+    @abstractmethod
+    def load_therm_mod(self, eos_d):
+        assert False, 'must implement load_therm_mod()'
+
+    @abstractmethod
+    def init_params(self,eos_d):
+        assert False, 'must implement init_params()'
+        return eos_d
+
+    def test_press(self):
+        TOL = 1e-4
+
+        Nsamp = 10001
+        eos_d = self.init_params({})
+
+        param_d = eos_d['param_d']
+        Vmod_a = np.linspace(.7,1.2,Nsamp)*param_d['V0']
+        dV = Vmod_a[1] - Vmod_a[0]
+
+        # print eos_d['modtype_d']
+        compress_mod = eos_d['modtype_d']['CompressMod']
+
+        press_a = compress_mod.press(Vmod_a,eos_d)
+        energy_a = compress_mod.energy(Vmod_a,eos_d)
+
+        press_num_a = -eos_d['const_d']['PV_ratio']*np.gradient(energy_a,dV)
+
+        Prange = np.max(press_a)-np.min(press_a)
+        press_diff_a = press_num_a-press_a
+        #Exclude 1st and last points to avoid numerical derivative errors
+        Perr =  np.max(np.abs(press_diff_a/Prange))
+
+        PTOL = 3*Prange/Nsamp
+
+        # print self
+        # print PTOL*Prange
+
+
+        # def plot_press_mismatch(Vmod_a,press_a,press_num_a):
+        #     plt.figure()
+        #     plt.ion()
+        #     plt.clf()
+        #     plt.plot(Vmod_a,press_num_a,'bx',Vmod_a,press_a,'r-')
+        #     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+        # plot_press_mismatch(Vmod_a,press_a,press_num_a)
+
+        assert np.abs(Perr) < PTOL, '(Press error)/Prange, ' + np.str(Perr) + \
+            ', must be less than PTOL'
+
+    def do_test_energy_perturb_eval(self):
+        TOL = 1e-4
+        dxfrac = 1e-8
+
+        Nsamp = 10001
+        eos_d = self.init_params({})
+
+        param_d = eos_d['param_d']
+        Vmod_a = np.linspace(.7,1.3,Nsamp)*param_d['V0']
+        dV = Vmod_a[1] - Vmod_a[0]
+
+        compress_mod = eos_d['modtype_d']['CompressMod']
+        scale_a, paramkey_a = compress_mod.get_param_scale( eos_d)
+
+        Eperturb_num_a = np.zeros((paramkey_a.size,Nsamp))
+        for ind,paramkey in enumerate(paramkey_a):
+            Eperturb_num_a[ind,:] = compress_mod.param_deriv\
+                ( 'energy', paramkey, Vmod_a, eos_d, dxfrac=dxfrac)
+
+
+        # dEdV0_a = compress_mod.param_deriv( 'energy', 'V0', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdK0_a = compress_mod.param_deriv( 'energy', 'K0', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdKP0_a = compress_mod.param_deriv( 'energy', 'KP0', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdKP20_a = compress_mod.param_deriv( 'energy', 'KP20', Vmod_a, eos_d, dxfrac=dxfrac)
+        # dEdE0_a = compress_mod.param_deriv( 'energy', 'E0', Vmod_a, eos_d, dxfrac=dxfrac)
+
+        Eperturb_a, scale_a, paramkey_a = compress_mod.energy_perturb(Vmod_a, eos_d)
+
+        # Eperturb_num_a = np.vstack((dEdV0_a,dEdK0_a,dEdKP0_a,dEdKP20_a,dEdE0_a))
+        max_error_a = np.max(np.abs(Eperturb_a-Eperturb_num_a),axis=1)
+
+        # try:
+        # except:
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        # plt.ion()
+        # plt.figure()
+        # plt.clf()
+        # plt.plot(Vmod_a[::100], Eperturb_num_a[:,::100].T,'x',
+        #          Vmod_a, Eperturb_a.T,'-')
+        # Eperturb_num_a-Eperturb_a
+        assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
+            'less than TOL.'
+
+#====================================================================
 class BaseTest4thOrdCompressMod(BaseTestCompressMod):
     def init_params(self,eos_d):
         # Use parents init_params method
