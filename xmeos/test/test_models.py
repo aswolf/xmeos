@@ -103,7 +103,11 @@ class BaseTestCompressMod(object):
         dV = Vmod_a[1] - Vmod_a[0]
 
         compress_mod = eos_d['modtype_d']['CompressMod']
-        scale_a, paramkey_a = compress_mod.get_param_scale( eos_d)
+        if compress_mod.expand_adj:
+            scale_a, paramkey_a = \
+                compress_mod.get_param_scale( eos_d,apply_expand_adj=True )
+        else:
+            scale_a, paramkey_a = compress_mod.get_param_scale( eos_d)
 
         Eperturb_num_a = np.zeros((paramkey_a.size,Nsamp))
         for ind,paramkey in enumerate(paramkey_a):
@@ -439,13 +443,16 @@ class TestCompareCompressMods(object):
 class TestExpandCompressMod(BaseTest4thOrdCompressMod):
     def load_compress_mod(self, eos_d):
 
-        compress_mod   = models.ExpandMod(path_const='S')
-        expand_pos_mod = models.Vinet(path_const='S')
-        expand_neg_mod = models.Tait(path_const='S')
+        # compress_mod   = models.ExpandMod(path_const='S')
+        # expand_pos_mod = models.Vinet(path_const='S')
+        # expand_neg_mod = models.Tait(path_const='S')
+        # models.set_modtype(['CompressMod'],[compress_mod], eos_d )
+        # models.set_arg(['ExpandPosMod','ExpandNegMod'],
+        #                [expand_pos_mod, expand_neg_mod], eos_d )
 
+        compress_mod   = models.Vinet(path_const='S',expand_adj_mod=models.Tait())
         models.set_modtype(['CompressMod'],[compress_mod], eos_d )
-        models.set_arg(['ExpandPosMod','ExpandNegMod'],
-                       [expand_pos_mod, expand_neg_mod], eos_d )
+
         pass
 
     ####################################################
@@ -464,12 +471,12 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 
         compress_mod = eos_d['modtype_d']['CompressMod']
 
-        expand_pos_mod = eos_d['arg_d']['ExpandPosMod']
-        expand_neg_mod = eos_d['arg_d']['ExpandNegMod']
-
         press_a = compress_mod.press( Vmod_a, eos_d )
-        press_pos_a = expand_pos_mod.press( Vmod_a, eos_d )
-        press_neg_a = expand_neg_mod.press( Vmod_a, eos_d )
+        press_pos_a = compress_mod.press( Vmod_a, eos_d, apply_expand_adj=False)
+        press_neg_a = compress_mod.expand_adj_mod.press( Vmod_a, eos_d )
+
+        # press_pos_a = expand_pos_mod.press( Vmod_a, eos_d )
+        # press_neg_a = expand_neg_mod.press( Vmod_a, eos_d )
 
 
         ind_neg = Vmod_a>param_d['V0']
@@ -502,14 +509,9 @@ class TestExpandCompressMod(BaseTest4thOrdCompressMod):
 
         compress_mod = eos_d['modtype_d']['CompressMod']
 
-        expand_pos_mod = eos_d['arg_d']['ExpandPosMod']
-        expand_neg_mod = eos_d['arg_d']['ExpandNegMod']
-
-
-
         energy_a = compress_mod.energy( Vmod_a, eos_d )
-        energy_pos_a = expand_pos_mod.energy( Vmod_a, eos_d )
-        energy_neg_a = expand_neg_mod.energy( Vmod_a, eos_d )
+        energy_pos_a = compress_mod.energy( Vmod_a, eos_d, apply_expand_adj=False )
+        energy_neg_a = compress_mod.expand_adj_mod.energy( Vmod_a, eos_d )
 
 
         ind_neg = Vmod_a>param_d['V0']
