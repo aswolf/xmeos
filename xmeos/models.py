@@ -269,7 +269,7 @@ class EosMod(object):
         raise NotImplementedError("'get_param_scale' function not implimented for this model")
 
     def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
-        scale_a, paramkey_a = self.get_param_scale( eos_d )
+        scale_a, paramkey_a = self.get_param_scale( eos_d, apply_expand_adj=True )
         scale = scale_a[paramkey_a==paramname][0]
         # print 'scale: ' + np.str(scale)
 
@@ -279,7 +279,6 @@ class EosMod(object):
             fun = getattr(self, fname)
             # Note that self is implicitly included
             val0_a = fun( V_a, eos_d)
-
         except:
             assert False, 'That is not a valid function name ' + \
                 '(e.g. it should be press or energy)'
@@ -292,7 +291,6 @@ class EosMod(object):
         except:
             assert False, 'This is not a valid parameter name'
 
-
         # set param value in eos_d dict
         Control.set_params( [paramname,], [param+dparam,], eos_d )
 
@@ -304,6 +302,7 @@ class EosMod(object):
 
         deriv_a = dval_a/dxfrac
         return deriv_a
+
 #====================================================================
 class CompressMod(EosMod):
     """
@@ -432,41 +431,18 @@ class CompressPathMod(CompressMod):
             else:
                 return scale_a, paramkey_a
 
-    def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
-        scale_a, paramkey_a = self.get_param_scale( eos_d, apply_expand_adj=True )
-        scale = scale_a[paramkey_a==paramname][0]
-        # print 'scale: ' + np.str(scale)
+    def get_ind_exp( self, V_a, eos_d ):
+        V0 = Control.get_params( ['V0'], eos_d )
+        ind_exp = np.where( V_a > V0 )[0]
+        return ind_exp
 
-        #if (paramname is 'E0') and (fname is 'energy'):
-        #    return np.ones(V_a.shape)
-        try:
-            fun = getattr(self, fname)
-            # Note that self is implicitly included
-            val0_a = fun( V_a, eos_d)
-        except:
-            assert False, 'That is not a valid function name ' + \
-                '(e.g. it should be press or energy)'
+    def get_path_const( self ):
+        return self.path_const
 
-        try:
-            param = Control.get_params( [paramname], eos_d )[0]
-            dparam = scale*dxfrac
-            # print 'param: ' + np.str(param)
-            # print 'dparam: ' + np.str(dparam)
-        except:
-            assert False, 'This is not a valid parameter name'
+    def get_level_const( self ):
+        return self.level_const
 
-        # set param value in eos_d dict
-        Control.set_params( [paramname,], [param+dparam,], eos_d )
-
-        # Note that self is implicitly included
-        dval_a = fun(V_a, eos_d) - val0_a
-
-        # reset param to original value
-        Control.set_params( [paramname], [param], eos_d )
-
-        deriv_a = dval_a/dxfrac
-        return deriv_a
-
+    # EOS property functions
     def press( self, V_a, eos_d, apply_expand_adj=True):
         press_a = self.calc_press(V_a, eos_d)
         if self.expand_adj and apply_expand_adj:
@@ -530,16 +506,6 @@ class CompressPathMod(CompressMod):
             return Eperturb_a, scale_a, paramkey_a
 
     #   Standard methods must be overridden (as needed) by implimentation model
-    def get_ind_exp( self, V_a, eos_d ):
-        V0 = Control.get_params( ['V0'], eos_d )
-        ind_exp = np.where( V_a > V0 )[0]
-        return ind_exp
-
-    def get_path_const( self ):
-        return self.path_const
-
-    def get_level_const( self ):
-        return self.level_const
 
     def get_param_scale_sub( self, eos_d):
         raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
@@ -616,26 +582,42 @@ class ThermalPathMod(ThermalMod):
     def get_level_const( self ):
         return self.level_const
 
-    # Standard methods must be overridden (as needed) by implimentation model
+    # EOS property functions
+    def energy( self, T_a, eos_d ):
+        return self.calc_energy( T_a, eos_d )
+
+    def heat_capacity( self, T_a, eos_d ):
+        return self.calc_heat_capacity( T_a, eos_d )
+
     def press( self, T_a, eos_d ):
-        """Returns thermal contribution to pressure along heating path."""
-        raise NotImplementedError("'press' function not implimented for this model")
+        return self.calc_press( T_a, eos_d )
+
+    def entropy( self, T_a, eos_d ):
+        return self.calc_entropy( T_a, eos_d )
 
     def vol( self, T_a, eos_d ):
-        """Returns thermally expanded volume along heating path."""
-        raise NotImplementedError("'vol' function not implimented for this model")
+        return self.calc_vol( T_a, eos_d )
 
-    def energy( self, T_a, eos_d ):
+    # Standard methods must be overridden (as needed) by implimentation model
+    def calc_energy( self, T_a, eos_d ):
         """Returns Thermal Component of Energy along heating path."""
         raise NotImplementedError("'energy' function not implimented for this model")
 
-    def entropy( self, T_a, eos_d ):
+    def calc_heat_capacity( self, T_a, eos_d ):
+        """Returns Heat Capacity along heating path."""
+        raise NotImplementedError("'heat_capacity' function not implimented for this model")
+
+    def calc_entropy( self, T_a, eos_d ):
         """Returns Entropy along heating path."""
         raise NotImplementedError("'entropy' function not implimented for this model")
 
-    def heat_capacity( self, T_a, eos_d ):
-        """Returns Heat Capacity along heating path."""
-        raise NotImplementedError("'heat_capacity' function not implimented for this model")
+    def calc_press( self, T_a, eos_d ):
+        """Returns thermal contribution to pressure along heating path."""
+        raise NotImplementedError("'press' function not implimented for this model")
+
+    def calc_vol( self, T_a, eos_d ):
+        """Returns thermally expanded volume along heating path."""
+        raise NotImplementedError("'vol' function not implimented for this model")
 #====================================================================
 class GammaMod(EosMod):
     """
@@ -973,7 +955,7 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
         return scale_a, paramkey_a
 
-    def energy( self, T_a, eos_d ):
+    def calc_energy( self, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
         acoef, bcoef, mexp, nfac = \
             Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
@@ -982,7 +964,7 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
         return energy_a
 
-    def heat_capacity( self, T_a, eos_d ):
+    def calc_heat_capacity( self, T_a, eos_d ):
         """Calculate Heat Capacity usin."""
         acoef, bcoef, mexp, nfac = \
             Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
@@ -991,9 +973,49 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
         return heat_capacity_a
 
-    def entropy( self, T_a, eos_d ):
+    def calc_entropy( self, T_a, eos_d ):
         """Returns Entropy."""
         raise NotImplementedError("'entropy' function not implimented for this model")
+#====================================================================
+class RosenfeldTaranzonaPoly(ThermalMod):
+    """
+    Polynomial volume-dependence for Rosenfeld-Taranzona Equation of State
+    - First implemented by  (Saika-Voivod2000)
+    """
+    __metaclass__ = ABCMeta
+
+    def get_param_scale_sub( self, eos_d):
+        """Return scale values for each parameter"""
+        acoef, bcoef, mexp, nfac = Control.get_params\
+            ( ['acoef','bcoef','mexp','nfac'], eos_d )
+
+        acoef_scl = 1.0 # This cannot be well-determined without more info
+        # ...like a reference temp or energy variation
+        bcoef_scl = np.abs(bcoef)
+        mexp_scl = 3./5
+        nfac_scl = 1.0
+        paramkey_a = np.array(['acoef','bcoef','mexp','nfac'])
+        scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,nfac_scl])
+
+        return scale_a, paramkey_a
+
+    def calc_energy( self, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        acoef, bcoef, mexp, nfac = \
+            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        kB = Control.get_consts( ['kboltz'], eos_d )
+        energy_a = acoef + bcoef*T_a**mexp + 3./2*nfac*kB*T_a
+
+        return energy_a
+
+    def calc_heat_capacity( self, T_a, eos_d ):
+        """Calculate Heat Capacity usin."""
+        acoef, bcoef, mexp, nfac = \
+            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        kB = Control.get_consts( ['kboltz'], eos_d )
+        heat_capacity_a = mexp*bcoef*T_a**(mexp-1) + 3./2*nfac*kB
+
+        return heat_capacity_a
 #====================================================================
 class MieGrun(ThermalMod):
     """

@@ -537,8 +537,4 @@ class TestGenRosenfeldTaranzona(BaseTestThermalPathMod):
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
         return eos_d
-
-    # def test_energy_perturb_eval(self):
-    #     self.do_test_energy_perturb_eval()
-    #     pass
 #====================================================================
