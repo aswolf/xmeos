@@ -224,6 +224,60 @@ class BaseTestThermalPathMod(object):
         # Eperturb_num_a-Eperturb_a
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
+
+#====================================================================
+class BaseTestThermalMod(object):
+    @abstractmethod
+    def load_thermal_mod(self, eos_d):
+        assert False, 'must implement load_thermal_mod()'
+
+    @abstractmethod
+    def init_params(self,eos_d):
+        assert False, 'must implement init_params()'
+        return eos_d
+
+    def test_heat_capacity_isochore(self):
+        Nsamp = 10001
+        eos_d = self.init_params({})
+
+        param_d = eos_d['param_d']
+        Viso = 0.7*param_d['V0']
+        Tmod_a = np.linspace(.7,1.3,Nsamp)*param_d['T0']
+        dT = Tmod_a[1] - Tmod_a[0]
+
+        # print eos_d['modtype_d']
+        thermal_mod = eos_d['modtype_d']['ThermalMod']
+
+        heat_capacity_a = thermal_mod.heat_capacity(Viso,Tmod_a,eos_d)
+        energy_a = thermal_mod.energy(Viso,Tmod_a,eos_d)
+
+        heat_capacity_num_a = np.gradient(energy_a,dT)
+
+        E_range = np.max(energy_a)-np.min(energy_a)
+        T_range = Tmod_a[-1]-Tmod_a[0]
+        Cv_scl = E_range/T_range
+        # Cv_range = np.max(heat_capacity_a)-np.min(heat_capacity_a)
+
+        Cv_diff_a = heat_capacity_num_a-heat_capacity_a
+        # Cverr =  np.max(np.abs(Cv_diff_a/Cv_range))
+        Cverr =  np.max(np.abs(Cv_diff_a/Cv_scl))
+        CVTOL = 1.0/Nsamp
+
+        # print self
+        # print PTOL*Prange
+
+
+        # def plot_press_mismatch(Tmod_a,press_a,press_num_a):
+        #     plt.figure()
+        #     plt.ion()
+        #     plt.clf()
+        #     plt.plot(Tmod_a,press_num_a,'bx',Tmod_a,press_a,'r-')
+        #     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+        # plot_press_mismatch(Tmod_a,press_a,press_num_a)
+
+        assert np.abs(Cverr) < CVTOL, '(Cv error)/Cv_scl, ' + np.str(Cverr) + \
+            ', must be less than CVTOL, ' + np.str(CVTOL)
 #====================================================================
 class BaseTest4thOrdCompressPathMod(BaseTestCompressPathMod):
     def init_params(self,eos_d):
@@ -537,4 +591,93 @@ class TestGenRosenfeldTaranzona(BaseTestThermalPathMod):
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
         return eos_d
+#====================================================================
+class TestRosenfeldTaranzonaPoly(BaseTestThermalMod):
+    def load_thermal_mod(self, eos_d):
+        thermal_mod = models.RosenfeldTaranzonaPoly()
+        models.Control.set_modtypes( ['ThermalMod'], [thermal_mod], eos_d )
+
+        pass
+
+    def init_params(self,eos_d):
+        # Set model parameter values
+        mexp = 3.0/5
+        nfac = 1.0
+        T0 = 4000.0
+        V0 = 0.408031
+
+        param_key_a = ['mexp','nfac','T0','V0']
+        param_val_a = np.array([mexp,nfac,T0,V0])
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+        # Set parameter values from Spera et al. (2011)
+        # for MgSiO3 melt using  (Oganov potential)
+        acoef_a = np.array([127.116,-3503.98,20724.4,-60212.0,86060.5,-48520.4])
+        bcoef_a = np.array([-0.371466,7.09542,-45.7362,139.020,-201.487,112.513])
+
+        models.Control.set_array_params( 'acoef', acoef_a, eos_d )
+        models.Control.set_array_params( 'bcoef', bcoef_a, eos_d )
+
+        models.Control.set_consts( [], [], eos_d )
+        self.load_thermal_mod( eos_d )
+
+        return eos_d
+#====================================================================
+
+
+#====================================================================
+# SEC:3 Test Admin Funcs
+#====================================================================
+class TestControl(object):
+    def test_get_array_params(self):
+        TOL = 1e-6
+        eos_d, acoef_a = self.init_params()
+        param_a = models.Control.get_array_params('acoef',eos_d)
+
+        assert np.all(np.abs(param_a-acoef_a)<TOL), 'Stored and retrieved parameter array do not match within TOL'
+
+        param_a = models.Control.get_array_params('V0',eos_d)
+        assert param_a.size==0, 'non-array parameter should not be retrievable with get_array_params()'
+
+        pass
+
+    def test_set_array_params(self):
+        TOL = 1e-6
+        eos_d = {}
+        # Set model parameter values
+        E0 = 0.0 # eV/atom
+        V0 = 38.0 # 1e-5 m^3 / kg
+        K0 = 25.0 # GPa
+        KP0 = 9.0 # 1
+        acoef_a = np.array([1.3,-.23,9.99,-88])
+
+        param_key_a = ['V0','K0','KP0','E0']
+        param_val_a = np.array([ V0, K0, KP0, E0 ])
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+        models.Control.set_array_params( 'acoef', acoef_a, eos_d )
+        models.Control.set_consts( [], [], eos_d )
+
+        param_a =  models.Control.get_array_params( 'acoef', eos_d )
+
+        assert np.all(np.abs(param_a-acoef_a)<TOL), 'Stored and retrieved parameter array do not match within TOL'
+
+        pass
+
+    def init_params(self):
+        eos_d = {}
+        # Set model parameter values
+        E0 = 0.0 # eV/atom
+        V0 = 38.0 # 1e-5 m^3 / kg
+        K0 = 25.0 # GPa
+        KP0 = 9.0 # 1
+        acoef = np.array([1.3,-.23,9.99,-88])
+
+        param_key_a = ['V0','K0','KP0','E0','acoef_0','acoef_1','acoef_2','acoef_3']
+        param_val_a = np.array([ V0, K0, KP0, E0, acoef[0], acoef[1], acoef[2], acoef[3] ])
+
+        models.Control.set_consts( [], [], eos_d )
+
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+        return eos_d, acoef
 #====================================================================

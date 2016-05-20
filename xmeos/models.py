@@ -102,6 +102,55 @@ class Control(object):
         return eos_swap_d
 
     @classmethod
+    def set_array_params( cls, basename, param_arr_a, eos_d ):
+        name_l = []
+
+        for i in range(len(param_arr_a)):
+            iname = basename+'_'+np.str(i)
+            name_l.append(iname)
+
+        cls.set_params(name_l, param_arr_a, eos_d)
+
+    @classmethod
+    def get_array_params( cls, basename, eos_d ):
+        param_d = eos_d['param_d']
+        paramkeys_a = np.array(param_d.keys())
+
+        baselen = len(basename+'_')
+
+        mask = np.array([key.startswith(basename+'_') for key in paramkeys_a])
+
+        arrindlist = []
+        vallist = []
+        for key in paramkeys_a[mask]:
+            idstr = key[baselen:]
+            try:
+                idnum = np.array(idstr).astype(np.float)
+                assert np.equal(np.mod(idnum,1),0), \
+                    'Parameter keys that are part of a parameter array must '+\
+                    'have form "basename_???" where ??? are integers.'
+                idnum = idnum.astype(np.int)
+            except:
+                assert False, 'That basename does not correspond to any valid parameter arrays stored in eos_d'
+
+            arrindlist.append(idnum)
+            vallist.append(param_d[key])
+
+        arrind_a = np.array(arrindlist)
+        val_a = np.array(vallist)
+
+        if arrind_a.size==0:
+            return np.array([])
+        else:
+            indmax = np.max(arrind_a)
+
+            param_arr = np.zeros(indmax+1)
+            for arrind, val in zip(arrind_a,val_a):
+                param_arr[arrind] = val
+
+            return param_arr
+
+    @classmethod
     def set_modtypes( cls, name_l, val_l, eos_d ):
         if 'modtype_d' in eos_d.keys():
             modtype_d = eos_d['modtype_d']
@@ -539,22 +588,42 @@ class ThermalMod(EosMod):
 
     __metaclass__ = ABCMeta
 
-    # Standard methods must be overridden (as needed) by implimentation model
-    def press( self, V_a, T_a, eos_d ):
-        """Returns thermal contribution to pressure."""
-        raise NotImplementedError("'press' function not implimented for this model")
-
+    # EOS property functions
     def energy( self, V_a, T_a, eos_d ):
+        return self.calc_energy( V_a, T_a, eos_d )
+
+    def heat_capacity( self, V_a, T_a, eos_d ):
+        return self.calc_heat_capacity( V_a, T_a, eos_d )
+
+    def press( self, V_a, T_a, eos_d ):
+        return self.calc_press( V_a, T_a, eos_d )
+
+    def entropy( self, V_a, T_a, eos_d ):
+        return self.calc_entropy( V_a, T_a, eos_d )
+
+    def vol( self, P_a, T_a, eos_d ):
+        return self.calc_vol( P_a, T_a, eos_d )
+
+    # Standard methods must be overridden (as needed) by implimentation model
+    def calc_energy( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
         raise NotImplementedError("'energy' function not implimented for this model")
 
-    def entropy( self, V_a, T_a, eos_d ):
+    def calc_heat_capacity( self, V_a, T_a, eos_d ):
+        """Returns Heat Capacity."""
+        raise NotImplementedError("'heat_capacity' function not implimented for this model")
+
+    def calc_entropy( self, V_a, T_a, eos_d ):
         """Returns Entropy."""
         raise NotImplementedError("'entropy' function not implimented for this model")
 
-    def heat_capacity( self, V_a, T_a, eos_d ):
-        """Returns Heat Capacity."""
-        raise NotImplementedError("'heat_capacity' function not implimented for this model")
+    def calc_press( self, V_a, T_a, eos_d ):
+        """Returns thermal contribution to pressure."""
+        raise NotImplementedError("'press' function not implimented for this model")
+
+    def calc_vol( self, V_a, T_a, eos_d ):
+        """Returns thermally expanded volume."""
+        raise NotImplementedError("'vol' function not implimented for this model")
 #====================================================================
 class ThermalPathMod(ThermalMod):
     """
@@ -955,21 +1024,31 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
         return scale_a, paramkey_a
 
-    def calc_energy( self, T_a, eos_d ):
+    def calc_energy( self, T_a, eos_d, acoef_a=None, bcoef_a=None ):
         """Returns Thermal Component of Energy."""
-        acoef, bcoef, mexp, nfac = \
-            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        mexp, nfac = Control.get_params( ['mexp','nfac'], eos_d )
+
+        if acoef_a is None:
+            acoef_a, = Control.get_params( ['acoef'], eos_d )
+
+        if bcoef_a is None:
+            bcoef_a, = Control.get_params( ['bcoef'], eos_d )
+
         kB = Control.get_consts( ['kboltz'], eos_d )
-        energy_a = acoef + bcoef*T_a**mexp + 3./2*nfac*kB*T_a
+        energy_a = acoef_a + bcoef_a*T_a**mexp + 3./2*nfac*kB*T_a
 
         return energy_a
 
-    def calc_heat_capacity( self, T_a, eos_d ):
+    def calc_heat_capacity( self, T_a, eos_d, bcoef_a=None ):
         """Calculate Heat Capacity usin."""
-        acoef, bcoef, mexp, nfac = \
-            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        mexp, nfac = Control.get_params( ['mexp','nfac'], eos_d )
+
+        if bcoef_a is None:
+            bcoef_a, = Control.get_params( ['bcoef'], eos_d )
+
         kB = Control.get_consts( ['kboltz'], eos_d )
-        heat_capacity_a = mexp*bcoef*T_a**(mexp-1) + 3./2*nfac*kB
+
+        heat_capacity_a = mexp*bcoef_a*T_a**(mexp-1) + 3./2*nfac*kB
 
         return heat_capacity_a
 
@@ -977,45 +1056,56 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         """Returns Entropy."""
         raise NotImplementedError("'entropy' function not implimented for this model")
 #====================================================================
-class RosenfeldTaranzonaPoly(ThermalMod):
+class RosenfeldTaranzonaCompress(ThermalMod):
     """
     Polynomial volume-dependence for Rosenfeld-Taranzona Equation of State
     - First implemented by  (Saika-Voivod2000)
     """
     __metaclass__ = ABCMeta
 
-    def get_param_scale_sub( self, eos_d):
-        """Return scale values for each parameter"""
-        acoef, bcoef, mexp, nfac = Control.get_params\
-            ( ['acoef','bcoef','mexp','nfac'], eos_d )
+    @abstractmethod
+    def calc_RT_coef( self, V_a, eos_d ):
+        """
+        Must implement a method for determining RT coefficients as a function of vol
+        """
+        acoef_a = []
+        bcoef_a = []
+        return acoef_a, bcoef_a
 
-        acoef_scl = 1.0 # This cannot be well-determined without more info
-        # ...like a reference temp or energy variation
-        bcoef_scl = np.abs(bcoef)
-        mexp_scl = 3./5
-        nfac_scl = 1.0
-        paramkey_a = np.array(['acoef','bcoef','mexp','nfac'])
-        scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,nfac_scl])
-
-        return scale_a, paramkey_a
-
-    def calc_energy( self, T_a, eos_d ):
+    def calc_energy( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
-        acoef, bcoef, mexp, nfac = \
-            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
-        kB = Control.get_consts( ['kboltz'], eos_d )
-        energy_a = acoef + bcoef*T_a**mexp + 3./2*nfac*kB*T_a
-
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+        energy_a = GenRosenfeldTaranzona().calc_energy\
+            ( T_a, eos_d, acoef_a=acoef_a, bcoef_a=bcoef_a )
         return energy_a
 
-    def calc_heat_capacity( self, T_a, eos_d ):
+    def calc_heat_capacity( self, V_a, T_a, eos_d ):
         """Calculate Heat Capacity usin."""
-        acoef, bcoef, mexp, nfac = \
-            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
-        kB = Control.get_consts( ['kboltz'], eos_d )
-        heat_capacity_a = mexp*bcoef*T_a**(mexp-1) + 3./2*nfac*kB
-
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+        heat_capacity_a = GenRosenfeldTaranzona().calc_heat_capacity\
+            ( T_a, eos_d, bcoef_a=bcoef_a )
         return heat_capacity_a
+#====================================================================
+class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
+    """
+    Polynomial volume-dependence for Rosenfeld-Taranzona Equation of State
+    - First implemented by  (Saika-Voivod2000)
+    """
+    __metaclass__ = ABCMeta
+
+    def calc_RT_coef( self, V_a, eos_d ):
+        """
+        Must implement a method for determining RT coefficients as a function of vol
+        """
+        poly_acoef_a = Control.get_array_params( 'acoef', eos_d )
+        poly_bcoef_a = Control.get_array_params( 'bcoef', eos_d )
+
+        # NOTE: Python's order of polynomial coefficients (for numpy) is
+        #       highest power first, OPPOSITE of how we store it.
+        #  So array must be reversed prior to evaluation
+        acoef_a = np.polyval(poly_acoef_a[::-1], V_a)
+        bcoef_a = np.polyval(poly_bcoef_a[::-1], V_a)
+        return acoef_a, bcoef_a
 #====================================================================
 class MieGrun(ThermalMod):
     """
