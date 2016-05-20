@@ -27,7 +27,6 @@ def set_const( name_l, val_l, eos_d ):
         const_d[name] = val
 
     pass
-
 #====================================================================
 def set_arg( name_l, val_l, eos_d ):
     if 'arg_d' in eos_d.keys():
@@ -40,7 +39,6 @@ def set_arg( name_l, val_l, eos_d ):
         arg_d[name] = val
 
     pass
-
 #====================================================================
 def set_param( name_l, val_l, eos_d ):
     if 'param_d' in eos_d.keys():
@@ -53,7 +51,6 @@ def set_param( name_l, val_l, eos_d ):
         param_d[name] = val
 
     pass
-
 #====================================================================
 def set_modtype( name_l, val_l, eos_d ):
     if 'modtype_d' in eos_d.keys():
@@ -72,7 +69,6 @@ def set_modtype( name_l, val_l, eos_d ):
             print name + " is not a valid modtype object"
 
     pass
-
 #====================================================================
 def default_const():
     const_d = {}
@@ -88,7 +84,6 @@ def default_const():
     const_d['TS_ratio'] = const_d['R']/const_d['kboltz'] # (J/mol)/eV
 
     return const_d
-
 #====================================================================
 
 #def get_eos_func( prop, eos_mod ):
@@ -105,7 +100,6 @@ def default_const():
 # SECT 1: Fitting Routines
 #====================================================================
 class ModFit(object):
-
     def __init__( self ):
         pass
 
@@ -140,7 +134,6 @@ class ModFit(object):
 
         return resid_fun
 
-
     def get_wrap_eos_fun( self, eos_fun, eos_d, param_key_a ):
 
         def wrap_eos_fun(param_in_a, sys_state_tup, eos_fun=eos_fun,
@@ -158,8 +151,6 @@ class ModFit(object):
             return mod_val_a
 
         return wrap_eos_fun
-
-
 #====================================================================
 # SECT 2: Thermal EOS
 #====================================================================
@@ -253,7 +244,6 @@ class EosMod(object):
     def get_param_scale( self, eos_d):
         """Return scale values for each parameter"""
         raise NotImplementedError("'get_param_scale' function not implimented for this model")
-        # return scale_a, paramkey_a
 
     def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
         scale_a, paramkey_a = self.get_param_scale( eos_d )
@@ -291,7 +281,6 @@ class EosMod(object):
 
         deriv_a = dval_a/dxfrac
         return deriv_a
-
 #====================================================================
 class CompressMod(EosMod):
     """
@@ -300,7 +289,6 @@ class CompressMod(EosMod):
     generally depends on both vol and temp
     """
     __metaclass__ = ABCMeta
-
 
     def press( self, V_a, T_a, eos_d ):
         """Returns Press behavior due to compression."""
@@ -326,8 +314,7 @@ class CompressMod(EosMod):
         """Returns Bulk Modulus Deriv (K') behavior due to compression."""
         return self.calc_bulk_mod_deriv(V_a, T_a, eos_d)
 
-
-#   Standard methods must be overridden (as needed) by implimentation model
+    # Standard methods must be overridden (as needed) by implimentation model
     def calc_press( self, V_a, T_a, eos_d ):
         """Calculates Press behavior due to compression."""
         raise NotImplementedError("'calc_press' function not implimented for this model")
@@ -351,7 +338,6 @@ class CompressMod(EosMod):
     def calc_bulk_mod_deriv( self, V_a, T_a, eos_d ):
         """Calculates Bulk Modulus Deriv (K') behavior due to compression."""
         raise NotImplementedError("'calc_bulk_mod_deriv' function not implimented for this model")
-
 #====================================================================
 class CompressPathMod(CompressMod):
     """
@@ -364,6 +350,7 @@ class CompressPathMod(CompressMod):
     __metaclass__ = ABCMeta
 
     path_opts = ['T','S']
+
     def __init__( self, path_const='T', level_const=300,
                  expand_adj_mod=None ):
         assert path_const in self.path_opts, path_const + ' is not a valid ' + \
@@ -379,7 +366,6 @@ class CompressPathMod(CompressMod):
             self.expand_adj = True
             self.expand_adj_mod = expand_adj_mod
         pass
-
 
     def validate_shared_param_scale( self, scale_pos_a, paramkey_pos_a,
                                     scale_neg_a, paramkey_neg_a ):
@@ -520,9 +506,7 @@ class CompressPathMod(CompressMod):
 
             return Eperturb_a, scale_a, paramkey_a
 
-
- #   Standard methods must be overridden (as needed) by implimentation model
-
+    #   Standard methods must be overridden (as needed) by implimentation model
     def get_ind_exp( self, V_a, eos_d ):
         V0 = self.get_params( ['V0'], eos_d )
         ind_exp = np.where( V_a > V0 )[0]
@@ -556,7 +540,6 @@ class CompressPathMod(CompressMod):
     def calc_bulk_mod_deriv( self, V_a, eos_d ):
         """Returns Bulk Modulus Deriv (K') variation along compression curve."""
         raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
-
 #====================================================================
 class ThermalMod(EosMod):
     """
@@ -566,7 +549,6 @@ class ThermalMod(EosMod):
     """
 
     __metaclass__ = ABCMeta
-
 
     # Standard methods must be overridden (as needed) by implimentation model
     def press( self, V_a, T_a, eos_d ):
@@ -584,7 +566,6 @@ class ThermalMod(EosMod):
     def heat_capacity( self, V_a, T_a, eos_d ):
         """Returns Heat Capacity."""
         raise NotImplementedError("'heat_capacity' function not implimented for this model")
-
 #====================================================================
 class ThermalPathMod(ThermalMod):
     """
@@ -592,11 +573,13 @@ class ThermalPathMod(ThermalMod):
 
     Path can either be isobaric (P=const) or isochoric (V=const)
 
-    For this restricted path, thermodyn properties depend only on temperature
+    For this restricted path, thermodyn properties depend only on temperature.
     """
+
     __metaclass__ = ABCMeta
 
     path_opts = ['P','V']
+
     def __init__( self, path_const='V', level_const=np.nan ):
         assert path_const in self.path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + path_opts
@@ -630,7 +613,6 @@ class ThermalPathMod(ThermalMod):
     def heat_capacity( self, T_a, eos_d ):
         """Returns Heat Capacity along heating path."""
         raise NotImplementedError("'heat_capacity' function not implimented for this model")
-
 #====================================================================
 class GammaMod(EosMod):
     """
@@ -652,7 +634,7 @@ class FullMod(EosMod):
     """
     __metaclass__ = ABCMeta
 
- #   Standard methods must be overridden (as needed) by implimentation model
+    # Standard methods must be overridden (as needed) by implimentation model
     def press( self, V_a, T_a, eos_d ):
         """Returns Total Press."""
         raise NotImplementedError("'press' function not implimented for this model")
@@ -694,7 +676,6 @@ class BirchMurn3(CompressPathMod):
             ( KP0*fstrain_a**3 + fstrain_a**2*(1-4*fstrain_a) )
 
         return energy_a
-
 #====================================================================
 class BirchMurn4(CompressPathMod):
     def calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20 ):
@@ -735,7 +716,6 @@ class BirchMurn4(CompressPathMod):
             ( 0.5*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
 
         return energy_a
-
 #====================================================================
 class GenFiniteStrain(CompressPathMod):
     """
@@ -785,7 +765,6 @@ class GenFiniteStrain(CompressPathMod):
             ( 0.5*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
 
         return energy_a
-
 #====================================================================
 class Vinet(CompressPathMod):
     def get_param_scale_sub( self, eos_d):
@@ -851,7 +830,6 @@ class Vinet(CompressPathMod):
         #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
         return Eperturb_a, scale_a, paramkey_a
-
 #====================================================================
 class Tait(CompressPathMod):
     def get_param_scale_sub( self, eos_d):
@@ -943,7 +921,6 @@ class Tait(CompressPathMod):
         #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
         return Eperturb_a, scale_a, paramkey_a
-
 #====================================================================
 class GammaPowLaw(GammaMod):
     def __init__( self ):
@@ -977,7 +954,6 @@ class GammaPowLaw(GammaMod):
         T_a = TR*np.exp( -(gamma_a - gammaR)/q )
 
         return T_a
-
 #====================================================================
 class MieGrun(ThermalMod):
     """
@@ -1002,10 +978,6 @@ class MieGrun(ThermalMod):
     @abstractmethod
     def energy( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
-
-#====================================================================
-#      get_ref_temp()
-#         T0
 #====================================================================
 class MieGrunDebye(MieGrun):
     def __init__( self ):
@@ -1128,9 +1100,6 @@ class MieGrunDebye(MieGrun):
                                  logfval_a )
             # exponentiate to get integral value
             return np.exp( logfval_a )
-
-        #
-
 #====================================================================
 class GenRosenfeldTaranzona(ThermalMod):
     """
@@ -1157,7 +1126,6 @@ class GenRosenfeldTaranzona(ThermalMod):
         scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,nfac_scl])
 
         return scale_a, paramkey_a
-
 
     def calc_acoef( self, V_a, eos_d ):
         "Simple fixed coefficient value appropriate for isochores"
@@ -1196,10 +1164,8 @@ class GenRosenfeldTaranzona(ThermalMod):
     def entropy( self, V_a, T_a, eos_d ):
         """Returns Entropy."""
         raise NotImplementedError("'entropy' function not implimented for this model")
-
 #====================================================================
 class ThermPressMod(FullMod):
-
     def press( self, V_a, T_a, eos_d ):
         """Returns Press variation along compression curve."""
         V_a, T_a = fill_array( V_a, T_a )
@@ -1217,12 +1183,4 @@ class ThermPressMod(FullMod):
         energy_a = compress_path_mod.energy( V_a, eos_d ) \
             + thermal_mod.energy( V_a, T_a, eos_d )
         return energy_a
-
-    # Compute with finite diff
-    # def therm_exp( V_a, T_a, eos_d ):
-    #     """Returns Thermal Expansion."""
-
-    # def bulk_mod( V_a, T_a, eos_d ):
-    #     """Returns Bulk Modulus variation along compression curve."""
-
 #====================================================================
