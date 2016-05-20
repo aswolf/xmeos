@@ -13,77 +13,84 @@ import matplotlib.pyplot as plt
 # SECT 0: Admin functions
 #====================================================================
 #====================================================================
-def init_const( eos_d ):
-    eos_d['const_d'] = default_const()
-    pass
-#====================================================================
-def set_const( name_l, val_l, eos_d ):
-    if 'const_d' in eos_d.keys():
-        const_d = eos_d['const_d']
-    else:
-        init_const( eos_d )
+class Control(object):
+    @classmethod
+    def init_const( cls, eos_d ):
+        eos_d['const_d'] = cls.default_const()
+        pass
 
-    for name, val in zip( name_l, val_l ):
-        const_d[name] = val
-
-    pass
-#====================================================================
-def set_arg( name_l, val_l, eos_d ):
-    if 'arg_d' in eos_d.keys():
-        arg_d = eos_d['arg_d']
-    else:
-        arg_d = {}
-        eos_d['arg_d'] = arg_d
-
-    for name, val in zip( name_l, val_l ):
-        arg_d[name] = val
-
-    pass
-#====================================================================
-def set_param( name_l, val_l, eos_d ):
-    if 'param_d' in eos_d.keys():
-        param_d = eos_d['param_d']
-    else:
-        param_d = {}
-        eos_d['param_d'] = param_d
-
-    for name, val in zip( name_l, val_l ):
-        param_d[name] = val
-
-    pass
-#====================================================================
-def set_modtype( name_l, val_l, eos_d ):
-    if 'modtype_d' in eos_d.keys():
-        modtype_d = eos_d['modtype_d']
-    else:
-        modtype_d = {}
-        eos_d['modtype_d'] = modtype_d
-
-    # Should we verify match?
-    for name, val in zip( name_l, val_l ):
-        if globals().has_key(name):
-            # modtype = globals()[name]
-            # modtype_d[name] = modtype()
-            modtype_d[name] = val
+    @classmethod
+    def set_const( cls, name_l, val_l, eos_d ):
+        if 'const_d' in eos_d.keys():
+            const_d = eos_d['const_d']
         else:
-            print name + " is not a valid modtype object"
+            cls.init_const( eos_d )
 
-    pass
-#====================================================================
-def default_const():
-    const_d = {}
-    const_d['eVperHa'] = 27.211 # eV/Ha
-    const_d['JperHa'] = 4.35974434e-18 # J/Ha
-    const_d['JperCal'] = 4.184 # J/Cal
-    const_d['Nmol'] = 6.0221413e+23 # atoms/mol
-    const_d['R'] = 8.314462 # J/K/mol
-    const_d['kboltz'] = 8.617332e-5 # eV/K
-    const_d['ang3percc'] = 1e24 # ang^3/cm^3
+        for name, val in zip( name_l, val_l ):
+            const_d[name] = val
 
-    const_d['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
-    const_d['TS_ratio'] = const_d['R']/const_d['kboltz'] # (J/mol)/eV
+        pass
 
-    return const_d
+    @classmethod
+    def set_arg( cls, name_l, val_l, eos_d ):
+        if 'arg_d' in eos_d.keys():
+            arg_d = eos_d['arg_d']
+        else:
+            arg_d = {}
+            eos_d['arg_d'] = arg_d
+
+        for name, val in zip( name_l, val_l ):
+            arg_d[name] = val
+
+        pass
+
+    @classmethod
+    def set_param( cls, name_l, val_l, eos_d ):
+        if 'param_d' in eos_d.keys():
+            param_d = eos_d['param_d']
+        else:
+            param_d = {}
+            eos_d['param_d'] = param_d
+
+        for name, val in zip( name_l, val_l ):
+            param_d[name] = val
+
+        pass
+
+    @classmethod
+    def set_modtype( cls, name_l, val_l, eos_d ):
+        if 'modtype_d' in eos_d.keys():
+            modtype_d = eos_d['modtype_d']
+        else:
+            modtype_d = {}
+            eos_d['modtype_d'] = modtype_d
+
+        # Should we verify match?
+        for name, val in zip( name_l, val_l ):
+            if globals().has_key(name):
+                # modtype = globals()[name]
+                # modtype_d[name] = modtype()
+                modtype_d[name] = val
+            else:
+                print name + " is not a valid modtype object"
+
+        pass
+
+    @classmethod
+    def default_const(cls):
+        const_d = {}
+        const_d['eVperHa'] = 27.211 # eV/Ha
+        const_d['JperHa'] = 4.35974434e-18 # J/Ha
+        const_d['JperCal'] = 4.184 # J/Cal
+        const_d['Nmol'] = 6.0221413e+23 # atoms/mol
+        const_d['R'] = 8.314462 # J/K/mol
+        const_d['kboltz'] = 8.617332e-5 # eV/K
+        const_d['ang3percc'] = 1e24 # ang^3/cm^3
+
+        const_d['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
+        const_d['TS_ratio'] = const_d['R']/const_d['kboltz'] # (J/mol)/eV
+
+        return const_d
 #====================================================================
 
 #def get_eos_func( prop, eos_mod ):
@@ -151,9 +158,6 @@ class ModFit(object):
             return mod_val_a
 
         return wrap_eos_fun
-#====================================================================
-# SECT 2: Thermal EOS
-#====================================================================
 
 
 #====================================================================
@@ -221,6 +225,34 @@ class EosMod(object):
 
         return tuple( param_l )
 
+    def set_param( self, name_l, val_l, eos_d ):
+        if 'param_d' in eos_d.keys():
+            param_d = eos_d['param_d']
+        else:
+            param_d = {}
+            eos_d['param_d'] = param_d
+
+        for name, val in zip( name_l, val_l ):
+            param_d[name] = val
+
+            pass
+
+    def swap_params( self, name_l, eos_d ):
+        """
+        Retrieve list of desired params stored in eos_d['param_d']
+        """
+
+        # Use shallow copy to avoid unneeded duplication
+        eos_swap_d = copy.copy( eos_d )
+        # Use deep copy on params to ensure swap without affecting original
+        param_swap_d = copy.deepcopy(eos_d['param_d'])
+
+        eos_swap_d['param_d'] = param_swap_d
+
+        self.set_param( name_l, eos_swap_d )
+
+        return eos_swap_d
+
     def get_consts( self, name_l, eos_d ):
         """
         Retrieve list of desired consts stored in eos_d['const_d']
@@ -273,13 +305,13 @@ class EosMod(object):
 
 
         # set param value in eos_d dict
-        globals()['set_param']( [paramname,], [param+dparam,], eos_d )
+        self.set_param( [paramname,], [param+dparam,], eos_d )
 
         # Note that self is implicitly included
         dval_a = fun(V_a, eos_d) - val0_a
 
         # reset param to original value
-        globals()['set_param']( [paramname], [param], eos_d )
+        self.set_param( [paramname], [param], eos_d )
 
         deriv_a = dval_a/dxfrac
         return deriv_a
@@ -435,13 +467,13 @@ class CompressPathMod(CompressMod):
             assert False, 'This is not a valid parameter name'
 
         # set param value in eos_d dict
-        globals()['set_param']( [paramname,], [param+dparam,], eos_d )
+        self.set_param( [paramname,], [param+dparam,], eos_d )
 
         # Note that self is implicitly included
         dval_a = fun(V_a, eos_d) - val0_a
 
         # reset param to original value
-        globals()['set_param']( [paramname], [param], eos_d )
+        self.set_param( [paramname], [param], eos_d )
 
         deriv_a = dval_a/dxfrac
         return deriv_a
