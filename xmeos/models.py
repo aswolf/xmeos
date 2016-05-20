@@ -15,16 +15,32 @@ import matplotlib.pyplot as plt
 #====================================================================
 class Control(object):
     @classmethod
-    def init_const( cls, eos_d ):
-        eos_d['const_d'] = cls.default_const()
+    def init_consts( cls, eos_d ):
+        eos_d['const_d'] = cls.default_consts()
         pass
 
     @classmethod
-    def set_const( cls, name_l, val_l, eos_d ):
+    def default_consts(cls):
+        const_d = {}
+        const_d['eVperHa'] = 27.211 # eV/Ha
+        const_d['JperHa'] = 4.35974434e-18 # J/Ha
+        const_d['JperCal'] = 4.184 # J/Cal
+        const_d['Nmol'] = 6.0221413e+23 # atoms/mol
+        const_d['R'] = 8.314462 # J/K/mol
+        const_d['kboltz'] = 8.617332e-5 # eV/K
+        const_d['ang3percc'] = 1e24 # ang^3/cm^3
+
+        const_d['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
+        const_d['TS_ratio'] = const_d['R']/const_d['kboltz'] # (J/mol)/eV
+
+        return const_d
+
+    @classmethod
+    def set_consts( cls, name_l, val_l, eos_d ):
         if 'const_d' in eos_d.keys():
             const_d = eos_d['const_d']
         else:
-            cls.init_const( eos_d )
+            cls.init_consts( eos_d )
 
         for name, val in zip( name_l, val_l ):
             const_d[name] = val
@@ -32,20 +48,19 @@ class Control(object):
         pass
 
     @classmethod
-    def set_arg( cls, name_l, val_l, eos_d ):
-        if 'arg_d' in eos_d.keys():
-            arg_d = eos_d['arg_d']
-        else:
-            arg_d = {}
-            eos_d['arg_d'] = arg_d
+    def get_consts( cls, name_l, eos_d ):
+        """
+        Retrieve list of desired consts stored in eos_d['const_d']
+        """
+        const_d = eos_d['const_d']
+        const_l = []
+        for name in name_l:
+            const_l.append( const_d[name] )
 
-        for name, val in zip( name_l, val_l ):
-            arg_d[name] = val
-
-        pass
+        return tuple( const_l )
 
     @classmethod
-    def set_param( cls, name_l, val_l, eos_d ):
+    def set_params( cls, name_l, val_l, eos_d ):
         if 'param_d' in eos_d.keys():
             param_d = eos_d['param_d']
         else:
@@ -58,7 +73,36 @@ class Control(object):
         pass
 
     @classmethod
-    def set_modtype( cls, name_l, val_l, eos_d ):
+    def get_params( cls, name_l, eos_d ):
+        """
+        Retrieve list of desired params stored in eos_d['param_d']
+        """
+        param_d = eos_d['param_d']
+        param_l = []
+        for name in name_l:
+            param_l.append( param_d[name] )
+
+        return tuple( param_l )
+
+    @classmethod
+    def swap_params( cls, name_l, eos_d ):
+        """
+        Retrieve list of desired params stored in eos_d['param_d']
+        """
+
+        # Use shallow copy to avoid unneeded duplication
+        eos_swap_d = copy.copy( eos_d )
+        # Use deep copy on params to ensure swap without affecting original
+        param_swap_d = copy.deepcopy(eos_d['param_d'])
+
+        eos_swap_d['param_d'] = param_swap_d
+
+        cls.set_params( name_l, eos_swap_d )
+
+        return eos_swap_d
+
+    @classmethod
+    def set_modtypes( cls, name_l, val_l, eos_d ):
         if 'modtype_d' in eos_d.keys():
             modtype_d = eos_d['modtype_d']
         else:
@@ -77,20 +121,29 @@ class Control(object):
         pass
 
     @classmethod
-    def default_const(cls):
-        const_d = {}
-        const_d['eVperHa'] = 27.211 # eV/Ha
-        const_d['JperHa'] = 4.35974434e-18 # J/Ha
-        const_d['JperCal'] = 4.184 # J/Cal
-        const_d['Nmol'] = 6.0221413e+23 # atoms/mol
-        const_d['R'] = 8.314462 # J/K/mol
-        const_d['kboltz'] = 8.617332e-5 # eV/K
-        const_d['ang3percc'] = 1e24 # ang^3/cm^3
+    def get_modtypes( cls, name_l, eos_d ):
+        """
+        Retrieve list of desired model types stored in eos_d['modtype_d']
+        """
+        modtype_d = eos_d['modtype_d']
+        modtype_l = []
+        for name in name_l:
+            modtype_l.append( modtype_d[name] )
 
-        const_d['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
-        const_d['TS_ratio'] = const_d['R']/const_d['kboltz'] # (J/mol)/eV
+        return tuple( modtype_l )
 
-        return const_d
+    @classmethod
+    def set_args( cls, name_l, val_l, eos_d ):
+        if 'arg_d' in eos_d.keys():
+            arg_d = eos_d['arg_d']
+        else:
+            arg_d = {}
+            eos_d['arg_d'] = arg_d
+
+        for name, val in zip( name_l, val_l ):
+            arg_d[name] = val
+
+        pass
 #====================================================================
 
 #def get_eos_func( prop, eos_mod ):
@@ -150,7 +203,7 @@ class ModFit(object):
             param_a = param_in_a
 
             # set param value in eos_d dict
-            globals()['set_param']( param_key_a, param_a, eos_d )
+            Control.set_params( param_key_a, param_a, eos_d )
 
             # Take advantage of eos model function input format
             #   uses tuple expansion for input arguments
@@ -158,8 +211,6 @@ class ModFit(object):
             return mod_val_a
 
         return wrap_eos_fun
-
-
 #====================================================================
 # SECT N: Code Utility Functions
 #====================================================================
@@ -213,68 +264,6 @@ class EosMod(object):
     def __init__( self ):
         pass
 
-
-    def get_params( self, name_l, eos_d ):
-        """
-        Retrieve list of desired params stored in eos_d['param_d']
-        """
-        param_d = eos_d['param_d']
-        param_l = []
-        for name in name_l:
-            param_l.append( param_d[name] )
-
-        return tuple( param_l )
-
-    def set_param( self, name_l, val_l, eos_d ):
-        if 'param_d' in eos_d.keys():
-            param_d = eos_d['param_d']
-        else:
-            param_d = {}
-            eos_d['param_d'] = param_d
-
-        for name, val in zip( name_l, val_l ):
-            param_d[name] = val
-
-            pass
-
-    def swap_params( self, name_l, eos_d ):
-        """
-        Retrieve list of desired params stored in eos_d['param_d']
-        """
-
-        # Use shallow copy to avoid unneeded duplication
-        eos_swap_d = copy.copy( eos_d )
-        # Use deep copy on params to ensure swap without affecting original
-        param_swap_d = copy.deepcopy(eos_d['param_d'])
-
-        eos_swap_d['param_d'] = param_swap_d
-
-        self.set_param( name_l, eos_swap_d )
-
-        return eos_swap_d
-
-    def get_consts( self, name_l, eos_d ):
-        """
-        Retrieve list of desired consts stored in eos_d['const_d']
-        """
-        const_d = eos_d['const_d']
-        const_l = []
-        for name in name_l:
-            const_l.append( const_d[name] )
-
-        return tuple( const_l )
-
-    def get_modtypes( self, name_l, eos_d ):
-        """
-        Retrieve list of desired model types stored in eos_d['modtype_d']
-        """
-        modtype_d = eos_d['modtype_d']
-        modtype_l = []
-        for name in name_l:
-            modtype_l.append( modtype_d[name] )
-
-        return tuple( modtype_l )
-
     def get_param_scale( self, eos_d):
         """Return scale values for each parameter"""
         raise NotImplementedError("'get_param_scale' function not implimented for this model")
@@ -296,7 +285,7 @@ class EosMod(object):
                 '(e.g. it should be press or energy)'
 
         try:
-            param = self.get_params( [paramname], eos_d )[0]
+            param = Control.get_params( [paramname], eos_d )[0]
             dparam = scale*dxfrac
             # print 'param: ' + np.str(param)
             # print 'dparam: ' + np.str(dparam)
@@ -305,13 +294,13 @@ class EosMod(object):
 
 
         # set param value in eos_d dict
-        self.set_param( [paramname,], [param+dparam,], eos_d )
+        Control.set_params( [paramname,], [param+dparam,], eos_d )
 
         # Note that self is implicitly included
         dval_a = fun(V_a, eos_d) - val0_a
 
         # reset param to original value
-        self.set_param( [paramname], [param], eos_d )
+        Control.set_params( [paramname], [param], eos_d )
 
         deriv_a = dval_a/dxfrac
         return deriv_a
@@ -459,7 +448,7 @@ class CompressPathMod(CompressMod):
                 '(e.g. it should be press or energy)'
 
         try:
-            param = self.get_params( [paramname], eos_d )[0]
+            param = Control.get_params( [paramname], eos_d )[0]
             dparam = scale*dxfrac
             # print 'param: ' + np.str(param)
             # print 'dparam: ' + np.str(dparam)
@@ -467,13 +456,13 @@ class CompressPathMod(CompressMod):
             assert False, 'This is not a valid parameter name'
 
         # set param value in eos_d dict
-        self.set_param( [paramname,], [param+dparam,], eos_d )
+        Control.set_params( [paramname,], [param+dparam,], eos_d )
 
         # Note that self is implicitly included
         dval_a = fun(V_a, eos_d) - val0_a
 
         # reset param to original value
-        self.set_param( [paramname], [param], eos_d )
+        Control.set_params( [paramname], [param], eos_d )
 
         deriv_a = dval_a/dxfrac
         return deriv_a
@@ -542,7 +531,7 @@ class CompressPathMod(CompressMod):
 
     #   Standard methods must be overridden (as needed) by implimentation model
     def get_ind_exp( self, V_a, eos_d ):
-        V0 = self.get_params( ['V0'], eos_d )
+        V0 = Control.get_params( ['V0'], eos_d )
         ind_exp = np.where( V_a > V0 )[0]
         return ind_exp
 
@@ -691,7 +680,7 @@ class FullMod(EosMod):
 #====================================================================
 class BirchMurn3(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0 = self.get_params( ['V0','K0','KP0'], eos_d )
+        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
 
         vratio_a = V_a/V0
 
@@ -701,8 +690,8 @@ class BirchMurn3(CompressPathMod):
         return press_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, E0 = self.get_params( ['V0','K0','KP0','E0'], eos_d )
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, E0 = Control.get_params( ['V0','K0','KP0','E0'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = V_a/V0
 
@@ -722,7 +711,7 @@ class BirchMurn4(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # press_a = self.gen_finite_strain_mod.press( V_a, eos_d )
-        V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
         nexp = +2.0
 
         vratio_a = V_a/V0
@@ -737,10 +726,10 @@ class BirchMurn4(CompressPathMod):
     def calc_energy( self, V_a, eos_d ):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # energy_a = self.gen_finite_strain_mod.energy( V_a, eos_d )
-        V0, K0, KP0, KP20, E0 = self.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+        V0, K0, KP0, KP20, E0 = Control.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
         nexp = +2.0
 
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
@@ -776,7 +765,7 @@ class GenFiniteStrain(CompressPathMod):
                 return a1,a2,a3
 
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0, KP20, nexp = self.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
+        V0, K0, KP0, KP20, nexp = Control.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
 
         vratio_a = V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
@@ -788,8 +777,8 @@ class GenFiniteStrain(CompressPathMod):
         return press_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, KP20, E0, nexp = self.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, KP20, E0, nexp = Control.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
@@ -805,8 +794,8 @@ class GenFiniteStrain(CompressPathMod):
 class Vinet(CompressPathMod):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        V0, K0, KP0 = self.get_params( ['V0','K0','KP0'], eos_d )
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         paramkey_a = np.array(['V0','K0','KP0','E0'])
         scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
@@ -814,7 +803,7 @@ class Vinet(CompressPathMod):
         return scale_a, paramkey_a
 
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0 = self.get_params( ['V0','K0','KP0'], eos_d )
+        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
 
         eta = 3./2*(KP0-1)
         vratio_a = V_a/V0
@@ -825,12 +814,12 @@ class Vinet(CompressPathMod):
         return press_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, E0 = self.get_params( ['V0','K0','KP0','E0'], eos_d )
+        V0, K0, KP0, E0 = Control.get_params( ['V0','K0','KP0','E0'], eos_d )
         # print V0
         # print K0
         # print KP0
         # print E0
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         eta = 3./2*(KP0-1)
         vratio_a = V_a/V0
@@ -845,8 +834,8 @@ class Vinet(CompressPathMod):
     def calc_energy_perturb( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
-        V0, K0, KP0, E0 = self.get_params( ['V0','K0','KP0','E0'], eos_d )
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, E0 = Control.get_params( ['V0','K0','KP0','E0'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         eta = 3./2*(KP0-1)
         vratio_a = V_a/V0
@@ -870,8 +859,8 @@ class Vinet(CompressPathMod):
 class Tait(CompressPathMod):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         paramkey_a = np.array(['V0','K0','KP0','KP20','E0'])
         scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
@@ -886,7 +875,7 @@ class Tait(CompressPathMod):
         return a,b,c
 
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0, KP20 = self.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
         vratio_a = V_a/V0
 
@@ -896,9 +885,9 @@ class Tait(CompressPathMod):
 
     def calc_energy( self, V_a, eos_d ):
         V0, K0, KP0, KP20, E0 = \
-            self.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+            Control.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = V_a/V0
 
@@ -915,9 +904,9 @@ class Tait(CompressPathMod):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
         V0, K0, KP0, KP20, E0 = \
-            self.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+            Control.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = V_a/V0
 
@@ -971,7 +960,7 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        acoef, bcoef, mexp, nfac = self.get_params\
+        acoef, bcoef, mexp, nfac = Control.get_params\
             ( ['acoef','bcoef','mexp','nfac'], eos_d )
 
         acoef_scl = 1.0 # This cannot be well-determined without more info
@@ -987,8 +976,8 @@ class GenRosenfeldTaranzona(ThermalPathMod):
     def energy( self, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
         acoef, bcoef, mexp, nfac = \
-            self.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
-        kB = self.get_consts( ['kboltz'], eos_d )
+            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        kB = Control.get_consts( ['kboltz'], eos_d )
         energy_a = acoef + bcoef*T_a**mexp + 3./2*nfac*kB*T_a
 
         return energy_a
@@ -996,8 +985,8 @@ class GenRosenfeldTaranzona(ThermalPathMod):
     def heat_capacity( self, T_a, eos_d ):
         """Calculate Heat Capacity usin."""
         acoef, bcoef, mexp, nfac = \
-            self.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
-        kB = self.get_consts( ['kboltz'], eos_d )
+            Control.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        kB = Control.get_consts( ['kboltz'], eos_d )
         heat_capacity_a = mexp*bcoef*T_a**(mexp-1) + 3./2*nfac*kB
 
         return heat_capacity_a
@@ -1016,8 +1005,8 @@ class MieGrun(ThermalMod):
     def press( self, V_a, T_a, eos_d ):
         V_a, T_a = fill_array( V_a, T_a )
 
-        PV_ratio, = self.get_consts( ['PV_ratio'], eos_d )
-        gamma_mod, = self.get_modtypes( ['GammaMod'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        gamma_mod, = Control.get_modtypes( ['GammaMod'], eos_d )
 
         # Needed functions
         energy_therm_a = self.energy( V_a, T_a, eos_d )
@@ -1045,9 +1034,9 @@ class MieGrunDebye(MieGrun):
         V_a, T_a = fill_array( V_a, T_a )
 
         # NOTE: T0 refers to temp on ref adiabat evaluated at V0
-        Cvmax, T0, thetaR = self.get_params( ['Cvmax','T0','thetaR'], eos_d )
-        TS_ratio, = self.get_consts( ['TS_ratio'], eos_d )
-        gamma_mod, = self.get_modtypes( ['GammaMod'], eos_d )
+        Cvmax, T0, thetaR = Control.get_params( ['Cvmax','T0','thetaR'], eos_d )
+        TS_ratio, = Control.get_consts( ['TS_ratio'], eos_d )
+        gamma_mod, = Control.get_modtypes( ['GammaMod'], eos_d )
 
         theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
         Tref_a = gamma_mod.temp( V_a, T0, eos_d )
@@ -1068,9 +1057,9 @@ class MieGrunDebye(MieGrun):
     def entropy( self, V_a, T_a, eos_d ):
         V_a, T_a = fill_array( V_a, T_a )
 
-        Cvmax, thetaR = self.get_params( ['Cvmax','thetaR'], eos_d )
-        TS_ratio, = self.get_consts( ['TS_ratio'], eos_d )
-        gamma_mod, = self.get_modtypes( ['GammaMod'], eos_d )
+        Cvmax, thetaR = Control.get_params( ['Cvmax','thetaR'], eos_d )
+        TS_ratio, = Control.get_consts( ['TS_ratio'], eos_d )
+        gamma_mod, = Control.get_modtypes( ['GammaMod'], eos_d )
 
         theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
         x_a = theta_a/T_a
@@ -1085,9 +1074,9 @@ class MieGrunDebye(MieGrun):
     def heat_capacity( self, V_a, T_a, eos_d ):
         V_a, T_a = fill_array( V_a, T_a )
 
-        Cvmax, thetaR = self.get_params( ['Cvmax','thetaR'], eos_d )
-        TS_ratio, = self.get_consts( ['TS_ratio'], eos_d )
-        gamma_mod, = self.get_modtypes( ['GammaMod'], eos_d )
+        Cvmax, thetaR = Control.get_params( ['Cvmax','thetaR'], eos_d )
+        TS_ratio, = Control.get_consts( ['TS_ratio'], eos_d )
+        gamma_mod, = Control.get_modtypes( ['GammaMod'], eos_d )
 
         theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
 
@@ -1158,11 +1147,11 @@ class GammaPowLaw(GammaMod):
 
     def gamma( self, V_a, eos_d ):
         # OLD version fixed to zero-press ref volume
-        # V0, gamma0, q = self.get_params( ['V0','gamma0','q'], eos_d )
+        # V0, gamma0, q = Control.get_params( ['V0','gamma0','q'], eos_d )
         # gamma_a = gamma0 *(V_a/V0)**q
 
         # generalized version
-        VR, gammaR, q = self.get_params( ['VR','gammaR','q'], eos_d )
+        VR, gammaR, q = Control.get_params( ['VR','gammaR','q'], eos_d )
         gamma_a = gammaR *(V_a/VR)**q
 
         return gamma_a
@@ -1174,12 +1163,12 @@ class GammaPowLaw(GammaMod):
         TR: temperature at V=VR
         """
         # OLD version fixed to zero-press ref volume
-        # V0, gamma0, q = self.get_params( ['V0','gamma0','q'], eos_d )
+        # V0, gamma0, q = Control.get_params( ['V0','gamma0','q'], eos_d )
         # gamma_a = self.gamma( V_a, eos_d )
         # T_a = T0*np.exp( -(gamma_a - gamma0)/q )
 
         # OLD version fixed to zero-press ref volume
-        VR, gammaR, q = self.get_params( ['VR','gammaR','q'], eos_d )
+        VR, gammaR, q = Control.get_params( ['VR','gammaR','q'], eos_d )
         gamma_a = self.gamma( V_a, eos_d )
         T_a = TR*np.exp( -(gamma_a - gammaR)/q )
 
@@ -1189,7 +1178,7 @@ class ThermPressMod(FullMod):
     def press( self, V_a, T_a, eos_d ):
         """Returns Press variation along compression curve."""
         V_a, T_a = fill_array( V_a, T_a )
-        compress_path_mod, thermal_mod = self.get_modtypes( ['CompressPathMod', 'ThermalMod'],
+        compress_path_mod, thermal_mod = Control.get_modtypes( ['CompressPathMod', 'ThermalMod'],
                                                eos_d )
         press_a = compress_path_mod.press( V_a, eos_d ) \
             + thermal_mod.press( V_a, T_a, eos_d )
@@ -1198,7 +1187,7 @@ class ThermPressMod(FullMod):
     def energy( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
         V_a, T_a = fill_array( V_a, T_a )
-        compress_path_mod, thermal_mod = self.get_modtypes( ['CompressPathMod', 'ThermalMod'],
+        compress_path_mod, thermal_mod = Control.get_modtypes( ['CompressPathMod', 'ThermalMod'],
                                                eos_d )
         energy_a = compress_path_mod.energy( V_a, eos_d ) \
             + thermal_mod.energy( V_a, T_a, eos_d )
