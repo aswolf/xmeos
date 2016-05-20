@@ -196,7 +196,9 @@ def fill_array( var1, var2 ):
 #====================================================================
 
 #====================================================================
-#           EOS  Objects
+# SECT 3: EOS  Objects
+#====================================================================
+# 3.1: Base Clases
 #====================================================================
 class EosMod(object):
     """
@@ -651,7 +653,9 @@ class FullMod(EosMod):
         """Returns Total Bulk Modulus."""
         raise NotImplementedError("'bulk_mod' function not implimented for this model")
 #====================================================================
-
+# 3.2: Model Implementations
+#====================================================================
+# 3.2.1: CompressPathMod Implementations
 #====================================================================
 class BirchMurn3(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
@@ -922,38 +926,53 @@ class Tait(CompressPathMod):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-class GammaPowLaw(GammaMod):
-    def __init__( self ):
-        pass
+class GenRosenfeldTaranzona(ThermalPathMod):
+    """
+    Generalized Rosenfeld-Taranzona Equation of State Model (Rosenfeld1998)
+    - Cv takes on general form of shifted power-law as in original
+    Rosenfeld-Taranzona model, but the exponent and high-temp limit are
+    parameters rather than fixed
+    - only applicable to isochores
+    - must provide a method to evaluate properties along isochore
+    """
+    __metaclass__ = ABCMeta
 
-    def gamma( self, V_a, eos_d ):
-        # OLD version fixed to zero-press ref volume
-        # V0, gamma0, q = self.get_params( ['V0','gamma0','q'], eos_d )
-        # gamma_a = gamma0 *(V_a/V0)**q
+    def get_param_scale_sub( self, eos_d):
+        """Return scale values for each parameter"""
+        acoef, bcoef, mexp, nfac = self.get_params\
+            ( ['acoef','bcoef','mexp','nfac'], eos_d )
 
-        # generalized version
-        VR, gammaR, q = self.get_params( ['VR','gammaR','q'], eos_d )
-        gamma_a = gammaR *(V_a/VR)**q
+        acoef_scl = 1.0 # This cannot be well-determined without more info
+        # ...like a reference temp or energy variation
+        bcoef_scl = np.abs(bcoef)
+        mexp_scl = 3./5
+        nfac_scl = 1.0
+        paramkey_a = np.array(['acoef','bcoef','mexp','nfac'])
+        scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,nfac_scl])
 
-        return gamma_a
+        return scale_a, paramkey_a
 
-    def temp( self, V_a, TR, eos_d ):
-        """
-        Return temperature for debye model
-        V_a: sample volume array
-        TR: temperature at V=VR
-        """
-        # OLD version fixed to zero-press ref volume
-        # V0, gamma0, q = self.get_params( ['V0','gamma0','q'], eos_d )
-        # gamma_a = self.gamma( V_a, eos_d )
-        # T_a = T0*np.exp( -(gamma_a - gamma0)/q )
+    def energy( self, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        acoef, bcoef, mexp, nfac = \
+            self.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        kB = self.get_consts( ['kboltz'], eos_d )
+        energy_a = acoef + bcoef*T_a**mexp + 3./2*nfac*kB*T_a
 
-        # OLD version fixed to zero-press ref volume
-        VR, gammaR, q = self.get_params( ['VR','gammaR','q'], eos_d )
-        gamma_a = self.gamma( V_a, eos_d )
-        T_a = TR*np.exp( -(gamma_a - gammaR)/q )
+        return energy_a
 
-        return T_a
+    def heat_capacity( self, T_a, eos_d ):
+        """Calculate Heat Capacity usin."""
+        acoef, bcoef, mexp, nfac = \
+            self.get_params( ['acoef','bcoef','mexp','nfac'], eos_d )
+        kB = self.get_consts( ['kboltz'], eos_d )
+        heat_capacity_a = mexp*bcoef*T_a**(mexp-1) + 3./2*nfac*kB
+
+        return heat_capacity_a
+
+    def entropy( self, T_a, eos_d ):
+        """Returns Entropy."""
+        raise NotImplementedError("'entropy' function not implimented for this model")
 #====================================================================
 class MieGrun(ThermalMod):
     """
@@ -1101,69 +1120,38 @@ class MieGrunDebye(MieGrun):
             # exponentiate to get integral value
             return np.exp( logfval_a )
 #====================================================================
-class GenRosenfeldTaranzona(ThermalMod):
-    """
-    Generalized Rosenfeld-Taranzona Equation of State Model (Rosenfeld1998)
-    - Cv takes on general form of shifted power-law as in original
-    Rosenfeld-Taranzona model, but the exponent and high-temp limit are
-    parameters rather than fixed
-    - only applicable to isochores
-    - must provide a method to evaluate properties along isochore
-    """
-    __metaclass__ = ABCMeta
+class GammaPowLaw(GammaMod):
+    def __init__( self ):
+        pass
 
-    def get_param_scale_sub( self, eos_d):
-        """Return scale values for each parameter"""
-        acoef, bcoef, mexp, nfac = self.get_params\
-            ( ['acoef','bcoef','mexp','nfac'], eos_d )
+    def gamma( self, V_a, eos_d ):
+        # OLD version fixed to zero-press ref volume
+        # V0, gamma0, q = self.get_params( ['V0','gamma0','q'], eos_d )
+        # gamma_a = gamma0 *(V_a/V0)**q
 
-        acoef_scl = 1.0 # This cannot be well-determined without more info
-        # ...like a reference temp or energy variation
-        bcoef_scl = np.abs(bcoef)
-        mexp_scl = 3./5
-        nfac_scl = 1.0
-        paramkey_a = np.array(['acoef','bcoef','mexp','nfac'])
-        scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,nfac_scl])
+        # generalized version
+        VR, gammaR, q = self.get_params( ['VR','gammaR','q'], eos_d )
+        gamma_a = gammaR *(V_a/VR)**q
 
-        return scale_a, paramkey_a
+        return gamma_a
 
-    def calc_acoef( self, V_a, eos_d ):
-        "Simple fixed coefficient value appropriate for isochores"
-        acoef, = self.get_params( ['acoef'], eos_d )
-        return acoef
+    def temp( self, V_a, TR, eos_d ):
+        """
+        Return temperature for debye model
+        V_a: sample volume array
+        TR: temperature at V=VR
+        """
+        # OLD version fixed to zero-press ref volume
+        # V0, gamma0, q = self.get_params( ['V0','gamma0','q'], eos_d )
+        # gamma_a = self.gamma( V_a, eos_d )
+        # T_a = T0*np.exp( -(gamma_a - gamma0)/q )
 
-    def calc_bcoef( self, V_a, eos_d ):
-        "Simple fixed coefficient value appropriate for isochores"
-        bcoef, = self.get_params( ['bcoef'], eos_d )
-        return bcoef
+        # OLD version fixed to zero-press ref volume
+        VR, gammaR, q = self.get_params( ['VR','gammaR','q'], eos_d )
+        gamma_a = self.gamma( V_a, eos_d )
+        T_a = TR*np.exp( -(gamma_a - gammaR)/q )
 
-    def energy( self, V_a, T_a, eos_d ):
-        """Returns Thermal Component of Energy."""
-        mexp, nfac = self.get_params( ['mexp','nfac'], eos_d )
-        kB = self.get_consts( ['kboltz'], eos_d )# eV/K
-
-        acoef = self.calc_acoef( V_a, eos_d )
-        bcoef = self.calc_bcoef( V_a, eos_d )
-
-        energy_a = acoef + bcoef*T_a**m + 3./2*nfac*kB*T_a
-
-        return energy_a
-
-    def heat_capacity( self, V_a, T_a, eos_d ):
-        """Calculate Heat Capacity usin."""
-        mexp, nfac = self.get_params( ['mexp','nfac'], eos_d )
-        kB = self.get_consts( ['kboltz'], eos_d )# eV/K
-
-        acoef = self.calc_acoef( V_a, eos_d )
-        bcoef = self.calc_bcoef( V_a, eos_d )
-
-        heat_capacity_a = mexp*bcoef*T_a**(mexp-1) + 3./2*nfac*kB
-
-        return heat_capacity_a
-
-    def entropy( self, V_a, T_a, eos_d ):
-        """Returns Entropy."""
-        raise NotImplementedError("'entropy' function not implimented for this model")
+        return T_a
 #====================================================================
 class ThermPressMod(FullMod):
     def press( self, V_a, T_a, eos_d ):
