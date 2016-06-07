@@ -1087,8 +1087,7 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         if bcoef_a is None:
             bcoef_a, = Control.get_params( ['bcoef'], eos_d )
 
-        kB = Control.get_consts( ['kboltz'], eos_d )
-
+        kB, = Control.get_consts( ['kboltz'], eos_d )
         heat_capacity_a = mexp*bcoef_a*T_a**(mexp-1) + 3./2*nfac*kB
 
         return heat_capacity_a
@@ -1178,10 +1177,14 @@ class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
 
         # Equation 6 (Spera2011)
 
-        # UNITS all wrong!!!
-        press_therm_a = T_a/T0*P_ref_a \
+        # NOTE that the temperature factor has been removed
+
+        press_therm_a = P_ref_a \
             + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
                         + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
+        # press_therm_a = T_a/T0*P_ref_a \
+        #     + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
+        #                 + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
 
         return press_therm_a
 #====================================================================
