@@ -26,6 +26,7 @@ class Control(object):
         const_d['JperHa'] = 4.35974434e-18 # J/Ha
         const_d['JperCal'] = 4.184 # J/Cal
         const_d['Nmol'] = 6.0221413e+23 # atoms/mol
+        const_d['kJ_molpereV'] = 96.49 # kJ/mol/eV
         const_d['R'] = 8.314462 # J/K/mol
         const_d['kboltz'] = 8.617332e-5 # eV/K
         const_d['ang3percc'] = 1e24 # ang^3/cm^3
@@ -421,13 +422,17 @@ class CompressPathMod(CompressMod):
     __metaclass__ = ABCMeta
 
     path_opts = ['T','S']
+    supress_energy = False
+    supress_press = False
 
-    def __init__( self, path_const='T', level_const=300,
-                 expand_adj_mod=None ):
+    def __init__( self, path_const='T', level_const=300, expand_adj_mod=None,
+                 supress_energy=False, supress_press=False ):
         assert path_const in self.path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + path_opts
         self.path_const = path_const
         self.level_const = level_const
+        self.supress_energy = supress_energy
+        self.supress_press = supress_press
 
         # Use Expansion Adjustment for negative pressure region?
         if expand_adj_mod is None:
@@ -493,22 +498,33 @@ class CompressPathMod(CompressMod):
 
     # EOS property functions
     def press( self, V_a, eos_d, apply_expand_adj=True):
-        press_a = self.calc_press(V_a, eos_d)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_exp(V_a, eos_d)
-            if (ind_exp.size>0):
-                press_a[ind_exp] = self.expand_adj_mod.calc_press( V_a[ind_exp], eos_d )
+        if self.supress_press:
+            zero_a = 0.0*V_a
+            return zero_a
 
-        return press_a
+        else:
+            press_a = self.calc_press(V_a, eos_d)
+            if self.expand_adj and apply_expand_adj:
+                ind_exp = self.get_ind_exp(V_a, eos_d)
+                if (ind_exp.size>0):
+                    press_a[ind_exp] = self.expand_adj_mod.calc_press( V_a[ind_exp], eos_d )
+
+            return press_a
+        pass
 
     def energy( self, V_a, eos_d, apply_expand_adj=True ):
-        energy_a =  self.calc_energy(V_a, eos_d)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_exp(V_a, eos_d)
-            if apply_expand_adj and (ind_exp.size>0):
-                energy_a[ind_exp] = self.expand_adj_mod.calc_energy( V_a[ind_exp], eos_d )
+        if self.supress_energy:
+            zero_a = 0.0*V_a
+            return zero_a
 
-        return energy_a
+        else:
+            energy_a =  self.calc_energy(V_a, eos_d)
+            if self.expand_adj and apply_expand_adj:
+                ind_exp = self.get_ind_exp(V_a, eos_d)
+                if apply_expand_adj and (ind_exp.size>0):
+                    energy_a[ind_exp] = self.expand_adj_mod.calc_energy( V_a[ind_exp], eos_d )
+
+            return energy_a
 
     def bulk_mod( self, V_a, eos_d, apply_expand_adj=True ):
         bulk_mod_a =  self.calc_bulk_mod(V_a, eos_d)
@@ -1034,10 +1050,35 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         if bcoef_a is None:
             bcoef_a, = Control.get_params( ['bcoef'], eos_d )
 
-        kB = Control.get_consts( ['kboltz'], eos_d )
-        energy_a = acoef_a + bcoef_a*T_a**mexp + 3./2*nfac*kB*T_a
+        potential_energy_a = self.calc_potential_energy( T_a, eos_d,
+                                                        acoef_a=acoef_a,
+                                                        bcoef_a=bcoef_a )
+        kinetic_energy_a = self.calc_kinetic_energy( T_a, eos_d )
+        energy_a = potential_energy_a + kinetic_energy_a
 
         return energy_a
+
+    def calc_kinetic_energy( self, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        nfac, = Control.get_params( ['nfac'], eos_d )
+        kB, = Control.get_consts( ['kboltz'], eos_d )
+        kinetic_energy_a = 3.0/2*nfac*kB*T_a
+
+        return kinetic_energy_a
+
+    def calc_potential_energy( self, T_a, eos_d, acoef_a=None, bcoef_a=None ):
+        """Returns Thermal Component of Energy."""
+        mexp, nfac = Control.get_params( ['mexp','nfac'], eos_d )
+
+        if acoef_a is None:
+            acoef_a, = Control.get_params( ['acoef'], eos_d )
+
+        if bcoef_a is None:
+            bcoef_a, = Control.get_params( ['bcoef'], eos_d )
+
+        potential_energy_a = acoef_a + bcoef_a*T_a**mexp
+
+        return potential_energy_a
 
     def calc_heat_capacity( self, T_a, eos_d, bcoef_a=None ):
         """Calculate Heat Capacity usin."""
@@ -1058,8 +1099,9 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 #====================================================================
 class RosenfeldTaranzonaCompress(ThermalMod):
     """
-    Polynomial volume-dependence for Rosenfeld-Taranzona Equation of State
-    - First implemented by  (Saika-Voivod2000)
+    Volume-dependent Rosenfeld-Taranzona Equation of State
+      - must impliment particular volume-dependence
+
     """
     __metaclass__ = ABCMeta
 
@@ -1078,6 +1120,13 @@ class RosenfeldTaranzonaCompress(ThermalMod):
         energy_a = GenRosenfeldTaranzona().calc_energy\
             ( T_a, eos_d, acoef_a=acoef_a, bcoef_a=bcoef_a )
         return energy_a
+
+    def calc_potential_energy( self, V_a, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+        potenergy_a = GenRosenfeldTaranzona().calc_potential_energy\
+            ( T_a, eos_d, acoef_a=acoef_a, bcoef_a=bcoef_a )
+        return potenergy_a
 
     def calc_heat_capacity( self, V_a, T_a, eos_d ):
         """Calculate Heat Capacity usin."""
@@ -1106,6 +1155,35 @@ class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
         acoef_a = np.polyval(poly_acoef_a[::-1], V_a)
         bcoef_a = np.polyval(poly_bcoef_a[::-1], V_a)
         return acoef_a, bcoef_a
+
+    def calc_press( self, V_a, T_a, eos_d ):
+        T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
+
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
+
+        assert mexp==3./5, 'currently hardcoded to mexp=3/5'
+        # assert nfac==1, 'currently hardcoded to nfac=1'
+
+        P_ref_a = compress_path_mod.calc_press( V_a, eos_d )
+
+        dV = V0*1e-4
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+        acoef_hi_a, bcoef_hi_a = self.calc_RT_coef( V_a+dV, eos_d )
+
+        dadV_a = (acoef_hi_a-acoef_a)/dV
+        dbdV_a = (bcoef_hi_a-bcoef_a)/dV
+
+
+
+        # Equation 6 (Spera2011)
+
+        # UNITS all wrong!!!
+        press_therm_a = T_a/T0*P_ref_a \
+            + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
+                        + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
+
+        return press_therm_a
 #====================================================================
 class MieGrun(ThermalMod):
     """
@@ -1286,7 +1364,7 @@ class GammaPowLaw(GammaMod):
 
         return T_a
 #====================================================================
-class ThermPressMod(FullMod):
+class ThermalPressMod(FullMod):
     def press( self, V_a, T_a, eos_d ):
         """Returns Press variation along compression curve."""
         V_a, T_a = fill_array( V_a, T_a )
