@@ -352,7 +352,6 @@ class EosMod(object):
 
         deriv_a = dval_a/dxfrac
         return deriv_a
-
 #====================================================================
 class CompressMod(EosMod):
     """
@@ -1082,15 +1081,32 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
     def calc_heat_capacity( self, T_a, eos_d, bcoef_a=None ):
         """Calculate Heat Capacity usin."""
-        mexp, nfac = Control.get_params( ['mexp','nfac'], eos_d )
+        heat_capacity_pot = self.calc_heat_capacity_pot( T_a, eos_d,
+                                                        bcoef_a=bcoef_a )
+
+        heat_capacity_kin = self.calc_heat_capacity_kin( T_a, eos_d )
+
+        heat_capacity_a = heat_capacity_pot+heat_capacity_kin
+
+        return heat_capacity_a
+
+    def calc_heat_capacity_pot( self, T_a, eos_d, bcoef_a=None ):
+        mexp, = Control.get_params( ['mexp'], eos_d )
 
         if bcoef_a is None:
             bcoef_a, = Control.get_params( ['bcoef'], eos_d )
 
-        kB, = Control.get_consts( ['kboltz'], eos_d )
-        heat_capacity_a = mexp*bcoef_a*T_a**(mexp-1) + 3./2*nfac*kB
+        heat_capacity_pot_a = mexp*bcoef_a*T_a**(mexp-1)
 
-        return heat_capacity_a
+        return heat_capacity_pot_a
+
+
+    def calc_heat_capacity_kin( self, T_a, eos_d ):
+        nfac, = Control.get_params( ['nfac'], eos_d )
+        kB, = Control.get_consts( ['kboltz'], eos_d )
+        heat_capacity_kin_a = + 3./2*nfac*kB
+
+        return heat_capacity_kin_a
 
     def calc_entropy( self, T_a, eos_d ):
         """Returns Entropy."""
@@ -1185,6 +1201,110 @@ class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
         # press_therm_a = T_a/T0*P_ref_a \
         #     + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
         #                 + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
+
+        return press_therm_a
+#====================================================================
+class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
+    """
+    Vol-dependence for Rosenfeld-Taranzona EOS from Compress Path Perturbation
+    """
+    __metaclass__ = ABCMeta
+
+    def get_param_scale_sub( self, eos_d):
+        """Return scale values for each parameter"""
+        dEth,dVth,dKth, dKPth = Control.get_params( ['dE0th','dV0th','dK0th',
+                                                     'dKP0th'], eos_d )
+        T0,E0,V0,K0,KP0 = Control.get_params( ['T0','E0','V0','K0','KP0'], eos_d )
+
+        T0_scl = T0
+        mexp_scl = 3./5
+        nfac_scl = 1.0
+
+        dE0th_scl = 1.0
+        dV0th_scl = 1.0
+        dK0th_scl = 1.0
+        dKP0th_scl = 1.0
+
+        paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th','mexp','nfac'])
+        scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
+                            mexp_scl,nfac_scl])
+
+        return scale_a, paramkey_a
+
+    def calc_RT_coef( self, V_a, eos_d ):
+        """
+        Must implement a method for determining RT coefficients as a function of vol
+        """
+        dE0th,dV0th,dK0th, dKP0th = Control.get_params( ['dE0th','dV0th','dK0th',
+                                                         'dKP0th'], eos_d )
+        T0,mexp = Control.get_params( ['T0','mexp'], eos_d )
+
+
+        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
+        Eperturb_a, compress_scale_a, compress_paramkey_a = \
+            compress_path_mod.calc_energy_perturb( V_a, eos_d )
+
+
+        E0scl = compress_scale_a[compress_paramkey_a=='E0']
+        V0scl = compress_scale_a[compress_paramkey_a=='V0']
+        K0scl = compress_scale_a[compress_paramkey_a=='K0']
+        KP0scl = compress_scale_a[compress_paramkey_a=='KP0']
+
+        bcoef_a = 1.0/T0**mexp*\
+            ( dE0th*E0scl*Eperturb_a[compress_paramkey_a=='E0',:]
+             + dV0th*V0scl*Eperturb_a[compress_paramkey_a=='V0',:]
+             + dK0th*K0scl*Eperturb_a[compress_paramkey_a=='K0',:]
+             + dKP0th*KP0scl*Eperturb_a[compress_paramkey_a=='KP0',:])
+
+
+        # acoef_a = compress_path_mod.calc_energy( V_a, eos_d )
+        acoef_a = np.zeros( V_a.size )
+
+        return acoef_a, bcoef_a
+
+    def calc_energy( self, V_a, T_a, eos_d ):
+        T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
+
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        gamma_mod = eos_d['modtype_d']['GammaMod']
+
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+        temp_ref_a = gamma_mod.temp( V_a, T0, eos_d )
+
+        energy_a = np.squeeze\
+            (self.calc_potential_energy( V_a, T_a, eos_d )
+             - self.calc_potential_energy( V_a, temp_ref_a, eos_d ))
+
+        return energy_a
+
+    def calc_press( self, V_a, T_a, eos_d ):
+        V0, = Control.get_params( ['V0'], eos_d )
+        dV = V0*1e-4
+        E_a = self.calc_energy( V_a, T_a, eos_d )
+        E_hi_a = self.calc_energy( V_a+dV, T_a, eos_d )
+
+        S_a = self.calc_entropy( V_a, T_a, eos_d )
+        S_hi_a = self.calc_entropy( V_a+dV, T_a, eos_d )
+
+        dEdV_a = (energy_hi_a-energy_a)/dV
+
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        press_therm_a = -PV_ratio*dEdV_a
+
+        return press_therm_a
+
+    def calc_entropy( self, V_a, T_a, eos_d ):
+
+        Cv_a = self.calc_heat_capacity( V_a, T_a, eos_d )
+
+
+        S_a = self.calc_entropy( V_a, T_a, eos_d )
+        S_hi_a = self.calc_entropy( V_a+dV, T_a, eos_d )
+
+        dEdV_a = (energy_hi_a-energy_a)/dV
+
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        press_therm_a = -PV_ratio*dEdV_a
 
         return press_therm_a
 #====================================================================
@@ -1335,8 +1455,31 @@ class MieGrunDebye(MieGrun):
             return np.exp( logfval_a )
 #====================================================================
 class GammaPowLaw(GammaMod):
-    def __init__( self ):
+    def __init__( self, V0ref=False ):
+        self.V0ref = V0ref
         pass
+
+    def get_param_scale_sub( self, eos_d ):
+        """Return scale values for each parameter"""
+
+
+        gammaR, q = Control.get_params( ['gammaR','q'], eos_d )
+
+        if self.V0ref:
+            VR, = Control.get_params( ['V0'], eos_d )
+            VRkey = 'V0'
+        else:
+            VR, = Control.get_params( ['VR'], eos_d )
+            VRkey = 'VR'
+
+        gammaR_scl = 1.0
+        q_scl = 1.0
+        VR_scl = VR
+
+        paramkey_a = np.array(['gammaR','q',VRkey])
+        scale_a = np.array([gammaR,q,VR])
+
+        return scale_a, paramkey_a
 
     def gamma( self, V_a, eos_d ):
         # OLD version fixed to zero-press ref volume
@@ -1344,7 +1487,14 @@ class GammaPowLaw(GammaMod):
         # gamma_a = gamma0 *(V_a/V0)**q
 
         # generalized version
-        VR, gammaR, q = Control.get_params( ['VR','gammaR','q'], eos_d )
+        gammaR, q = Control.get_params( ['gammaR','q'], eos_d )
+
+        if self.V0ref:
+            VR, = Control.get_params( ['V0'], eos_d )
+        else:
+            VR, = Control.get_params( ['VR'], eos_d )
+
+
         gamma_a = gammaR *(V_a/VR)**q
 
         return gamma_a
@@ -1355,13 +1505,9 @@ class GammaPowLaw(GammaMod):
         V_a: sample volume array
         TR: temperature at V=VR
         """
-        # OLD version fixed to zero-press ref volume
-        # V0, gamma0, q = Control.get_params( ['V0','gamma0','q'], eos_d )
-        # gamma_a = self.gamma( V_a, eos_d )
-        # T_a = T0*np.exp( -(gamma_a - gamma0)/q )
 
         # OLD version fixed to zero-press ref volume
-        VR, gammaR, q = Control.get_params( ['VR','gammaR','q'], eos_d )
+        gammaR, q = Control.get_params( ['gammaR','q'], eos_d )
         gamma_a = self.gamma( V_a, eos_d )
         T_a = TR*np.exp( -(gamma_a - gammaR)/q )
 
