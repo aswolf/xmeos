@@ -1268,7 +1268,6 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         return acoef_a, bcoef_a
 
     def calc_energy( self, V_a, T_a, eos_d ):
-        print 'hello world'
         T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
 
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
@@ -1289,10 +1288,12 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         E_a = self.calc_energy( V_a, T_a, eos_d )
         E_hi_a = self.calc_energy( V_a+dV, T_a, eos_d )
 
-        S_a = self.calc_entropy( V_a, T_a, eos_d )
-        S_hi_a = self.calc_entropy( V_a+dV, T_a, eos_d )
+        # S_a = self.calc_entropy( V_a, T_a, eos_d )
+        # S_hi_a = self.calc_entropy( V_a+dV, T_a, eos_d )
 
-        dEdV_a = (energy_hi_a-energy_a)/dV
+        # NOTE this is wrong, it should be the free energy deriv, not internal
+        # energy
+        dEdV_a = (E_hi_a-E_a)/dV
 
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
         press_therm_a = -PV_ratio*dEdV_a
