@@ -1210,6 +1210,11 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
     """
     __metaclass__ = ABCMeta
 
+    @classmethod
+    def hello_world(cls):
+        print 'hello world'
+        pass
+
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
         dEth,dVth,dKth, dKPth = Control.get_params( ['dE0th','dV0th','dK0th',
@@ -1263,6 +1268,7 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         return acoef_a, bcoef_a
 
     def calc_energy( self, V_a, T_a, eos_d ):
+        print 'hello world'
         T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
 
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
