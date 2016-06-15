@@ -1049,23 +1049,22 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         if bcoef_a is None:
             bcoef_a, = Control.get_params( ['bcoef'], eos_d )
 
-        potential_energy_a = self.calc_potential_energy( T_a, eos_d,
-                                                        acoef_a=acoef_a,
-                                                        bcoef_a=bcoef_a )
-        kinetic_energy_a = self.calc_kinetic_energy( T_a, eos_d )
-        energy_a = potential_energy_a + kinetic_energy_a
+        energy_pot_a = self.calc_energy_pot( T_a, eos_d, acoef_a=acoef_a,
+                                            bcoef_a=bcoef_a )
+        energy_kin_a = self.calc_energy_kin( T_a, eos_d )
+        energy_a = energy_pot_a + energy_kin_a
 
         return energy_a
 
-    def calc_kinetic_energy( self, T_a, eos_d ):
+    def calc_energy_kin( self, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
         nfac, = Control.get_params( ['nfac'], eos_d )
         kB, = Control.get_consts( ['kboltz'], eos_d )
-        kinetic_energy_a = 3.0/2*nfac*kB*T_a
+        energy_kin_a = 3.0/2*nfac*kB*T_a
 
-        return kinetic_energy_a
+        return energy_kin_a
 
-    def calc_potential_energy( self, T_a, eos_d, acoef_a=None, bcoef_a=None ):
+    def calc_energy_pot( self, T_a, eos_d, acoef_a=None, bcoef_a=None ):
         """Returns Thermal Component of Energy."""
         mexp, nfac = Control.get_params( ['mexp','nfac'], eos_d )
 
@@ -1075,9 +1074,9 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         if bcoef_a is None:
             bcoef_a, = Control.get_params( ['bcoef'], eos_d )
 
-        potential_energy_a = acoef_a + bcoef_a*T_a**mexp
+        energy_pot_a = acoef_a + bcoef_a*T_a**mexp
 
-        return potential_energy_a
+        return energy_pot_a
 
     def calc_heat_capacity( self, T_a, eos_d, bcoef_a=None ):
         """Calculate Heat Capacity usin."""
@@ -1096,21 +1095,57 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         if bcoef_a is None:
             bcoef_a, = Control.get_params( ['bcoef'], eos_d )
 
-        heat_capacity_pot_a = mexp*bcoef_a*T_a**(mexp-1)
+        heat_capacity_pot_a = mexp*bcoef_a*T_a**(mexp-1.0)
 
         return heat_capacity_pot_a
-
 
     def calc_heat_capacity_kin( self, T_a, eos_d ):
         nfac, = Control.get_params( ['nfac'], eos_d )
         kB, = Control.get_consts( ['kboltz'], eos_d )
-        heat_capacity_kin_a = + 3./2*nfac*kB
+        heat_capacity_kin_a = + 3.0/2*nfac*kB
 
         return heat_capacity_kin_a
 
-    def calc_entropy( self, T_a, eos_d ):
+    def calc_entropy_pot( self, T_a, eos_d, Tref=None, bcoef_a=None ):
+        mexp, = Control.get_params( ['mexp'], eos_d )
+
+        if Tref is None:
+            Tref, = Control.get_params( ['T0'], eos_d )
+
+        Cv_pot = self.calc_heat_capacity_pot( T_a, eos_d, bcoef_a=bcoef_a )
+        Cv_ref_pot = self.calc_heat_capacity_pot( Tref, eos_d, bcoef_a=bcoef_a )
+        dSpot_a = (Cv_pot-Cv_ref_pot)/(mexp-1.0)
+
+        return dSpot_a
+
+    def calc_entropy_kin( self, T_a, eos_d, Tref=None ):
+        if Tref is None:
+            Tref, = Control.get_params( ['T0'], eos_d )
+
+        Cv_kin = self.calc_heat_capacity_kin( T_a, eos_d )
+        dSkin_a = Cv_kin*np.log( T_a/Tref )
+
+        return dSkin_a
+
+    def calc_entropy( self, T_a, eos_d, Tref=None, Sref=None, bcoef_a=None ):
         """Returns Entropy."""
-        raise NotImplementedError("'entropy' function not implimented for this model")
+        mexp, = Control.get_params( ['mexp'], eos_d )
+
+        if Sref is None:
+            Sref, = Control.get_params( ['S0'], eos_d )
+
+        if Tref is None:
+            Tref, = Control.get_params( ['T0'], eos_d )
+
+        Cv_pot = self.calc_heat_capacity_pot( T_a, eos_d, bcoef_a=bcoef_a )
+        Cv_ref_pot = self.calc_heat_capacity_pot( Tref, eos_d, bcoef_a=bcoef_a )
+        delS_pot = (Cv_pot-Cv_ref_pot)/(mexp-1.0)
+
+        Cv_kin = self.calc_heat_capacity_kin( T_a, eos_d )
+        delS_kin = Cv_kin*np.log( T_a/Tref )
+
+        entropy_a = Sref + delS_pot + delS_kin
+        return entropy_a
 #====================================================================
 class RosenfeldTaranzonaCompress(ThermalMod):
     """
@@ -1129,6 +1164,19 @@ class RosenfeldTaranzonaCompress(ThermalMod):
         bcoef_a = []
         return acoef_a, bcoef_a
 
+    def calc_RT_coef_deriv( self, V_a, eos_d ):
+        V0, = Control.get_params( ['V0'], eos_d )
+
+        # Use numerical deriv
+        dV = V0*1e-5
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+        acoef_hi_a, bcoef_hi_a = self.calc_RT_coef( V_a+dV, eos_d )
+
+        acoef_deriv_a = (acoef_hi_a-acoef_a)/dV
+        bcoef_deriv_a = (bcoef_hi_a-bcoef_a)/dV
+
+        return acoef_deriv_a, bcoef_deriv_a
+
     def calc_energy( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
         acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
@@ -1136,12 +1184,17 @@ class RosenfeldTaranzonaCompress(ThermalMod):
             ( T_a, eos_d, acoef_a=acoef_a, bcoef_a=bcoef_a )
         return energy_a
 
-    def calc_potential_energy( self, V_a, T_a, eos_d ):
+    def calc_energy_pot( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
         acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
-        potenergy_a = GenRosenfeldTaranzona().calc_potential_energy\
+        energy_pot_a = GenRosenfeldTaranzona().calc_energy_pot\
             ( T_a, eos_d, acoef_a=acoef_a, bcoef_a=bcoef_a )
-        return potenergy_a
+        return energy_pot_a
+
+    def calc_energy_kin( self, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+        energy_kin_a = GenRosenfeldTaranzona().calc_energy_kin( T_a, eos_d )
+        return energy_kin_a
 
     def calc_heat_capacity( self, V_a, T_a, eos_d ):
         """Calculate Heat Capacity usin."""
@@ -1149,6 +1202,20 @@ class RosenfeldTaranzonaCompress(ThermalMod):
         heat_capacity_a = GenRosenfeldTaranzona().calc_heat_capacity\
             ( T_a, eos_d, bcoef_a=bcoef_a )
         return heat_capacity_a
+
+    def calc_entropy( self, V_a, T_a, eos_d ):
+        V0, S0 = Control.get_params( ['V0','S0'], eos_d )
+        T0, = Control.get_params( ['T0'], eos_d )
+
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+        gamma_mod = eos_d['modtype_d']['GammaMod']
+
+        Tref_a = gamma_mod.temp( V_a, T0, eos_d )
+
+        S_a = GenRosenfeldTaranzona().calc_entropy( T_a, eos_d, Tref=Tref_a,
+                                                   Sref=S0, bcoef_a=bcoef_a )
+        return S_a
+
 #====================================================================
 class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
     """
@@ -1267,53 +1334,98 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
 
         return acoef_a, bcoef_a
 
-    def calc_energy( self, V_a, T_a, eos_d ):
-        T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
+    def calc_energy_pot_diff( self, V_a, T_a, eos_d ):
+        T0, = Control.get_params( ['T0'], eos_d )
 
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
         gamma_mod = eos_d['modtype_d']['GammaMod']
+        T_ref_a = gamma_mod.temp( V_a, T0, eos_d )
 
-        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
-        temp_ref_a = gamma_mod.temp( V_a, T0, eos_d )
+        del_energy_pot_a = self.calc_energy_pot( V_a, T_a, eos_d ) \
+            - self.calc_energy_pot( V_a, T_ref_a, eos_d )
 
-        energy_a = np.squeeze\
-            (self.calc_potential_energy( V_a, T_a, eos_d )
-             - self.calc_potential_energy( V_a, temp_ref_a, eos_d ))
+        return del_energy_pot_a
 
-        return energy_a
+    def calc_energy_kin_diff( self, V_a, T_a, eos_d ):
+        T0, = Control.get_params( ['T0'], eos_d )
+
+        gamma_mod = eos_d['modtype_d']['GammaMod']
+        T_ref_a = gamma_mod.temp( V_a, T0, eos_d )
+
+        del_energy_kin_a = self.calc_energy_kin( T_a, eos_d ) \
+            - self.calc_energy_kin( T_ref_a, eos_d )
+
+        return del_energy_kin_a
+
+    def calc_energy( self, V_a, T_a, eos_d ):
+        dE_pot = self.calc_energy_pot_diff( V_a, T_a, eos_d )
+        dE_kin = self.calc_energy_kin_diff( V_a, T_a, eos_d )
+        dE_tot = dE_pot + dE_kin
+
+        return dE_tot
+
+    def calc_free_energy( self, V_a, T_a, eos_d ):
+        dE_tot = self.calc_energy( V_a, T_a, eos_d )
+        S_tot = self.calc_entropy( V_a, T_a, eos_d )
+        dF_tot = dE_tot - T_a*S_tot
+
+        return dF_tot
 
     def calc_press( self, V_a, T_a, eos_d ):
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
         V0, = Control.get_params( ['V0'], eos_d )
-        dV = V0*1e-4
-        E_a = self.calc_energy( V_a, T_a, eos_d )
-        E_hi_a = self.calc_energy( V_a+dV, T_a, eos_d )
 
-        # S_a = self.calc_entropy( V_a, T_a, eos_d )
-        # S_hi_a = self.calc_entropy( V_a+dV, T_a, eos_d )
-
-        # NOTE this is wrong, it should be the free energy deriv, not internal
-        # energy
-        dEdV_a = (E_hi_a-E_a)/dV
-
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
-        press_therm_a = -PV_ratio*dEdV_a
+        # Use numerical deriv
+        dV = V0*1e-5
+        F_a = self.calc_free_energy( V_a, T_a, eos_d )
+        F_hi_a = self.calc_free_energy( V_a+dV, T_a, eos_d )
+        press_therm_a = -1.0/PV_ratio*(F_hi_a-F_a)/dV
 
         return press_therm_a
 
-    def calc_entropy( self, V_a, T_a, eos_d ):
+    # def calc_press_pot( self, V_a, T_a, eos_d ):
+    #     """Returns Thermal Component of Energy."""
 
-        Cv_a = self.calc_heat_capacity( V_a, T_a, eos_d )
+    #     acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+    #     acoef_deriv_a, bcoef_deriv_a = self.calc_RT_coef_deriv( V_a, eos_d )
+
+    #     Epot_a = self.calc_energy_pot( V_a, T_a, eos_d )
+    #     Cv
 
 
-        S_a = self.calc_entropy( V_a, T_a, eos_d )
-        S_hi_a = self.calc_entropy( V_a+dV, T_a, eos_d )
 
-        dEdV_a = (energy_hi_a-energy_a)/dV
+    #     energy_pot_a = GenRosenfeldTaranzona().calc_energy_pot\
+    #         ( T_a, eos_d, acoef_a=acoef_a, bcoef_a=bcoef_a )
+    #     return energy_pot_a
 
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
-        press_therm_a = -PV_ratio*dEdV_a
+    # def calc_press( self, V_a, T_a, eos_d ):
+    #     T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
 
-        return press_therm_a
+    #     PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+
+    #     # Use numerical deriv
+    #     dV = V0*1e-5
+    #     acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+    #     acoef_hi_a, bcoef_hi_a = self.calc_RT_coef( V_a+dV, eos_d )
+
+    #     dadV_a = (acoef_hi_a-acoef_a)/dV
+    #     dbdV_a = (bcoef_hi_a-bcoef_a)/dV
+
+    #     Ppot
+
+
+
+    #     # Equation 6 (Spera2011)
+
+    #     # NOTE that the temperature factor has been removed
+
+    #     press_therm_a = P_ref_a \
+    #         + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
+    #                     + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
+    #     # press_therm_a = T_a/T0*P_ref_a \
+    #     #     + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
+    #     #                 + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
+
+    #     return press_therm_a
 #====================================================================
 class MieGrun(ThermalMod):
     """
@@ -1526,8 +1638,8 @@ class ThermalPressMod(FullMod):
         V_a, T_a = fill_array( V_a, T_a )
         compress_path_mod, thermal_mod = Control.get_modtypes( ['CompressPathMod', 'ThermalMod'],
                                                eos_d )
-        press_a = compress_path_mod.press( V_a, eos_d ) \
-            + thermal_mod.press( V_a, T_a, eos_d )
+        press_a = np.squeeze( compress_path_mod.press( V_a, eos_d )
+                             + thermal_mod.press( V_a, T_a, eos_d ) )
         return press_a
 
     def energy( self, V_a, T_a, eos_d ):
@@ -1535,7 +1647,26 @@ class ThermalPressMod(FullMod):
         V_a, T_a = fill_array( V_a, T_a )
         compress_path_mod, thermal_mod = Control.get_modtypes( ['CompressPathMod', 'ThermalMod'],
                                                eos_d )
-        energy_a = compress_path_mod.energy( V_a, eos_d ) \
-            + thermal_mod.energy( V_a, T_a, eos_d )
+        energy_a = np.squeeze( compress_path_mod.energy( V_a, eos_d )
+                              + thermal_mod.energy( V_a, T_a, eos_d ) )
+
         return energy_a
+
+    def free_energy( self, V_a, T_a, eos_d ):
+        """Returns Free Energy."""
+        V_a, T_a = fill_array( V_a, T_a )
+        compress_path_mod, thermal_mod = Control.get_modtypes( ['CompressPathMod', 'ThermalMod'],
+                                               eos_d )
+        dFtot_a = thermal_mod.calc_free_energy( V_a, T_a, eos_d )
+        Eref_a = compress_path_mod.energy( V_a, eos_d )
+        free_energy_a = np.squeeze( Eref_a + dFtot_a )
+        return free_energy_a
+
+    def entropy( self, V_a, T_a, eos_d ):
+        """Returns Free Energy."""
+        V_a, T_a = fill_array( V_a, T_a )
+        thermal_mod, = Control.get_modtypes( ['ThermalMod'], eos_d )
+        S_a = np.squeeze( thermal_mod.entropy( V_a, T_a, eos_d ) )
+
+        return S_a
 #====================================================================

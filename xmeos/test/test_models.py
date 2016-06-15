@@ -77,7 +77,6 @@ class BaseTestCompressPathMod(object):
         #     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
         # plot_press_mismatch(Vmod_a,press_a,press_num_a)
-
         assert np.abs(Perr) < PTOL, '(Press error)/Prange, ' + np.str(Perr) + \
             ', must be less than PTOL'
 
@@ -112,7 +111,7 @@ class BaseTestCompressPathMod(object):
         # dEdE0_a = compress_path_mod.param_deriv( 'energy', 'E0', Vmod_a, eos_d, dxfrac=dxfrac)
 
         Eperturb_a, scale_a, paramkey_a = compress_path_mod.energy_perturb(Vmod_a, eos_d)
-        print paramkey_a
+        # print paramkey_a
 
         # Eperturb_num_a = np.vstack((dEdV0_a,dEdK0_a,dEdKP0_a,dEdKP20_a,dEdE0_a))
         max_error_a = np.max(np.abs(Eperturb_a-Eperturb_num_a),axis=1)
@@ -249,7 +248,7 @@ class BaseTestThermalMod(object):
         thermal_mod = eos_d['modtype_d']['ThermalMod']
 
         heat_capacity_a = thermal_mod.heat_capacity(Viso,Tmod_a,eos_d)
-        energy_a = thermal_mod.energy(Viso,Tmod_a,eos_d)
+        energy_a = np.squeeze( thermal_mod.energy(Viso,Tmod_a,eos_d) )
 
         heat_capacity_num_a = np.gradient(energy_a,dT)
 
@@ -302,6 +301,7 @@ class TestVinetCompressPathMod(BaseTestCompressPathMod):
         models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 
+    def test_energy_perturb_eval(self):
         self.do_test_energy_perturb_eval()
         pass
 #====================================================================
@@ -693,7 +693,7 @@ class TestRosenfeldTaranzonaPoly(BaseTestThermalMod):
         potenergy_mod_a = []
 
         for iV in Vgrid_a:
-            ipotenergy_a = thermal_mod.calc_potential_energy(iV,Tgrid_a,eos_d)
+            ipotenergy_a = thermal_mod.calc_energy_pot(iV,Tgrid_a,eos_d)
             potenergy_mod_a.append(ipotenergy_a)
 
         # energy_mod_a = np.array( energy_mod_a )
@@ -882,10 +882,10 @@ class TestRosenfeldTaranzonaPerturb(BaseTestThermalMod):
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
 
-        # # Must convert energy units from kJ/g to eV/atom
-        # energy_conv_fac = mass/eos_d['const_d']['kJ_molpereV']
-        # models.Control.set_consts( ['energy_conv_fac'], [energy_conv_fac],
-        #                           eos_d )
+        # Must convert energy units from kJ/g to eV/atom
+        energy_conv_fac = mass_avg/eos_d['const_d']['kJ_molpereV']
+        models.Control.set_consts( ['energy_conv_fac'], [energy_conv_fac],
+                                  eos_d )
 
 
         self.load_eos_mod( eos_d )
@@ -943,6 +943,122 @@ class TestRosenfeldTaranzonaPerturb(BaseTestThermalMod):
 
         assert s=='y', 'Figure must match published figure'
         pass
+
+    def test_kinetic_contribution(self):
+        Nsamp = 1001
+        eos_d = self.init_params({})
+
+        eos_d['param_d']['E0'] = -21.3
+        eos_d['param_d']['dE0th'] = 0.5
+        V0 = eos_d['param_d']['V0']
+
+        Vgrid_a = V0*np.arange(0.4,1.11,0.1)
+        Tgrid_a = np.linspace( 2500, 5000, Nsamp)
+        dT = Tgrid_a[1]-Tgrid_a[0]
+
+        kboltz = eos_d['const_d']['kboltz']
+        # Test entropy
+        TOL = 1e-4
+
+        iV = Vgrid_a[0]
+        genRT_mod = models.GenRosenfeldTaranzona()
+        thermal_mod = eos_d['modtype_d']['ThermalMod']
+        full_mod = eos_d['modtype_d']['FullMod']
+
+        Cvkin_a = genRT_mod.calc_heat_capacity_kin( Tgrid_a ,eos_d )
+
+        Ekin_a = genRT_mod.calc_energy_kin( Tgrid_a ,eos_d )
+        Cvkin_dE_err_a = ( Cvkin_a - np.gradient( Ekin_a, dT ) )/kboltz
+        assert np.all( np.abs(Cvkin_dE_err_a[1:-1]) < TOL ), \
+            'Cvkin must match numerical energy deriv'
+
+        Skin_a = genRT_mod.calc_entropy_kin( Tgrid_a ,eos_d, Tref=eos_d['param_d']['T0'] )
+        Cvkin_dS_err_a = ( Cvkin_a - Tgrid_a*np.gradient( Skin_a, dT ) )/kboltz
+        assert np.all( np.abs(Cvkin_dS_err_a[1:-1]) < TOL ), \
+            'Cvkin must match numerical entropy deriv'
+
+        Fkin_a = Ekin_a-Tgrid_a*Skin_a
+        Skin_dF_err_a = ( Skin_a + np.gradient( Fkin_a, dT ) )/kboltz
+        assert np.all( np.abs(Skin_dF_err_a[1:-1]) < TOL ), \
+            'Skin must match numerical free energy deriv'
+
+    def test_potential_contribution(self):
+        Nsamp = 1001
+
+        eos_d = self.init_params({})
+
+        eos_d['param_d']['E0'] = -21.3
+        eos_d['param_d']['dE0th'] = 0.5
+        V0 = eos_d['param_d']['V0']
+
+        Vgrid_a = V0*np.arange(0.4,1.11,0.1)
+        Tgrid_a = np.linspace( 2500, 5000, Nsamp)
+        dT = Tgrid_a[1]-Tgrid_a[0]
+
+        kboltz = eos_d['const_d']['kboltz']
+        # Test entropy
+        TOL = 1e-4
+
+        iV = Vgrid_a[0]
+        genRT_mod = models.GenRosenfeldTaranzona()
+        thermal_mod = eos_d['modtype_d']['ThermalMod']
+        full_mod = eos_d['modtype_d']['FullMod']
+
+
+        # verify potential heat capacity (energy deriv)
+        acoef_a, bcoef_a = thermal_mod.calc_RT_coef( iV, eos_d )
+        Cvpot_a = np.squeeze( genRT_mod.calc_heat_capacity_pot( Tgrid_a, eos_d,
+                                                               bcoef_a=bcoef_a ) )
+
+        Epot_a = np.squeeze( genRT_mod.calc_energy_pot( Tgrid_a, eos_d,
+                                                       acoef_a=acoef_a,
+                                                       bcoef_a=bcoef_a ) )
+        Cvpot_dE_a = (Cvpot_a - np.gradient( Epot_a, dT ))/kboltz
+        assert np.all( np.abs(Cvpot_dE_a[1:-1]) < TOL ), \
+            'Cvpot must match numerical energy deriv'
+
+        Spot_a = np.squeeze( genRT_mod.calc_entropy_pot( Tgrid_a, eos_d,
+                                                        bcoef_a=bcoef_a ) )
+        Cvpot_dS_a = ( Cvpot_a - Tgrid_a*np.gradient( Spot_a, dT ) )/kboltz
+        assert np.all( np.abs(Cvpot_dS_a[1:-1]) < TOL ), \
+            'Cvpot must match numerical entropy deriv'
+
+        Fpot_a = Epot_a-Tgrid_a*Spot_a
+        Spot_dF_err_a = ( Spot_a + np.gradient( Fpot_a, dT ) )/kboltz
+        assert np.all( np.abs(Spot_dF_err_a[1:-1]) < TOL ), \
+            'Spot must match numerical free energy deriv'
+
+    def test_total_entropy(self):
+        Nsamp = 1001
+
+        eos_d = self.init_params({})
+
+        eos_d['param_d']['E0'] = -21.3
+        eos_d['param_d']['dE0th'] = 0.5
+        V0 = eos_d['param_d']['V0']
+
+        Vgrid_a = V0*np.arange(0.4,1.11,0.1)
+        Tgrid_a = np.linspace( 2500, 5000, Nsamp)
+        dT = Tgrid_a[1]-Tgrid_a[0]
+
+        kboltz = eos_d['const_d']['kboltz']
+        # Test entropy
+        TOL = 1e-4
+
+        iV = Vgrid_a[0]
+        genRT_mod = models.GenRosenfeldTaranzona()
+        thermal_mod = eos_d['modtype_d']['ThermalMod']
+        full_mod = eos_d['modtype_d']['FullMod']
+
+        # verify total entropy
+
+        iFtot = np.squeeze( full_mod.free_energy( Vgrid_a[0], Tgrid_a, eos_d ) )
+        iStot = np.squeeze( full_mod.entropy( Vgrid_a[0], Tgrid_a, eos_d ) )
+        iSnum = -np.gradient( iFtot, dT )
+        Stot_dF_err_a = ( iStot - iSnum )/kboltz
+        assert np.all( np.abs(Stot_dF_err_a[1:-1]) < TOL ), \
+            'Spot must match numerical free energy deriv'
+#====================================================================
 
 #     def test_RT_potenergy_curves_Spera2011(self):
 #         Nsamp = 101
