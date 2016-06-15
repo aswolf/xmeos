@@ -314,44 +314,12 @@ class EosMod(object):
     def __init__( self ):
         pass
 
-    def get_param_scale( self, eos_d):
+    def get_param_scale( self, eos_d, apply_expand_adj=True):
         """Return scale values for each parameter"""
-        raise NotImplementedError("'get_param_scale' function not implimented for this model")
+        return self.get_param_scale_sub( eos_d )
 
-    def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
-        scale_a, paramkey_a = self.get_param_scale( eos_d, apply_expand_adj=True )
-        scale = scale_a[paramkey_a==paramname][0]
-        # print 'scale: ' + np.str(scale)
-
-        #if (paramname is 'E0') and (fname is 'energy'):
-        #    return np.ones(V_a.shape)
-        try:
-            fun = getattr(self, fname)
-            # Note that self is implicitly included
-            val0_a = fun( V_a, eos_d)
-        except:
-            assert False, 'That is not a valid function name ' + \
-                '(e.g. it should be press or energy)'
-
-        try:
-            param = Control.get_params( [paramname], eos_d )[0]
-            dparam = scale*dxfrac
-            # print 'param: ' + np.str(param)
-            # print 'dparam: ' + np.str(dparam)
-        except:
-            assert False, 'This is not a valid parameter name'
-
-        # set param value in eos_d dict
-        Control.set_params( [paramname,], [param+dparam,], eos_d )
-
-        # Note that self is implicitly included
-        dval_a = fun(V_a, eos_d) - val0_a
-
-        # reset param to original value
-        Control.set_params( [paramname], [param], eos_d )
-
-        deriv_a = dval_a/dxfrac
-        return deriv_a
+    def get_param_scale_sub( self, eos_d ):
+        raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
 #====================================================================
 class CompressMod(EosMod):
     """
@@ -496,6 +464,41 @@ class CompressPathMod(CompressMod):
         return self.level_const
 
     # EOS property functions
+    def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
+        scale_a, paramkey_a = self.get_param_scale( eos_d, apply_expand_adj=True )
+        scale = scale_a[paramkey_a==paramname][0]
+        # print 'scale: ' + np.str(scale)
+
+        #if (paramname is 'E0') and (fname is 'energy'):
+        #    return np.ones(V_a.shape)
+        try:
+            fun = getattr(self, fname)
+            # Note that self is implicitly included
+            val0_a = fun( V_a, eos_d)
+        except:
+            assert False, 'That is not a valid function name ' + \
+                '(e.g. it should be press or energy)'
+
+        try:
+            param = Control.get_params( [paramname], eos_d )[0]
+            dparam = scale*dxfrac
+            # print 'param: ' + np.str(param)
+            # print 'dparam: ' + np.str(dparam)
+        except:
+            assert False, 'This is not a valid parameter name'
+
+        # set param value in eos_d dict
+        Control.set_params( [paramname,], [param+dparam,], eos_d )
+
+        # Note that self is implicitly included
+        dval_a = fun(V_a, eos_d) - val0_a
+
+        # reset param to original value
+        Control.set_params( [paramname], [param], eos_d )
+
+        deriv_a = dval_a/dxfrac
+        return deriv_a
+
     def press( self, V_a, eos_d, apply_expand_adj=True):
         if self.supress_press:
             zero_a = 0.0*V_a
@@ -1216,7 +1219,6 @@ class RosenfeldTaranzonaCompress(ThermalMod):
         S_a = GenRosenfeldTaranzona().calc_entropy( T_a, eos_d, Tref=Tref_a,
                                                    Sref=S0, bcoef_a=bcoef_a )
         return S_a
-
 #====================================================================
 class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
     """
@@ -1286,9 +1288,15 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
 
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        dEth,dVth,dKth, dKPth = Control.get_params( ['dE0th','dV0th','dK0th',
-                                                     'dKP0th'], eos_d )
-        T0,E0,V0,K0,KP0 = Control.get_params( ['T0','E0','V0','K0','KP0'], eos_d )
+        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
+        if compress_path_mod.expand_adj:
+            dEth,dVth,dKth, dKPth, dKP2th = \
+                Control.get_params( ['dE0th','dV0th','dK0th','dKP0th','dKP20th'], eos_d )
+            T0,E0,V0,K0,KP0,KP20 = Control.get_params( ['T0','E0','V0','K0','KP0','KP20'], eos_d )
+        else:
+            dEth,dVth,dKth, dKPth = Control.get_params( ['dE0th','dV0th','dK0th',
+                                                         'dKP0th'], eos_d )
+            T0,E0,V0,K0,KP0 = Control.get_params( ['T0','E0','V0','K0','KP0'], eos_d )
 
         T0_scl = T0
         mexp_scl = 3./5
@@ -1299,9 +1307,17 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         dK0th_scl = 1.0
         dKP0th_scl = 1.0
 
-        paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th','mexp','nfac'])
-        scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
-                            mexp_scl,nfac_scl])
+        if compress_path_mod.expand_adj:
+            dKP20th_scl = 1.0
+            paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
+                                   'dKP20th','mexp','nfac'])
+            scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
+                                dKP20th_scl, mexp_scl,nfac_scl])
+        else:
+            paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
+                                   'mexp','nfac'])
+            scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
+                                mexp_scl,nfac_scl])
 
         return scale_a, paramkey_a
 
@@ -1383,6 +1399,7 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         press_therm_a = -PV_ratio*(F_hi_a-F_a)/dV
 
         return press_therm_a
+#====================================================================
 
     # def calc_press_pot( self, V_a, T_a, eos_d ):
     #     """Returns Thermal Component of Energy."""

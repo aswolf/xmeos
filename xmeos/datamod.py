@@ -52,7 +52,8 @@ def init_param_distbn(fit_model_l, eos_d, fix_param_l=[]):
     for fit_model_type in fit_model_l:
         fit_mod = eos_d['modtype_d'][fit_model_type]
         # use sub?
-        iscale_a, iparamkey_a = fit_mod.get_param_scale_sub(eos_d)
+        # iscale_a, iparamkey_a = fit_mod.get_param_scale_sub(eos_d)
+        iscale_a, iparamkey_a = fit_mod.get_param_scale(eos_d)
         scale_full_a = np.concatenate((scale_full_a,iscale_a))
         paramkey_full_a = np.concatenate((paramkey_full_a,iparamkey_a))
 

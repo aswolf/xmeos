@@ -104,6 +104,7 @@ class BaseTestCompressPathMod(object):
                 ( 'energy', paramkey, Vmod_a, eos_d, dxfrac=dxfrac)
 
 
+
         # dEdV0_a = compress_path_mod.param_deriv( 'energy', 'V0', Vmod_a, eos_d, dxfrac=dxfrac)
         # dEdK0_a = compress_path_mod.param_deriv( 'energy', 'K0', Vmod_a, eos_d, dxfrac=dxfrac)
         # dEdKP0_a = compress_path_mod.param_deriv( 'energy', 'KP0', Vmod_a, eos_d, dxfrac=dxfrac)
@@ -119,7 +120,6 @@ class BaseTestCompressPathMod(object):
         # try:
         # except:
 
-        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
         # plt.ion()
         # plt.figure()
         # plt.clf()
@@ -180,50 +180,6 @@ class BaseTestThermalPathMod(object):
 
         assert np.abs(Cverr) < CVTOL, '(Cv error)/Cv_scl, ' + np.str(Cverr) + \
             ', must be less than CVTOL, ' + np.str(CVTOL)
-
-    def do_test_energy_perturb_eval(self):
-        TOL = 1e-4
-        dxfrac = 1e-8
-
-        Nsamp = 10001
-        eos_d = self.init_params({})
-
-        param_d = eos_d['param_d']
-        Vmod_a = np.linspace(.7,1.3,Nsamp)*param_d['V0']
-        dV = Vmod_a[1] - Vmod_a[0]
-
-        thermal_path_mod = eos_d['modtype_d']['ThermalPathMod']
-        scale_a, paramkey_a = thermal_path_mod.get_param_scale( eos_d)
-
-        Eperturb_num_a = np.zeros((paramkey_a.size,Nsamp))
-        for ind,paramkey in enumerate(paramkey_a):
-            Eperturb_num_a[ind,:] = thermal_path_mod.param_deriv\
-                ( 'energy', paramkey, Vmod_a, eos_d, dxfrac=dxfrac)
-
-
-        # dEdV0_a = thermal_path_mod.param_deriv( 'energy', 'V0', Vmod_a, eos_d, dxfrac=dxfrac)
-        # dEdK0_a = thermal_path_mod.param_deriv( 'energy', 'K0', Vmod_a, eos_d, dxfrac=dxfrac)
-        # dEdKP0_a = thermal_path_mod.param_deriv( 'energy', 'KP0', Vmod_a, eos_d, dxfrac=dxfrac)
-        # dEdKP20_a = thermal_path_mod.param_deriv( 'energy', 'KP20', Vmod_a, eos_d, dxfrac=dxfrac)
-        # dEdE0_a = thermal_path_mod.param_deriv( 'energy', 'E0', Vmod_a, eos_d, dxfrac=dxfrac)
-
-        Eperturb_a, scale_a, paramkey_a = thermal_path_mod.energy_perturb(Vmod_a, eos_d)
-
-        # Eperturb_num_a = np.vstack((dEdV0_a,dEdK0_a,dEdKP0_a,dEdKP20_a,dEdE0_a))
-        max_error_a = np.max(np.abs(Eperturb_a-Eperturb_num_a),axis=1)
-
-        # try:
-        # except:
-
-        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
-        # plt.ion()
-        # plt.figure()
-        # plt.clf()
-        # plt.plot(Vmod_a[::100], Eperturb_num_a[:,::100].T,'x',
-        #          Vmod_a, Eperturb_a.T,'-')
-        # Eperturb_num_a-Eperturb_a
-        assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
-            'less than TOL.'
 #====================================================================
 class BaseTestThermalMod(object):
     @abstractmethod
