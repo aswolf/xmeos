@@ -909,6 +909,7 @@ class Vinet(CompressPathMod):
 
         scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
 
+        # NOTE: CHECK UNITS (PV_RATIO) here
         dEdp_a = 1.0/PV_ratio*np.vstack\
             ([-3*K0*(eta**2*x*(x-1) + 3*eta*(x-1) - 3*np.exp(eta*(x-1)) + 3)\
               *np.exp(-eta*(x-1))/eta**2,
@@ -1262,6 +1263,7 @@ class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
 
         # NOTE that the temperature factor has been removed
 
+        # NOTE: Check PV_ratio
         press_therm_a = P_ref_a \
             + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
                         + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
@@ -1378,7 +1380,7 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         dV = V0*1e-5
         F_a = self.calc_free_energy( V_a, T_a, eos_d )
         F_hi_a = self.calc_free_energy( V_a+dV, T_a, eos_d )
-        press_therm_a = -1.0/PV_ratio*(F_hi_a-F_a)/dV
+        press_therm_a = -PV_ratio*(F_hi_a-F_a)/dV
 
         return press_therm_a
 
