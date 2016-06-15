@@ -104,7 +104,6 @@ class BaseTestCompressPathMod(object):
                 ( 'energy', paramkey, Vmod_a, eos_d, dxfrac=dxfrac)
 
 
-
         # dEdV0_a = compress_path_mod.param_deriv( 'energy', 'V0', Vmod_a, eos_d, dxfrac=dxfrac)
         # dEdK0_a = compress_path_mod.param_deriv( 'energy', 'K0', Vmod_a, eos_d, dxfrac=dxfrac)
         # dEdKP0_a = compress_path_mod.param_deriv( 'energy', 'KP0', Vmod_a, eos_d, dxfrac=dxfrac)
@@ -120,11 +119,15 @@ class BaseTestCompressPathMod(object):
         # try:
         # except:
 
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
         # plt.ion()
         # plt.figure()
         # plt.clf()
         # plt.plot(Vmod_a[::100], Eperturb_num_a[:,::100].T,'x',
+        #          Vmod_a[::100], Eperturb_a[3,::100].T,'r-')
+        # plt.plot(Vmod_a[::100], Eperturb_num_a[:,::100].T,'x',
         #          Vmod_a, Eperturb_a.T,'-')
+        # plt.plot(Vmod_a[::100], Eperturb_a[3,::100].T,'r-')
         # Eperturb_num_a-Eperturb_a
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
@@ -1015,6 +1018,130 @@ class TestRosenfeldTaranzonaPerturb(BaseTestThermalMod):
         assert np.all( np.abs(Stot_dF_err_a[1:-1]) < TOL ), \
             'Spot must match numerical free energy deriv'
 #====================================================================
+class TestRosenfeldTaranzonaPerturbExpand(TestRosenfeldTaranzonaPerturb):
+    def load_compress_path_mod(self, eos_d):
+        S0, = models.Control.get_params(['S0'],eos_d)
+        expand_adj_mod=models.Tait()
+        compress_path_mod = models.Vinet(path_const='S',level_const=S0,
+                                         supress_energy=False,
+                                         supress_press=False,
+                                         expand_adj_mod=expand_adj_mod)
+        models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
+
+        pass
+
+    def init_params(self,eos_d):
+
+        models.Control.set_consts( [], [], eos_d )
+
+        # EOS Parameter values initially set by Mosenfelder2009
+        # Set model parameter values
+        mass_avg = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
+        T0 = 1673.0
+        S0 = 0.0 # must adjust
+        param_key_a = ['T0','S0','mass_avg']
+        param_val_a = np.array([T0,S0,mass_avg])
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+        V0 = (38.575*1e-5)*mass_avg/eos_d['const_d']['Nmol']/1e3*1e30 # ang^3/atom
+        K0 = 20.8
+        KP0= 10.2
+        KP20 = -2.86 # Not actually used!
+        E0 = 0.0
+        param_key_a = ['V0','K0','KP0','KP20','E0']
+        param_val_a = np.array([V0,K0,KP0,KP20,E0])
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+        VR = V0
+        gammaR = 0.46
+        q = -1.35
+        param_key_a = ['VR','gammaR','q']
+        param_val_a = np.array([VR,gammaR,q])
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+        dE0th  = +1.0
+        dV0th  = -0.02
+        dK0th  = +0.1
+        dKP0th = -0.00
+        dKP20th = +1.0
+        # dE0th  = +0.4
+        # dV0th  = -0.0
+        # dK0th  = -0.01
+        # dKP0th = -0.03
+        nfac = 1.0
+        mexp = 3.0/5
+        param_key_a = ['dE0th','dV0th','dK0th','dKP0th','dKP20th','nfac','mexp']
+        param_val_a = np.array([dE0th,dV0th,dK0th,dKP0th,dKP20th,nfac,mexp])
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+
+        # Must convert energy units from kJ/g to eV/atom
+        energy_conv_fac = mass_avg/eos_d['const_d']['kJ_molpereV']
+        models.Control.set_consts( ['energy_conv_fac'], [energy_conv_fac],
+                                  eos_d )
+
+
+        self.load_eos_mod( eos_d )
+
+        #     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        return eos_d
+
+    def test_energy_curves_Spera2011_exp(self):
+        Nsamp = 101
+        eos_d = self.init_params({})
+
+        param_d = eos_d['param_d']
+        Vgrid_a = np.linspace(0.4,1.1,Nsamp)*param_d['V0']
+        Tgrid_a = np.array([2500,3000,3500,4000,4500,5000])
+
+        full_mod = eos_d['modtype_d']['FullMod']
+        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
+        thermal_mod = eos_d['modtype_d']['ThermalMod']
+
+        # energy_conv_fac, = models.Control.get_consts(['energy_conv_fac'],eos_d)
+
+        energy_mod_a = []
+        press_mod_a = []
+
+
+        for iT in Tgrid_a:
+            ienergy_a = full_mod.energy(Vgrid_a,iT,eos_d)
+            ipress_a = full_mod.press(Vgrid_a,iT,eos_d)
+            energy_mod_a.append(ienergy_a)
+            press_mod_a.append(ipress_a)
+
+        # energy_mod_a = np.array( energy_mod_a )
+        energy_mod_a = np.array( energy_mod_a )
+        press_mod_a = np.array( press_mod_a )
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        cmap=plt.get_cmap('coolwarm')
+        col_a = cmap(1.0*(Tgrid_a-Tgrid_a[0])/np.ptp(Tgrid_a))[:,:3]
+
+        plt.ion()
+        plt.figure()
+        [plt.plot(ipress_a, ienergy_a,'-',color=icol_a,label=iT) \
+         for ipress_a,ienergy_a,icol_a,iT  in zip(press_mod_a,energy_mod_a,col_a,Tgrid_a)]
+        ax = plt.axes()
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles[::-1],labels[::-1],loc='upper left')
+        plt.xlim(-5,165)
+        ybnd = [np.min(energy_mod_a[press_mod_a<165]), np.max(energy_mod_a[press_mod_a<165])]
+        plt.ylim(ybnd[0],ybnd[1])
+        # plt.ylim(-100.5,-92)
+
+
+        print 'Compare this plot with Spera2011 Fig 2b (Oganov potential):'
+        print 'Do the figures agree (y/n or k for keyboard)?'
+        s = raw_input('--> ')
+        if s=='k':
+            from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+        assert s=='y', 'Figure must match published figure'
+        pass
+
+#====================================================================
+
 
 #     def test_RT_potenergy_curves_Spera2011(self):
 #         Nsamp = 101

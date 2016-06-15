@@ -587,7 +587,18 @@ class CompressPathMod(CompressMod):
 
     def calc_energy_perturb( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
-        raise NotImplementedError("'energy_perturb' function not implimented for this model")
+
+        fname = 'energy'
+        scale_a, paramkey_a = self.get_param_scale\
+            ( eos_d, apply_expand_adj=self.expand_adj )
+        Eperturb_a = []
+        for paramname in paramkey_a:
+            iEperturb_a = self.param_deriv( fname, paramname, V_a, eos_d)
+            Eperturb_a.append(iEperturb_a)
+
+        Eperturb_a = np.array(Eperturb_a)
+
+        return Eperturb_a, scale_a, paramkey_a
 
     def calc_bulk_mod( self, V_a, eos_d ):
         """Returns Bulk Modulus variation along compression curve."""
@@ -772,6 +783,16 @@ class BirchMurn3(CompressPathMod):
         return energy_a
 #====================================================================
 class BirchMurn4(CompressPathMod):
+    def get_param_scale_sub( self, eos_d):
+        """Return scale values for each parameter"""
+        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+
+        paramkey_a = np.array(['V0','K0','KP0','KP20','E0'])
+        scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
+
+        return scale_a, paramkey_a
+
     def calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20 ):
         a1 = 3./2*(KP0-nexp-2)
         a2 = 3./2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11./9*nexp**2)
@@ -1308,7 +1329,7 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         dKP0th_scl = 1.0
 
         if compress_path_mod.expand_adj:
-            dKP20th_scl = 1.0
+            dKP20th_scl = 1e3
             paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
                                    'dKP20th','mexp','nfac'])
             scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
@@ -1325,15 +1346,25 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         """
         Must implement a method for determining RT coefficients as a function of vol
         """
+        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
         dE0th,dV0th,dK0th, dKP0th = Control.get_params( ['dE0th','dV0th','dK0th',
                                                          'dKP0th'], eos_d )
+
         T0,mexp = Control.get_params( ['T0','mexp'], eos_d )
 
 
         compress_path_mod = eos_d['modtype_d']['CompressPathMod']
-        Eperturb_a, compress_scale_a, compress_paramkey_a = \
-            compress_path_mod.calc_energy_perturb( V_a, eos_d )
+        expand_adj = compress_path_mod.expand_adj
+        # NOTE: must use energy_perturb, rather than calc_energy_perturb!!!
 
+        # Eperturb_a, compress_scale_a, compress_paramkey_a = \
+        #     compress_path_mod.calc_energy_perturb( V_a, eos_d,
+        #                                           apply_expand_adj=expand_adj)
+
+        Eperturb_a, compress_scale_a, compress_paramkey_a = compress_path_mod.energy_perturb(V_a, eos_d)
+        # Eperturb_a = compress_path_mod.calc_energy_perturb( V_a, eos_d )[0]
+        # compress_scale_a, compress_paramkey_a = \
+        #     compress_path_mod.get_param_scale( eos_d, apply_expand_adj=True )
 
         E0scl = compress_scale_a[compress_paramkey_a=='E0']
         V0scl = compress_scale_a[compress_paramkey_a=='V0']
@@ -1345,6 +1376,17 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
              + dV0th*V0scl*Eperturb_a[compress_paramkey_a=='V0',:]
              + dK0th*K0scl*Eperturb_a[compress_paramkey_a=='K0',:]
              + dKP0th*KP0scl*Eperturb_a[compress_paramkey_a=='KP0',:])
+
+        # NOTE: ensure that KP20 is included if either 4th order
+        #      compressPathMod or expand_adj used
+
+        # if compress_path_mod.expand_adj:
+        if np.any(compress_paramkey_a=='KP20'):
+            dKP20th, = Control.get_params( ['dKP20th'], eos_d )
+            KP20scl = compress_scale_a[compress_paramkey_a=='KP20']
+
+            bcoef_a += 1.0/T0**mexp*dKP20th*KP20scl\
+                *Eperturb_a[compress_paramkey_a=='KP20',:]
 
 
         # acoef_a = compress_path_mod.calc_energy( V_a, eos_d )

@@ -114,8 +114,18 @@ def calc_resid_datamod( param_a, datamod_d ):
     resid_a = []
     for data_type in datamod_d['fit_data_type']:
         idat_val_a = datamod_d['data_d'][data_type]
-        ierr = np.ptp(idat_val_a)
+        ierr = np.ptp(idat_val_a)*np.ones(idat_val_a.shape)
+        # ierr = datamod_d['data_d'][data_type+'err']
+        # Ttr = 3100
+        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.3
+        V0 = eos_d['param_d']['V0']
+        ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.6
         if data_type == 'P':
+            # ierr *= 1.0
+            # Ptr = 15.0
+            # ierr[idat_val_a <= Ptr] *= 0.1
+            # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
+
             imod_val_a = eos_d['modtype_d']['FullMod'].press\
                 (datamod_d['data_d']['V'], datamod_d['data_d']['T'], eos_d)
         elif data_type == 'E':
@@ -128,6 +138,11 @@ def calc_resid_datamod( param_a, datamod_d ):
 
 
     return resid_a
+#====================================================================
+def calc_cost_fun( param_a, datamod_d ):
+    resid_a = calc_resid_datamod(param_a, datamod_d)
+    costval = np.sum(resid_a**2)
+    return costval
 #====================================================================
 
 # datamod_d: prior_d, posterior_d, param_fix_l, data_d, eos_d, fit_data_type =
