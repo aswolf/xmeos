@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 #====================================================================
 # SECT 0: Admin functions
 #====================================================================
-#====================================================================
 class Control(object):
     @classmethod
     def init_consts( cls, eos_d ):
@@ -195,16 +194,6 @@ class Control(object):
 
         pass
 #====================================================================
-
-#def get_eos_func( prop, eos_mod ):
-#    func_name = prop + '_' + eos_mod
-#
-#    if globals().has_key( func_name ):
-#        func = globals()[func_name]
-#    else:
-#        raise ValueError(func_name + " is not a valid function name " +
-#                         "within eoslib.py")
-#    return func
 
 #====================================================================
 # SECT 1: Fitting Routines
@@ -1730,4 +1719,12 @@ class ThermalPressMod(FullMod):
         S_a = np.squeeze( thermal_mod.entropy( V_a, T_a, eos_d ) )
 
         return S_a
+
+    def heat_capacity( self, V_a, T_a, eos_d ):
+        """Returns Free Energy."""
+        V_a, T_a = fill_array( V_a, T_a )
+        thermal_mod, = Control.get_modtypes( ['ThermalMod'], eos_d )
+        Cv_a = np.squeeze( thermal_mod.heat_capacity( V_a, T_a, eos_d ) )
+
+        return Cv_a
 #====================================================================
