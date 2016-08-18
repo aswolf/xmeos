@@ -1,6 +1,7 @@
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
+from scipy import integrate
 import scipy.interpolate as interpolate
 import matplotlib.pyplot as plt
 
@@ -716,9 +717,48 @@ class GammaMod(EosMod):
     def gamma( self, V_a, eos_d ):
         """Returns Gruneisen Param (gamma) variation due to compression."""
 
-    @abstractmethod
-    def temp( self, V_a, T0, eos_d ):
-        """Returns Gruneisen Param (gamma) variation due to compression."""
+    # @abstractmethod
+    # def temp( self, V_a, T0, eos_d ):
+    #     """Returns Gruneisen Param (gamma) variation due to compression."""
+
+    def temp( self, V_a, TR, eos_d ):
+        """
+        Return temperature for debye model
+        V_a: sample volume array
+        TR: temperature at V=VR
+        """
+        Nsamp = 81
+
+        if self.V0ref:
+            VR, = Control.get_params( ['V0'], eos_d )
+        else:
+            VR, = Control.get_params( ['VR'], eos_d )
+
+
+        Vmin = np.min(V_a)
+        Vmax = np.max(V_a)
+
+        T_a = np.zeros(V_a.size)
+
+        if Vmax > VR:
+            Vhi_a = np.linspace(VR,Vmax,Nsamp)
+            gammahi_a = self.gamma( Vhi_a, eos_d )
+            logThi_a = integrate.cumtrapz(-gammahi_a/Vhi_a,x=Vhi_a)
+            logThi_a = np.append([0],logThi_a)
+            logtemphi_f = interpolate.interp1d(Vhi_a,logThi_a,kind='cubic')
+            indhi_a = np.where(V_a > VR)[0]
+            T_a[indhi_a] = TR*np.exp(logtemphi_f(V_a[indhi_a]))
+
+        if Vmin < VR:
+            Vlo_a = np.linspace(VR,Vmin,Nsamp)
+            gammalo_a = self.gamma( Vlo_a, eos_d )
+            logTlo_a = integrate.cumtrapz(-gammalo_a/Vlo_a,x=Vlo_a)
+            logTlo_a = np.append([0],logTlo_a)
+            logtemplo_f = interpolate.interp1d(Vlo_a,logTlo_a,kind='cubic')
+            indlo_a = np.where(V_a <= VR)[0]
+            T_a[indlo_a] = TR*np.exp(logtemplo_f(V_a[indlo_a]))
+
+        return T_a
 #====================================================================
 class FullMod(EosMod):
     """
@@ -1040,22 +1080,22 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        acoef, bcoef, mexp, nfac = Control.get_params\
-            ( ['acoef','bcoef','mexp','nfac'], eos_d )
+        acoef, bcoef, mexp, lognfac = Control.get_params\
+            ( ['acoef','bcoef','mexp','lognfac'], eos_d )
 
         acoef_scl = 1.0 # This cannot be well-determined without more info
         # ...like a reference temp or energy variation
         bcoef_scl = np.abs(bcoef)
         mexp_scl = 3./5
-        nfac_scl = 1.0
-        paramkey_a = np.array(['acoef','bcoef','mexp','nfac'])
-        scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,nfac_scl])
+        lognfac_scl = 0.01
+        paramkey_a = np.array(['acoef','bcoef','mexp','lognfac'])
+        scale_a = np.array([acoef_scl,bcoef_scl,mexp_scl,lognfac_scl])
 
         return scale_a, paramkey_a
 
     def calc_energy( self, T_a, eos_d, acoef_a=None, bcoef_a=None ):
         """Returns Thermal Component of Energy."""
-        mexp, nfac = Control.get_params( ['mexp','nfac'], eos_d )
+        mexp, lognfac = Control.get_params( ['mexp','lognfac'], eos_d )
 
         if acoef_a is None:
             acoef_a, = Control.get_params( ['acoef'], eos_d )
@@ -1072,15 +1112,16 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
     def calc_energy_kin( self, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
-        nfac, = Control.get_params( ['nfac'], eos_d )
+        lognfac, = Control.get_params( ['lognfac'], eos_d )
         kB, = Control.get_consts( ['kboltz'], eos_d )
+        nfac = np.exp(lognfac)
         energy_kin_a = 3.0/2*nfac*kB*T_a
 
         return energy_kin_a
 
     def calc_energy_pot( self, T_a, eos_d, acoef_a=None, bcoef_a=None ):
         """Returns Thermal Component of Energy."""
-        mexp, nfac = Control.get_params( ['mexp','nfac'], eos_d )
+        mexp, lognfac = Control.get_params( ['mexp','lognfac'], eos_d )
 
         if acoef_a is None:
             acoef_a, = Control.get_params( ['acoef'], eos_d )
@@ -1114,8 +1155,9 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         return heat_capacity_pot_a
 
     def calc_heat_capacity_kin( self, T_a, eos_d ):
-        nfac, = Control.get_params( ['nfac'], eos_d )
+        lognfac, = Control.get_params( ['lognfac'], eos_d )
         kB, = Control.get_consts( ['kboltz'], eos_d )
+        nfac = np.exp(lognfac)
         heat_capacity_kin_a = + 3.0/2*nfac*kB
 
         return heat_capacity_kin_a
@@ -1252,11 +1294,12 @@ class RosenfeldTaranzonaPoly(RosenfeldTaranzonaCompress):
         return acoef_a, bcoef_a
 
     def calc_press( self, V_a, T_a, eos_d ):
-        T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
+        T0,V0,mexp,lognfac = Control.get_params( ['T0','V0','mexp','lognfac'], eos_d )
 
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
         compress_path_mod = eos_d['modtype_d']['CompressPathMod']
 
+        nfac = np.exp(lognfac)
         assert mexp==3./5, 'currently hardcoded to mexp=3/5'
         # assert nfac==1, 'currently hardcoded to nfac=1'
 
@@ -1310,7 +1353,7 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
 
         T0_scl = T0
         mexp_scl = 3./5
-        nfac_scl = 1.0
+        lognfac_scl = 0.01
 
         dE0th_scl = 1.0
         dV0th_scl = 1.0
@@ -1320,14 +1363,14 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         if compress_path_mod.expand_adj:
             dKP20th_scl = 1e3
             paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
-                                   'dKP20th','mexp','nfac'])
+                                   'dKP20th','mexp','lognfac'])
             scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
-                                dKP20th_scl, mexp_scl,nfac_scl])
+                                dKP20th_scl, mexp_scl,lognfac_scl])
         else:
             paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
-                                   'mexp','nfac'])
+                                   'mexp','lognfac'])
             scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
-                                mexp_scl,nfac_scl])
+                                mexp_scl,lognfac_scl])
 
         return scale_a, paramkey_a
 
@@ -1448,7 +1491,7 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
     #     return energy_pot_a
 
     # def calc_press( self, V_a, T_a, eos_d ):
-    #     T0,V0,mexp,nfac = Control.get_params( ['T0','V0','mexp','nfac'], eos_d )
+    #     T0,V0,mexp,lognfac = Control.get_params( ['T0','V0','mexp','lognfac'], eos_d )
 
     #     PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
@@ -1632,7 +1675,7 @@ class GammaPowLaw(GammaMod):
         """Return scale values for each parameter"""
 
 
-        gammaR, q = Control.get_params( ['gammaR','q'], eos_d )
+        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
 
         if self.V0ref:
             VR, = Control.get_params( ['V0'], eos_d )
@@ -1642,21 +1685,21 @@ class GammaPowLaw(GammaMod):
             VRkey = 'VR'
 
         gammaR_scl = 1.0
-        q_scl = 1.0
+        qR_scl = 1.0
         VR_scl = VR
 
-        paramkey_a = np.array(['gammaR','q',VRkey])
-        scale_a = np.array([gammaR,q,VR])
+        paramkey_a = np.array(['gammaR','qR',VRkey])
+        scale_a = np.array([gammaR,qR,VR])
 
         return scale_a, paramkey_a
 
     def gamma( self, V_a, eos_d ):
         # OLD version fixed to zero-press ref volume
-        # V0, gamma0, q = Control.get_params( ['V0','gamma0','q'], eos_d )
-        # gamma_a = gamma0 *(V_a/V0)**q
+        # V0, gamma0, qR = Control.get_params( ['V0','gamma0','qR'], eos_d )
+        # gamma_a = gamma0 *(V_a/V0)**qR
 
         # generalized version
-        gammaR, q = Control.get_params( ['gammaR','q'], eos_d )
+        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
 
         if self.V0ref:
             VR, = Control.get_params( ['V0'], eos_d )
@@ -1664,7 +1707,7 @@ class GammaPowLaw(GammaMod):
             VR, = Control.get_params( ['VR'], eos_d )
 
 
-        gamma_a = gammaR *(V_a/VR)**q
+        gamma_a = gammaR *(V_a/VR)**qR
 
         return gamma_a
 
@@ -1676,11 +1719,61 @@ class GammaPowLaw(GammaMod):
         """
 
         # OLD version fixed to zero-press ref volume
-        gammaR, q = Control.get_params( ['gammaR','q'], eos_d )
+        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
         gamma_a = self.gamma( V_a, eos_d )
-        T_a = TR*np.exp( -(gamma_a - gammaR)/q )
+        T_a = TR*np.exp( -(gamma_a - gammaR)/qR )
 
         return T_a
+#====================================================================
+class GammaFiniteStrain(GammaMod):
+    def __init__( self, V0ref=False ):
+        self.V0ref = V0ref
+        pass
+
+    def get_param_scale_sub( self, eos_d ):
+        """Return scale values for each parameter"""
+
+
+        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
+
+        if self.V0ref:
+            VR, = Control.get_params( ['V0'], eos_d )
+            VRkey = 'V0'
+        else:
+            VR, = Control.get_params( ['VR'], eos_d )
+            VRkey = 'VR'
+
+        gammaR_scl = 1.0
+        qR_scl = 1.0
+        VR_scl = VR
+
+        paramkey_a = np.array(['gammaR','qR',VRkey])
+        scale_a = np.array([gammaR,qR,VR])
+
+        return scale_a, paramkey_a
+
+    def gamma( self, V_a, eos_d ):
+        # OLD version fixed to zero-press ref volume
+        # V0, gamma0, qR = Control.get_params( ['V0','gamma0','qR'], eos_d )
+        # gamma_a = gamma0 *(V_a/V0)**qR
+
+        # generalized version
+        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
+        a1 = 6*gammaR
+        a2 = -12*gammaR +36*gammaR**2 -18*qR*gammaR
+
+        if self.V0ref:
+            VR, = Control.get_params( ['V0'], eos_d )
+        else:
+            VR, = Control.get_params( ['VR'], eos_d )
+
+
+        # gamma_a = gammaR *(V_a/VR)**qR
+        fstr = 0.5*((VR/V_a)**(2./3)-1.0)
+
+        gamma_a = (2*fstr+1)*(a1+a2*fstr)/(6*(1+a1*fstr+0.5*a2*fstr**2))
+
+        return gamma_a
 #====================================================================
 class ThermalPressMod(FullMod):
     def press( self, V_a, T_a, eos_d ):

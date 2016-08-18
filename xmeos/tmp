@@ -3,9 +3,6 @@ import scipy as sp
 from abc import ABCMeta, abstractmethod
 import scipy.interpolate as interpolate
 import matplotlib.pyplot as plt
-from scipy import optimize
-from xmeos import models
-import copy
 
 #====================================================================
 #     xmeos: Xtal-Melt Equation of State package
@@ -97,42 +94,32 @@ def set_param_distbn_err( param_err_a, param_distbn_d, param_corr_a=None ):
 def init_datamod( data_d, prior_d, eos_d, fit_data_type=['P'] ):
     datamod_d = {}
 
+    datamod_d['prior'] = prior_d
+    datamod_d['posterior'] = None
     datamod_d['data_d'] = data_d
     datamod_d['prior_d'] = prior_d
-    datamod_d['posterior_d'] = None
     datamod_d['eos_d'] = eos_d
     datamod_d['fit_data_type'] = fit_data_type
 
     return datamod_d
 #====================================================================
 def calc_resid_datamod( param_a, datamod_d ):
-    """
-    Error is a fraction of peak-to-peak difference
-    """
     eos_d = datamod_d['eos_d']
     param_key = datamod_d['prior_d']['param_key']
-    models.Control.set_params( param_key, param_a, eos_d )
+    prior_val = datamod_d['prior_d']['param_val']
     # set parameter values
-    # for key,val in zip(param_key,param_a):
-    #     eos_d['param_d'][key] = val
+    for key,val in zip(param_key,param_a):
+        eos_d['param_d'][key] = val
 
     resid_a = []
     for data_type in datamod_d['fit_data_type']:
         idat_val_a = datamod_d['data_d'][data_type]
-        #using
         ierr = np.ptp(idat_val_a)*np.ones(idat_val_a.shape)
         # ierr = datamod_d['data_d'][data_type+'err']
-
-        # emphasize low temp data
-        Ttr = 3100
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
-
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.6
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
-
+        # Ttr = 3100
+        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.3
         V0 = eos_d['param_d']['V0']
-        # ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.6
+        ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.6
         if data_type == 'P':
             # ierr *= 1.0
             # Ptr = 15.0
@@ -155,32 +142,7 @@ def calc_resid_datamod( param_a, datamod_d ):
 def calc_cost_fun( param_a, datamod_d ):
     resid_a = calc_resid_datamod(param_a, datamod_d)
     costval = np.sum(resid_a**2)
-    if np.isnan(costval):
-        from IPython import embed; embed(); import ipdb; ipdb.set_trace()
-
     return costval
-#====================================================================
-def fit_datamod( datamod_d, nrepeat=6 ):
-    param0_a = datamod_d['prior_d']['param_val']
-
-    for i in np.arange(nrepeat):
-        fit_tup = optimize.leastsq(lambda param_a,
-                                   datamod_d=datamod_d,param0_a=param0_a:\
-                                   calc_resid_datamod( param_a, datamod_d ),
-                                   param0_a)
-        paramf_a = fit_tup[0]
-        param0_a = paramf_a
-
-    # Set final fit
-    eos_d = datamod_d['eos_d']
-    param_key = datamod_d['prior_d']['param_key']
-    models.Control.set_params( param_key, paramf_a, eos_d )
-
-    posterior_d = copy.deepcopy(datamod_d['prior_d'])
-    posterior_d['param_val'] = paramf_a
-    datamod_d['posterior_d'] = posterior_d
-
-    pass
 #====================================================================
 
 # datamod_d: prior_d, posterior_d, param_fix_l, data_d, eos_d, fit_data_type =
@@ -238,7 +200,7 @@ class store_data(object):
             param_a = param_in_a
 
             # set param value in eos_d dict
-            models.Control.set_params( param_key_a, param_a, eos_d )
+            Control.set_params( param_key_a, param_a, eos_d )
 
             # Take advantage of eos model function input format
             #   uses tuple expansion for input arguments

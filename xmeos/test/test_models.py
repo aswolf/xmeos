@@ -2,6 +2,7 @@ import numpy as np
 import models
 import pytest
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from abc import ABCMeta, abstractmethod
 import copy
 #====================================================================
@@ -537,11 +538,11 @@ class TestGenRosenfeldTaranzona(BaseTestThermalPathMod):
         acoef = -158.2
         bcoef = .042
         mexp = 3.0/5
-        nfac = 1.0
+        lognfac = 0.0
         T0 = 5000.0
 
-        param_key_a = ['acoef','bcoef','mexp','nfac','T0']
-        param_val_a = np.array([acoef,bcoef,mexp,nfac,T0])
+        param_key_a = ['acoef','bcoef','mexp','lognfac','T0']
+        param_val_a = np.array([acoef,bcoef,mexp,lognfac,T0])
 
         models.Control.set_consts( [], [], eos_d )
         self.load_thermal_path_mod( eos_d )
@@ -597,14 +598,14 @@ class TestRosenfeldTaranzonaPoly(BaseTestThermalMod):
 
         # NOTE that units are all per atom
         # requires conversion from values reported in Spera2011
-        nfac = 1.0
+        lognfac = 0.0
         mass = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
         Vconv_fac = mass*eos_d['const_d']['ang3percc']/eos_d['const_d']['Nmol']
         V0 = V0_ccperg*Vconv_fac
 
 
-        param_key_a = ['mexp','nfac','T0','V0','K0','KP0','E0','mass']
-        param_val_a = np.array([mexp,nfac,T0,V0,K0,KP0,E0,mass])
+        param_key_a = ['mexp','lognfac','T0','V0','K0','KP0','E0','mass']
+        param_val_a = np.array([mexp,lognfac,T0,V0,K0,KP0,E0,mass])
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
         # Set parameter values from Spera et al. (2011)
@@ -821,9 +822,9 @@ class TestRosenfeldTaranzonaPerturb(BaseTestThermalMod):
 
         VR = V0
         gammaR = 0.46
-        q = -1.35
-        param_key_a = ['VR','gammaR','q']
-        param_val_a = np.array([VR,gammaR,q])
+        qR = -1.35
+        param_key_a = ['VR','gammaR','qR']
+        param_val_a = np.array([VR,gammaR,qR])
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
         dE0th  = +1.0
@@ -834,10 +835,10 @@ class TestRosenfeldTaranzonaPerturb(BaseTestThermalMod):
         # dV0th  = -0.0
         # dK0th  = -0.01
         # dKP0th = -0.03
-        nfac = 1.0
+        lognfac = 0.0
         mexp = 3.0/5
-        param_key_a = ['dE0th','dV0th','dK0th','dKP0th','nfac','mexp']
-        param_val_a = np.array([dE0th,dV0th,dK0th,dKP0th,nfac,mexp])
+        param_key_a = ['dE0th','dV0th','dK0th','dKP0th','lognfac','mexp']
+        param_val_a = np.array([dE0th,dV0th,dK0th,dKP0th,lognfac,mexp])
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
 
@@ -1018,6 +1019,74 @@ class TestRosenfeldTaranzonaPerturb(BaseTestThermalMod):
         assert np.all( np.abs(Stot_dF_err_a[1:-1]) < TOL ), \
             'Spot must match numerical free energy deriv'
 #====================================================================
+class TestGammaComparison():
+    def init_params(self,eos_d):
+        VR = 1.0
+        gammaR = 1.0
+        qR = -1.0
+        # qR = +0.5
+
+        param_key_a = ['VR','gammaR','qR']
+        param_val_a = np.array([VR,gammaR,qR])
+        models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+        return eos_d
+
+    def load_gamma_mod(self, eos_d):
+        gamma_mod = models.GammaPowLaw()
+        models.Control.set_modtypes( ['GammaMod'], [gamma_mod], eos_d )
+
+        pass
+
+    def test(self):
+        eos_d = self.init_params({})
+        VR = eos_d['param_d']['VR']
+        TR = 1000.0
+
+        eos_pow_d = copy.deepcopy(eos_d)
+        eos_str_d = copy.deepcopy(eos_d)
+
+
+        models.Control.set_modtypes( ['GammaMod'], [models.GammaPowLaw],
+                                    eos_pow_d )
+        models.Control.set_modtypes( ['GammaMod'], [models.GammaFiniteStrain],
+                                    eos_str_d )
+
+
+        N = 1001
+        V_a = VR*np.linspace(0.4,1.3,N)
+
+        gam_pow_mod = eos_pow_d['modtype_d']['GammaMod']()
+        gam_str_mod = eos_str_d['modtype_d']['GammaMod']()
+
+
+        gam_pow_a = gam_pow_mod.gamma(V_a,eos_pow_d)
+        gam_str_a = gam_str_mod.gamma(V_a,eos_str_d)
+
+        temp_pow_a = gam_pow_mod.temp(V_a,TR,eos_pow_d)
+        temp_str_a = gam_str_mod.temp(V_a,TR,eos_str_d)
+
+        # mpl.rcParams(fontsize=16)
+        plt.ion()
+        plt.figure()
+
+        plt.clf()
+        hleg = plt.plot(V_a,gam_pow_a,'k--',V_a,gam_str_a,'r-',lw=2)
+        plt.legend(hleg,['Power-Law','Finite Strain'], loc='upper right',fontsize=16)
+        plt.xlabel('$V / V_0$',fontsize=16)
+        plt.ylabel('$\gamma$',fontsize=16)
+        plt.text(.9,1.3,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
+        plt.savefig('test/figs/gamma-comparison.png',dpi=450)
+
+        plt.clf()
+        hleg = plt.plot(V_a,temp_pow_a,'k--',V_a,temp_str_a,'r-',lw=2)
+        plt.legend(hleg,['Power-Law','Finite Strain'], loc='upper right',
+                   fontsize=16)
+        plt.xlabel('$V / V_0$',fontsize=16)
+        plt.ylabel('$T\; [K]$',fontsize=16)
+        plt.text(.9,1500,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
+        plt.savefig('test/figs/gamma-temp-comparison.png',dpi=450)
+#====================================================================
 class TestRosenfeldTaranzonaPerturbExpand(TestRosenfeldTaranzonaPerturb):
     def load_compress_path_mod(self, eos_d):
         S0, = models.Control.get_params(['S0'],eos_d)
@@ -1054,9 +1123,9 @@ class TestRosenfeldTaranzonaPerturbExpand(TestRosenfeldTaranzonaPerturb):
 
         VR = V0
         gammaR = 0.46
-        q = -1.35
-        param_key_a = ['VR','gammaR','q']
-        param_val_a = np.array([VR,gammaR,q])
+        qR = -1.35
+        param_key_a = ['VR','gammaR','qR']
+        param_val_a = np.array([VR,gammaR,qR])
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
         dE0th  = +1.0
@@ -1068,10 +1137,10 @@ class TestRosenfeldTaranzonaPerturbExpand(TestRosenfeldTaranzonaPerturb):
         # dV0th  = -0.0
         # dK0th  = -0.01
         # dKP0th = -0.03
-        nfac = 1.0
+        lognfac = 0.0
         mexp = 3.0/5
-        param_key_a = ['dE0th','dV0th','dK0th','dKP0th','dKP20th','nfac','mexp']
-        param_val_a = np.array([dE0th,dV0th,dK0th,dKP0th,dKP20th,nfac,mexp])
+        param_key_a = ['dE0th','dV0th','dK0th','dKP0th','dKP20th','lognfac','mexp']
+        param_val_a = np.array([dE0th,dV0th,dK0th,dKP0th,dKP20th,lognfac,mexp])
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
 
@@ -1139,7 +1208,6 @@ class TestRosenfeldTaranzonaPerturbExpand(TestRosenfeldTaranzonaPerturb):
 
         assert s=='y', 'Figure must match published figure'
         pass
-
 #====================================================================
 
 
