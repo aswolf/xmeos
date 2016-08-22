@@ -132,13 +132,14 @@ def calc_resid_datamod( param_a, datamod_d ):
         # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
 
         V0 = eos_d['param_d']['V0']
-        # ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.6
+        ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.5
         if data_type == 'P':
             # ierr *= 1.0
             # Ptr = 15.0
             # ierr[idat_val_a <= Ptr] *= 0.1
             # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
 
+            # ierr *= 0.3
             imod_val_a = eos_d['modtype_d']['FullMod'].press\
                 (datamod_d['data_d']['V'], datamod_d['data_d']['T'], eos_d)
         elif data_type == 'E':

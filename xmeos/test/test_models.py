@@ -1024,6 +1024,7 @@ class TestGammaComparison():
         VR = 1.0
         gammaR = 1.0
         qR = -1.0
+        # qR = +1.0
         # qR = +0.5
 
         param_key_a = ['VR','gammaR','qR']
@@ -1055,6 +1056,7 @@ class TestGammaComparison():
 
         N = 1001
         V_a = VR*np.linspace(0.4,1.3,N)
+        dV = V_a[1]-V_a[0]
 
         gam_pow_mod = eos_pow_d['modtype_d']['GammaMod']()
         gam_str_mod = eos_str_d['modtype_d']['GammaMod']()
@@ -1066,9 +1068,21 @@ class TestGammaComparison():
         temp_pow_a = gam_pow_mod.temp(V_a,TR,eos_pow_d)
         temp_str_a = gam_str_mod.temp(V_a,TR,eos_str_d)
 
+        q_pow_a = V_a/gam_pow_a*np.gradient(gam_pow_a,dV)
+        q_str_a = V_a/gam_str_a*np.gradient(gam_str_a,dV)
+
+
         # mpl.rcParams(fontsize=16)
         plt.ion()
         plt.figure()
+
+        plt.clf()
+        hleg = plt.plot(V_a,q_pow_a,'k--',V_a,q_str_a,'r-',lw=2)
+        plt.legend(hleg,['Power-Law','Finite Strain'], loc='upper right',fontsize=16)
+        plt.xlabel('$V / V_0$',fontsize=16)
+        plt.ylabel('$q$',fontsize=16)
+        # plt.text(.9,1.3,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
+
 
         plt.clf()
         hleg = plt.plot(V_a,gam_pow_a,'k--',V_a,gam_str_a,'r-',lw=2)
@@ -1076,7 +1090,12 @@ class TestGammaComparison():
         plt.xlabel('$V / V_0$',fontsize=16)
         plt.ylabel('$\gamma$',fontsize=16)
         plt.text(.9,1.3,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
+
+        from IPython import embed; embed(); import ipdb; ipdb.set_trace()
         plt.savefig('test/figs/gamma-comparison.png',dpi=450)
+
+
+
 
         plt.clf()
         hleg = plt.plot(V_a,temp_pow_a,'k--',V_a,temp_str_a,'r-',lw=2)
@@ -1086,6 +1105,9 @@ class TestGammaComparison():
         plt.ylabel('$T\; [K]$',fontsize=16)
         plt.text(.9,1500,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
         plt.savefig('test/figs/gamma-temp-comparison.png',dpi=450)
+
+
+
 #====================================================================
 class TestRosenfeldTaranzonaPerturbExpand(TestRosenfeldTaranzonaPerturb):
     def load_compress_path_mod(self, eos_d):

@@ -383,7 +383,7 @@ class CompressPathMod(CompressMod):
     supress_press = False
 
     def __init__( self, path_const='T', level_const=300, expand_adj_mod=None,
-                 supress_energy=False, supress_press=False ):
+                 expand_adj=None, supress_energy=False, supress_press=False ):
         assert path_const in self.path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + path_opts
         self.path_const = path_const
@@ -392,6 +392,11 @@ class CompressPathMod(CompressMod):
         self.supress_press = supress_press
 
         # Use Expansion Adjustment for negative pressure region?
+        if expand_adj is None:
+            self.expand_adj = False
+        else:
+            self.expand_adj = expand_adj
+
         if expand_adj_mod is None:
             self.expand_adj = False
             self.expand_adj_mod = None
@@ -977,13 +982,41 @@ class Vinet(CompressPathMod):
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
 class Tait(CompressPathMod):
-    def get_param_scale_sub( self, eos_d):
+    def __init__( self, setPmin=False, expand_adj=None):
+        super(Tait, self).__init__( expand_adj=None )
+        self.setPmin = setPmin
+        pass
+    # def __init__( self, setPmin=False, expand_adj=False ):
+    #     self.setPmin = setPmin
+    #     self.expand_adj = expand_adj
+    #     pass
+
+    def get_eos_params(self, eos_d):
+        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
+        if self.setPmin:
+            Pmin, = Control.get_params( ['Pmin'], eos_d )
+            assert Pmin>0, 'Pmin must be positive.'
+            KP20 = (KP0+1)*(KP0/K0 - 1.0/Pmin)
+        else:
+            KP20, = Control.get_params( ['KP20'], eos_d )
+
+        return V0,K0,KP0,KP20
+
+    def get_param_scale_sub( self, eos_d ):
         """Return scale values for each parameter"""
-        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
+
+        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-        paramkey_a = np.array(['V0','K0','KP0','KP20','E0'])
-        scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
+        if self.setPmin:
+            # [V0,K0,KP0,E0]
+            paramkey_a = np.array(['V0','K0','KP0','E0'])
+            scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
+        else:
+            # [V0,K0,KP0,KP20,E0]
+            paramkey_a = np.array(['V0','K0','KP0','KP20','E0'])
+            scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
+
 
         return scale_a, paramkey_a
 
@@ -995,7 +1028,7 @@ class Tait(CompressPathMod):
         return a,b,c
 
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
         vratio_a = V_a/V0
 
@@ -1004,8 +1037,8 @@ class Tait(CompressPathMod):
         return press_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, KP20, E0 = \
-            Control.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
+        E0, = Control.get_params( ['E0'], eos_d )
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
@@ -1020,52 +1053,63 @@ class Tait(CompressPathMod):
 
         return energy_a
 
-    def calc_energy_perturb( self, V_a, eos_d ):
-        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+    # def calc_energy_perturb( self, V_a, eos_d ):
+    #     """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+    #     V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
+    #     E0, = Control.get_params( ['E0'], eos_d )
 
-        V0, K0, KP0, KP20, E0 = \
-            Control.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
-        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+    #     a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
+    #     PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = V_a/V0
+    #     vratio_a = V_a/V0
 
-        press_a = self.calc_press( V_a, eos_d )
-        eta_a = b*press_a + 1.0
-        eta_pow_a = eta_a**(-c)
+    #     press_a = self.calc_press( V_a, eos_d )
+    #     eta_a = b*press_a + 1.0
+    #     eta_pow_a = eta_a**(-c)
 
-        scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
+    #     scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
 
-        # [V0,K0,KP0,KP20,E0]
-        dEdp_a = np.ones((5, V_a.size))
-        # dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
-        dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c) \
-            + 1.0/(PV_ratio*b)*(a*c/(c-1)-1)
-        dEdp_a[-1,:] = 1.0
+    #     # [V0,K0,KP0,KP20,E0]
+    #     dEdp_a = np.ones((4, V_a.size))
+    #     # dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
+    #     dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c) \
+    #         + 1.0/(PV_ratio*b)*(a*c/(c-1)-1)
+    #     dEdp_a[-1,:] = 1.0
 
-        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
-        dEdabc_a = np.vstack\
-            ([V0*eta_a/(a*b*(c-1))*(-a*eta_pow_a + a*(1-c))+c*V0/(b*(c-1)),
-              V0/(b**2*(c-1))*((-a*eta_pow_a+a-1)*(c-1) + c*a*eta_a*eta_pow_a) \
-              - V0/b**2*(a*c/(c-1) - 1),
-              -a*V0/(b*(c-1)**2)*eta_a*eta_pow_a*(-c+(c-1)*(1-np.log(eta_a)))\
-              +a*V0/(b*(c-1))*(1-c/(c-1))])
-        abc_jac = np.array([[-KP20*(KP0+1)/(K0*KP20+KP0+1)**2,
-                             K0*KP20/(K0*KP20+KP0+1)**2,
-                             -K0*(KP0+1)/(K0*KP20+KP0+1)**2],
-                            [-KP0/K0**2, KP20/(KP0+1)**2 + 1./K0, -1.0/(KP0+1)],
-                            [KP20*(KP0**2+2.*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
-                             (-K0*KP20+KP0**2+KP0-(2*KP0+1)*(K0*KP20+KP0+1))/\
-                             (-K0*KP20+KP0**2+KP0)**2,
-                             K0*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2]])
+    #     # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+    #     # 1x3
+    #     dEdabc_a = np.vstack\
+    #         ([V0*eta_a/(a*b*(c-1))*(-a*eta_pow_a + a*(1-c))+c*V0/(b*(c-1)),
+    #           V0/(b**2*(c-1))*((-a*eta_pow_a+a-1)*(c-1) + c*a*eta_a*eta_pow_a) \
+    #           - V0/b**2*(a*c/(c-1) - 1),
+    #           -a*V0/(b*(c-1)**2)*eta_a*eta_pow_a*(-c+(c-1)*(1-np.log(eta_a)))\
+    #           +a*V0/(b*(c-1))*(1-c/(c-1))])
+    #     # 3x3
+    #     abc_jac = np.array([[-KP20*(KP0+1)/(K0*KP20+KP0+1)**2,
+    #                          K0*KP20/(K0*KP20+KP0+1)**2,
+    #                          -K0*(KP0+1)/(K0*KP20+KP0+1)**2],
+    #                         [-KP0/K0**2, KP20/(KP0+1)**2 + 1./K0, -1.0/(KP0+1)],
+    #                         [KP20*(KP0**2+2.*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
+    #                          (-K0*KP20+KP0**2+KP0-(2*KP0+1)*(K0*KP20+KP0+1))/\
+    #                          (-K0*KP20+KP0**2+KP0)**2,
+    #                          K0*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2]])
 
-        dEdp_a[1:4,:] = 1.0/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
+    #     dEdp_a[1:4,:] = 1.0/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
+
+    #     print dEdp_a.shape
+
+    #     if self.setPmin:
+    #         # [V0,K0,KP0,E0]
+    #         print dEdp_a.shape
+    #         dEdp_a = dEdp_a[[0,1,2,4],:]
 
 
-        Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
-        #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+    #     Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
 
-        return Eperturb_a, scale_a, paramkey_a
+
+    #     #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+
+    #     return Eperturb_a, scale_a, paramkey_a
 #====================================================================
 class GenRosenfeldTaranzona(ThermalPathMod):
     """
@@ -1343,9 +1387,12 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         """Return scale values for each parameter"""
         compress_path_mod = eos_d['modtype_d']['CompressPathMod']
         if compress_path_mod.expand_adj:
-            dEth,dVth,dKth, dKPth, dKP2th = \
-                Control.get_params( ['dE0th','dV0th','dK0th','dKP0th','dKP20th'], eos_d )
-            T0,E0,V0,K0,KP0,KP20 = Control.get_params( ['T0','E0','V0','K0','KP0','KP20'], eos_d )
+            # dEth,dVth,dKth, dKPth, dKP2th = \
+            #     Control.get_params( ['dE0th','dV0th','dK0th','dKP0th','dKP20th'], eos_d )
+            # T0,E0,V0,K0,KP0,KP20 = Control.get_params( ['T0','E0','V0','K0','KP0','KP20'], eos_d )
+            dEth,dVth,dKth,dKPth = \
+                Control.get_params( ['dE0th','dV0th','dK0th','dKP0th'], eos_d )
+            T0,E0,V0,K0,KP0 = Control.get_params( ['T0','E0','V0','K0','KP0'], eos_d )
         else:
             dEth,dVth,dKth, dKPth = Control.get_params( ['dE0th','dV0th','dK0th',
                                                          'dKP0th'], eos_d )
@@ -1362,10 +1409,14 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
 
         if compress_path_mod.expand_adj:
             dKP20th_scl = 1e3
+            # paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
+            #                        'dKP20th','mexp','lognfac'])
+            # scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
+            #                     dKP20th_scl, mexp_scl,lognfac_scl])
             paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
-                                   'dKP20th','mexp','lognfac'])
+                                   'mexp','lognfac'])
             scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
-                                dKP20th_scl, mexp_scl,lognfac_scl])
+                                mexp_scl,lognfac_scl])
         else:
             paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
                                    'mexp','lognfac'])
