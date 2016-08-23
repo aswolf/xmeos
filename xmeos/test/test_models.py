@@ -1023,12 +1023,13 @@ class TestGammaComparison():
     def init_params(self,eos_d):
         VR = 1.0
         gammaR = 1.0
-        qR = -1.0
+        gammapR = -1.0
+        qR = gammapR/gammaR
         # qR = +1.0
         # qR = +0.5
 
-        param_key_a = ['VR','gammaR','qR']
-        param_val_a = np.array([VR,gammaR,qR])
+        param_key_a = ['VR','gammaR','gammapR','qR']
+        param_val_a = np.array([VR,gammaR,gammapR,qR])
         models.Control.set_params( param_key_a, param_val_a, eos_d )
 
         return eos_d
@@ -1052,6 +1053,9 @@ class TestGammaComparison():
                                     eos_pow_d )
         models.Control.set_modtypes( ['GammaMod'], [models.GammaFiniteStrain],
                                     eos_str_d )
+
+        gammaR = eos_d['param_d']['gammaR']
+        qR = eos_d['param_d']['qR']
 
 
         N = 1001
@@ -1081,17 +1085,35 @@ class TestGammaComparison():
         plt.legend(hleg,['Power-Law','Finite Strain'], loc='upper right',fontsize=16)
         plt.xlabel('$V / V_0$',fontsize=16)
         plt.ylabel('$q$',fontsize=16)
-        # plt.text(.9,1.3,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
+        plt.text(.9,1.1*qR,'$(\gamma_0,q_0) = ('+np.str(gammaR)+','+np.str(qR)+')$',fontsize=20)
 
+        from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+        plt.clf()
+        hleg = plt.plot(1.0/V_a,gam_str_a,'r-',lw=2)
+
+        eos_str_d['param_d']['gammapR'] = -0.5
+        eos_str_d['param_d']['gammapR'] = -2
+
+        eos_str_d['param_d']['gammapR'] = -1.0
+        eos_str_d['param_d']['gammaR'] = 0.5
+        eos_str_d['param_d']['gammapR'] = -2.0
+        eos_str_d['param_d']['gammapR'] = -10.0
+
+        eos_str_d['param_d']['gammaR'] = 0.75
+        eos_str_d['param_d']['gammapR'] = -10.0
+        eos_str_d['param_d']['gammapR'] = -30.0
+        gam_str_a = gam_str_mod.gamma(V_a,eos_str_d)
+        eos_str_d['param_d']['gammapR'] = -0.5
 
         plt.clf()
         hleg = plt.plot(V_a,gam_pow_a,'k--',V_a,gam_str_a,'r-',lw=2)
         plt.legend(hleg,['Power-Law','Finite Strain'], loc='upper right',fontsize=16)
         plt.xlabel('$V / V_0$',fontsize=16)
         plt.ylabel('$\gamma$',fontsize=16)
-        plt.text(.9,1.3,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
 
-        from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        plt.text(.9,1.1*gammaR,'$(\gamma_0,q_0) = ('+np.str(gammaR)+','+np.str(qR)+')$',fontsize=20)
+
         plt.savefig('test/figs/gamma-comparison.png',dpi=450)
 
 
@@ -1103,7 +1125,7 @@ class TestGammaComparison():
                    fontsize=16)
         plt.xlabel('$V / V_0$',fontsize=16)
         plt.ylabel('$T\; [K]$',fontsize=16)
-        plt.text(.9,1500,'$(\gamma_0,q_0) = (1.0,-1.0)$',fontsize=20)
+        plt.text(.9,1.1*TR,'$(\gamma_0,q_0) = ('+np.str(gammaR)+','+np.str(qR)+')$',fontsize=20)
         plt.savefig('test/figs/gamma-temp-comparison.png',dpi=450)
 
 

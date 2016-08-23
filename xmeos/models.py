@@ -1795,11 +1795,14 @@ class GammaFiniteStrain(GammaMod):
             VRkey = 'VR'
 
         gammaR_scl = 1.0
-        qR_scl = 1.0
+        gammapR_scl = 1.0
+        #qR_scl = 1.0
         VR_scl = VR
 
-        paramkey_a = np.array(['gammaR','qR',VRkey])
-        scale_a = np.array([gammaR,qR,VR])
+        # paramkey_a = np.array(['gammaR','qR',VRkey])
+        # scale_a = np.array([gammaR,qR,VR])
+        paramkey_a = np.array(['gammaR','gammapR',VRkey])
+        scale_a = np.array([gammaR,gammapR,VR])
 
         return scale_a, paramkey_a
 
@@ -1809,9 +1812,10 @@ class GammaFiniteStrain(GammaMod):
         # gamma_a = gamma0 *(V_a/V0)**qR
 
         # generalized version
-        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
+        # gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
+        gammaR, gammapR = Control.get_params( ['gammaR','gammapR'], eos_d )
         a1 = 6*gammaR
-        a2 = -12*gammaR +36*gammaR**2 -18*qR*gammaR
+        a2 = -12*gammaR +36*gammaR**2 -18*gammapR
 
         if self.V0ref:
             VR, = Control.get_params( ['V0'], eos_d )
