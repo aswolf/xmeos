@@ -1053,63 +1053,63 @@ class Tait(CompressPathMod):
 
         return energy_a
 
-    # def calc_energy_perturb( self, V_a, eos_d ):
-    #     """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
-    #     V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
-    #     E0, = Control.get_params( ['E0'], eos_d )
+    def calc_energy_perturb_deprecate( self, V_a, eos_d ):
+        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
+        E0, = Control.get_params( ['E0'], eos_d )
 
-    #     a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-    #     PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
+        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-    #     vratio_a = V_a/V0
+        vratio_a = V_a/V0
 
-    #     press_a = self.calc_press( V_a, eos_d )
-    #     eta_a = b*press_a + 1.0
-    #     eta_pow_a = eta_a**(-c)
+        press_a = self.calc_press( V_a, eos_d )
+        eta_a = b*press_a + 1.0
+        eta_pow_a = eta_a**(-c)
 
-    #     scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
+        scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
 
-    #     # [V0,K0,KP0,KP20,E0]
-    #     dEdp_a = np.ones((4, V_a.size))
-    #     # dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
-    #     dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c) \
-    #         + 1.0/(PV_ratio*b)*(a*c/(c-1)-1)
-    #     dEdp_a[-1,:] = 1.0
+        # [V0,K0,KP0,KP20,E0]
+        dEdp_a = np.ones((4, V_a.size))
+        # dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
+        dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c) \
+            + 1.0/(PV_ratio*b)*(a*c/(c-1)-1)
+        dEdp_a[-1,:] = 1.0
 
-    #     # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
-    #     # 1x3
-    #     dEdabc_a = np.vstack\
-    #         ([V0*eta_a/(a*b*(c-1))*(-a*eta_pow_a + a*(1-c))+c*V0/(b*(c-1)),
-    #           V0/(b**2*(c-1))*((-a*eta_pow_a+a-1)*(c-1) + c*a*eta_a*eta_pow_a) \
-    #           - V0/b**2*(a*c/(c-1) - 1),
-    #           -a*V0/(b*(c-1)**2)*eta_a*eta_pow_a*(-c+(c-1)*(1-np.log(eta_a)))\
-    #           +a*V0/(b*(c-1))*(1-c/(c-1))])
-    #     # 3x3
-    #     abc_jac = np.array([[-KP20*(KP0+1)/(K0*KP20+KP0+1)**2,
-    #                          K0*KP20/(K0*KP20+KP0+1)**2,
-    #                          -K0*(KP0+1)/(K0*KP20+KP0+1)**2],
-    #                         [-KP0/K0**2, KP20/(KP0+1)**2 + 1./K0, -1.0/(KP0+1)],
-    #                         [KP20*(KP0**2+2.*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
-    #                          (-K0*KP20+KP0**2+KP0-(2*KP0+1)*(K0*KP20+KP0+1))/\
-    #                          (-K0*KP20+KP0**2+KP0)**2,
-    #                          K0*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2]])
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        # 1x3
+        dEdabc_a = np.vstack\
+            ([V0*eta_a/(a*b*(c-1))*(-a*eta_pow_a + a*(1-c))+c*V0/(b*(c-1)),
+              V0/(b**2*(c-1))*((-a*eta_pow_a+a-1)*(c-1) + c*a*eta_a*eta_pow_a) \
+              - V0/b**2*(a*c/(c-1) - 1),
+              -a*V0/(b*(c-1)**2)*eta_a*eta_pow_a*(-c+(c-1)*(1-np.log(eta_a)))\
+              +a*V0/(b*(c-1))*(1-c/(c-1))])
+        # 3x3
+        abc_jac = np.array([[-KP20*(KP0+1)/(K0*KP20+KP0+1)**2,
+                             K0*KP20/(K0*KP20+KP0+1)**2,
+                             -K0*(KP0+1)/(K0*KP20+KP0+1)**2],
+                            [-KP0/K0**2, KP20/(KP0+1)**2 + 1./K0, -1.0/(KP0+1)],
+                            [KP20*(KP0**2+2.*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
+                             (-K0*KP20+KP0**2+KP0-(2*KP0+1)*(K0*KP20+KP0+1))/\
+                             (-K0*KP20+KP0**2+KP0)**2,
+                             K0*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2]])
 
-    #     dEdp_a[1:4,:] = 1.0/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
+        dEdp_a[1:4,:] = 1.0/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
 
-    #     print dEdp_a.shape
+        print dEdp_a.shape
 
-    #     if self.setPmin:
-    #         # [V0,K0,KP0,E0]
-    #         print dEdp_a.shape
-    #         dEdp_a = dEdp_a[[0,1,2,4],:]
-
-
-    #     Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
+        if self.setPmin:
+            # [V0,K0,KP0,E0]
+            print dEdp_a.shape
+            dEdp_a = dEdp_a[[0,1,2,4],:]
 
 
-    #     #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+        Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
 
-    #     return Eperturb_a, scale_a, paramkey_a
+
+        #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+
+        return Eperturb_a, scale_a, paramkey_a
 #====================================================================
 class GenRosenfeldTaranzona(ThermalPathMod):
     """
@@ -1532,52 +1532,6 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         press_therm_a = -PV_ratio*(F_hi_a-F_a)/dV
 
         return press_therm_a
-#====================================================================
-
-    # def calc_press_pot( self, V_a, T_a, eos_d ):
-    #     """Returns Thermal Component of Energy."""
-
-    #     acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
-    #     acoef_deriv_a, bcoef_deriv_a = self.calc_RT_coef_deriv( V_a, eos_d )
-
-    #     Epot_a = self.calc_energy_pot( V_a, T_a, eos_d )
-    #     Cv
-
-
-
-    #     energy_pot_a = GenRosenfeldTaranzona().calc_energy_pot\
-    #         ( T_a, eos_d, acoef_a=acoef_a, bcoef_a=bcoef_a )
-    #     return energy_pot_a
-
-    # def calc_press( self, V_a, T_a, eos_d ):
-    #     T0,V0,mexp,lognfac = Control.get_params( ['T0','V0','mexp','lognfac'], eos_d )
-
-    #     PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
-
-    #     # Use numerical deriv
-    #     dV = V0*1e-5
-    #     acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
-    #     acoef_hi_a, bcoef_hi_a = self.calc_RT_coef( V_a+dV, eos_d )
-
-    #     dadV_a = (acoef_hi_a-acoef_a)/dV
-    #     dbdV_a = (bcoef_hi_a-bcoef_a)/dV
-
-    #     Ppot
-
-
-
-    #     # Equation 6 (Spera2011)
-
-    #     # NOTE that the temperature factor has been removed
-
-    #     press_therm_a = P_ref_a \
-    #         + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
-    #                     + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
-    #     # press_therm_a = T_a/T0*P_ref_a \
-    #     #     + 1.0/PV_ratio*( (T_a/T0 - 1)*dadV_a \
-    #     #                 + 5./2*T_a**(3./5)*((T_a/T0)**(2./5) - 1.0)*dbdV_a)
-
-    #     return press_therm_a
 #====================================================================
 class MieGrun(ThermalMod):
     """
