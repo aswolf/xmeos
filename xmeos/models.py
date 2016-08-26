@@ -1137,15 +1137,41 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
         return scale_a, paramkey_a
 
+    def get_param_override( self, paramkey, paramval, eos_d ):
+        if paramval is None:
+            paramval, = Control.get_params( [paramkey], eos_d )
+
+        return paramval
+
+    def calc_therm_dev( self, T_a, eos_d ):
+        """
+        """
+        # assert False, 'calc_thermal_dev is not yet implimented'
+
+        T0, = Control.get_params( ['T0'], eos_d )
+        mexp, = Control.get_params( ['mexp'], eos_d )
+        # therm_dev_a = (T_a/T0)**mexp
+        therm_dev_a = (T_a/T0)**mexp - 1.0
+
+        return therm_dev_a
+
+    def calc_therm_dev_deriv( self, T_a, eos_d ):
+        """
+        """
+        # assert False, 'calc_thermal_dev is not yet implimented'
+
+        T0, = Control.get_params( ['T0'], eos_d )
+        mexp, = Control.get_params( ['mexp'], eos_d )
+
+        dtherm_dev_a = (mexp/T0)*(T_a/T0)**(mexp-1.0)
+
+        return dtherm_dev_a
+
+
     def calc_energy( self, T_a, eos_d, acoef_a=None, bcoef_a=None ):
         """Returns Thermal Component of Energy."""
         mexp, lognfac = Control.get_params( ['mexp','lognfac'], eos_d )
 
-        if acoef_a is None:
-            acoef_a, = Control.get_params( ['acoef'], eos_d )
-
-        if bcoef_a is None:
-            bcoef_a, = Control.get_params( ['bcoef'], eos_d )
 
         energy_pot_a = self.calc_energy_pot( T_a, eos_d, acoef_a=acoef_a,
                                             bcoef_a=bcoef_a )
@@ -1167,13 +1193,12 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         """Returns Thermal Component of Energy."""
         mexp, lognfac = Control.get_params( ['mexp','lognfac'], eos_d )
 
-        if acoef_a is None:
-            acoef_a, = Control.get_params( ['acoef'], eos_d )
+        acoef_a = self.get_param_override( 'acoef', acoef_a, eos_d )
+        bcoef_a = self.get_param_override( 'bcoef', bcoef_a, eos_d )
 
-        if bcoef_a is None:
-            bcoef_a, = Control.get_params( ['bcoef'], eos_d )
+        therm_dev_a = self.calc_therm_dev( T_a, eos_d )
 
-        energy_pot_a = acoef_a + bcoef_a*T_a**mexp
+        energy_pot_a = acoef_a + bcoef_a*therm_dev_a
 
         return energy_pot_a
 
@@ -1191,10 +1216,10 @@ class GenRosenfeldTaranzona(ThermalPathMod):
     def calc_heat_capacity_pot( self, T_a, eos_d, bcoef_a=None ):
         mexp, = Control.get_params( ['mexp'], eos_d )
 
-        if bcoef_a is None:
-            bcoef_a, = Control.get_params( ['bcoef'], eos_d )
+        bcoef_a = self.get_param_override( 'bcoef', bcoef_a, eos_d )
+        dtherm_dev_a = self.calc_therm_dev_deriv( T_a, eos_d )
 
-        heat_capacity_pot_a = mexp*bcoef_a*T_a**(mexp-1.0)
+        heat_capacity_pot_a = bcoef_a*dtherm_dev_a
 
         return heat_capacity_pot_a
 
@@ -1209,8 +1234,7 @@ class GenRosenfeldTaranzona(ThermalPathMod):
     def calc_entropy_pot( self, T_a, eos_d, Tref=None, bcoef_a=None ):
         mexp, = Control.get_params( ['mexp'], eos_d )
 
-        if Tref is None:
-            Tref, = Control.get_params( ['T0'], eos_d )
+        Tref = self.get_param_override( 'T0', Tref, eos_d )
 
         Cv_pot = self.calc_heat_capacity_pot( T_a, eos_d, bcoef_a=bcoef_a )
         Cv_ref_pot = self.calc_heat_capacity_pot( Tref, eos_d, bcoef_a=bcoef_a )
@@ -1219,8 +1243,7 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         return dSpot_a
 
     def calc_entropy_kin( self, T_a, eos_d, Tref=None ):
-        if Tref is None:
-            Tref, = Control.get_params( ['T0'], eos_d )
+        Tref = self.get_param_override( 'T0', Tref, eos_d )
 
         Cv_kin = self.calc_heat_capacity_kin( T_a, eos_d )
         dSkin_a = Cv_kin*np.log( T_a/Tref )
@@ -1231,11 +1254,8 @@ class GenRosenfeldTaranzona(ThermalPathMod):
         """Returns Entropy."""
         mexp, = Control.get_params( ['mexp'], eos_d )
 
-        if Sref is None:
-            Sref, = Control.get_params( ['S0'], eos_d )
-
-        if Tref is None:
-            Tref, = Control.get_params( ['T0'], eos_d )
+        Sref = self.get_param_override( 'S0', Sref, eos_d )
+        Tref = self.get_param_override( 'T0', Tref, eos_d )
 
         Cv_pot = self.calc_heat_capacity_pot( T_a, eos_d, bcoef_a=bcoef_a )
         Cv_ref_pot = self.calc_heat_capacity_pot( Tref, eos_d, bcoef_a=bcoef_a )

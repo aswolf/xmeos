@@ -623,11 +623,19 @@ class TestRosenfeldTaranzonaPoly(BaseTestThermalMod):
         #     np.array([-0.371466,7.09542,-45.7362,139.020,-201.487,112.513])
         Vconv_a = (1.0/Vconv_fac)**np.arange(6)
 
-        acoef_a = energy_conv_fac*Vconv_a*\
-            np.array([127.116,-3503.98,20724.4,-60212.0,86060.5,-48520.4])
-        bcoef_a = energy_conv_fac*Vconv_a*\
-            np.array([-0.371466,7.09542,-45.7362,139.020,-201.487,112.513])
 
+        unit_conv = energy_conv_fac*Vconv_a
+
+        # Reported vol-dependent polynomial coefficients for a and b
+        #  in Spera2011
+        acoef_unscl_a = np.array([127.116,-3503.98,20724.4,-60212.0,\
+                                  86060.5,-48520.4])
+        bcoef_unscl_a = np.array([-0.371466,7.09542,-45.7362,139.020,\
+                                  -201.487,112.513])
+
+        # Convert units and transfer to normalized version of RT model
+        acoef_a = unit_conv*(acoef_unscl_a+bcoef_unscl_a*T0**mexp)
+        bcoef_a = unit_conv*bcoef_unscl_a*T0**mexp
 
         models.Control.set_array_params( 'acoef', acoef_a, eos_d )
         models.Control.set_array_params( 'bcoef', bcoef_a, eos_d )
