@@ -459,7 +459,7 @@ class CompressPathMod(CompressMod):
         return self.level_const
 
     # EOS property functions
-    def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=0.01):
+    def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=1e-6):
         scale_a, paramkey_a = self.get_param_scale( eos_d, apply_expand_adj=True )
         scale = scale_a[paramkey_a==paramname][0]
         # print 'scale: ' + np.str(scale)
@@ -982,7 +982,9 @@ class Vinet(CompressPathMod):
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
 class Tait(CompressPathMod):
-    def __init__( self, setPmin=False, expand_adj=None):
+    def __init__( self, setPmin=False,
+                 path_const='T', level_const=300, expand_adj_mod=None,
+                 expand_adj=None, supress_energy=False, supress_press=False ):
         super(Tait, self).__init__( expand_adj=None )
         self.setPmin = setPmin
         pass

@@ -42,6 +42,7 @@ class BaseTestCompressPathMod(object):
         return eos_d
 
     def test_press(self):
+
         TOL = 1e-4
 
         Nsamp = 10001
@@ -121,6 +122,8 @@ class BaseTestCompressPathMod(object):
         # except:
 
         # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        # plt.plot(Vmod_a,Eperturb_a.T,'-',Vmod_a, Eperturb_num_a.T,'--')
+
         # plt.ion()
         # plt.figure()
         # plt.clf()
@@ -129,6 +132,7 @@ class BaseTestCompressPathMod(object):
         # plt.plot(Vmod_a[::100], Eperturb_num_a[:,::100].T,'x',
         #          Vmod_a, Eperturb_a.T,'-')
         # plt.plot(Vmod_a[::100], Eperturb_a[3,::100].T,'r-')
+
         # Eperturb_num_a-Eperturb_a
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
@@ -1048,7 +1052,7 @@ class TestGammaComparison():
 
         pass
 
-    def test(self):
+    def test_gamma(self):
         eos_d = self.init_params({})
         VR = eos_d['param_d']['VR']
         TR = 1000.0
@@ -1095,22 +1099,25 @@ class TestGammaComparison():
         plt.ylabel('$q$',fontsize=16)
         plt.text(.9,1.1*qR,'$(\gamma_0,q_0) = ('+np.str(gammaR)+','+np.str(qR)+')$',fontsize=20)
 
-        from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+        plt.savefig('test/figs/gamma-q-comparison.png',dpi=450)
 
-        plt.clf()
-        hleg = plt.plot(1.0/V_a,gam_str_a,'r-',lw=2)
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
-        eos_str_d['param_d']['gammapR'] = -0.5
-        eos_str_d['param_d']['gammapR'] = -2
+        # plt.clf()
+        # hleg = plt.plot(1.0/V_a,gam_str_a,'r-',lw=2)
 
-        eos_str_d['param_d']['gammapR'] = -1.0
-        eos_str_d['param_d']['gammaR'] = 0.5
-        eos_str_d['param_d']['gammapR'] = -2.0
-        eos_str_d['param_d']['gammapR'] = -10.0
+        # eos_str_d['param_d']['gammapR'] = -0.5
+        # eos_str_d['param_d']['gammapR'] = -2
 
-        eos_str_d['param_d']['gammaR'] = 0.75
-        eos_str_d['param_d']['gammapR'] = -10.0
-        eos_str_d['param_d']['gammapR'] = -30.0
+        # eos_str_d['param_d']['gammapR'] = -1.0
+        # eos_str_d['param_d']['gammaR'] = 0.5
+        # eos_str_d['param_d']['gammapR'] = -2.0
+        # eos_str_d['param_d']['gammapR'] = -10.0
+
+        # eos_str_d['param_d']['gammaR'] = 0.75
+        # eos_str_d['param_d']['gammapR'] = -10.0
+        # eos_str_d['param_d']['gammapR'] = -30.0
+
         gam_str_a = gam_str_mod.gamma(V_a,eos_str_d)
         eos_str_d['param_d']['gammapR'] = -0.5
 
@@ -1135,9 +1142,6 @@ class TestGammaComparison():
         plt.ylabel('$T\; [K]$',fontsize=16)
         plt.text(.9,1.1*TR,'$(\gamma_0,q_0) = ('+np.str(gammaR)+','+np.str(qR)+')$',fontsize=20)
         plt.savefig('test/figs/gamma-temp-comparison.png',dpi=450)
-
-
-
 #====================================================================
 class TestRosenfeldTaranzonaPerturbExpand(TestRosenfeldTaranzonaPerturb):
     def load_compress_path_mod(self, eos_d):
