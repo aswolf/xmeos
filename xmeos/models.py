@@ -1383,45 +1383,46 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         print 'hello world'
         pass
 
+    def get_thermal_perturb_param( self, eos_d ):
+        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
+        compress_param_scale_a, param_list_a =  compress_path_mod.get_param_scale( eos_d )
+
+        paramkey_a = []
+        for param in param_list_a:
+            paramkey_a.append( 'd'+param+'th' )
+
+        paramkey_a = np.array(paramkey_a)
+        return paramkey_a
+
+    def calc_therm_dev( self, V_a, T_a, eos_d ):
+        """
+        Not yet implimented!
+
+        """
+        # assert False, 'calc_thermal_dev is not yet implimented'
+
+        T0, = Control.get_params( ['T0'], eos_d )
+        gamma_mod = eos_d['modtype_d']['GammaMod']
+        T_ref_a = gamma_mod.temp( V_a, T0, eos_d )
+
+        mexp, = Control.get_params( ['mexp'], eos_d )
+        therm_dev_a = (T_a/T0)**mexp - (T_ref_a/T0)**mexp
+
+        return therm_dev_a
+
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
-        if compress_path_mod.expand_adj:
-            # dEth,dVth,dKth, dKPth, dKP2th = \
-            #     Control.get_params( ['dE0th','dV0th','dK0th','dKP0th','dKP20th'], eos_d )
-            # T0,E0,V0,K0,KP0,KP20 = Control.get_params( ['T0','E0','V0','K0','KP0','KP20'], eos_d )
-            dEth,dVth,dKth,dKPth = \
-                Control.get_params( ['dE0th','dV0th','dK0th','dKP0th'], eos_d )
-            T0,E0,V0,K0,KP0 = Control.get_params( ['T0','E0','V0','K0','KP0'], eos_d )
-        else:
-            dEth,dVth,dKth, dKPth = Control.get_params( ['dE0th','dV0th','dK0th',
-                                                         'dKP0th'], eos_d )
-            T0,E0,V0,K0,KP0 = Control.get_params( ['T0','E0','V0','K0','KP0'], eos_d )
+        paramkey_a = self.get_thermal_perturb_param( eos_d )
 
+        scale_a = np.ones(paramkey_a.size)
+
+        T0, = Control.get_params( ['T0'], eos_d )
         T0_scl = T0
         mexp_scl = 3./5
         lognfac_scl = 0.01
 
-        dE0th_scl = 1.0
-        dV0th_scl = 1.0
-        dK0th_scl = 1.0
-        dKP0th_scl = 1.0
-
-        if compress_path_mod.expand_adj:
-            dKP20th_scl = 1e3
-            # paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
-            #                        'dKP20th','mexp','lognfac'])
-            # scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
-            #                     dKP20th_scl, mexp_scl,lognfac_scl])
-            paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
-                                   'mexp','lognfac'])
-            scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
-                                mexp_scl,lognfac_scl])
-        else:
-            paramkey_a = np.array(['T0','dE0th','dV0th','dK0th','dKP0th',
-                                   'mexp','lognfac'])
-            scale_a = np.array([T0_scl,dE0th_scl,dV0th_scl,dK0th_scl,dKP0th_scl,\
-                                mexp_scl,lognfac_scl])
+        paramkey_a = np.append(paramkey_a,['T0','mexp','lognfac'])
+        scale_a = np.append(scale_a,[T0_scl,mexp_scl,lognfac_scl])
 
         return scale_a, paramkey_a
 
@@ -1429,6 +1430,8 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         """
         Must implement a method for determining RT coefficients as a function of vol
         """
+
+        # paramkey_a = self.get_thermal_perturb_param( eos_d )
         compress_path_mod = eos_d['modtype_d']['CompressPathMod']
         dE0th,dV0th,dK0th, dKP0th = Control.get_params( ['dE0th','dV0th','dK0th',
                                                          'dKP0th'], eos_d )
@@ -1478,14 +1481,19 @@ class RosenfeldTaranzonaPerturb(RosenfeldTaranzonaCompress):
         return acoef_a, bcoef_a
 
     def calc_energy_pot_diff( self, V_a, T_a, eos_d ):
-        T0, = Control.get_params( ['T0'], eos_d )
+        # T0, = Control.get_params( ['T0'], eos_d )
 
-        gamma_mod = eos_d['modtype_d']['GammaMod']
-        T_ref_a = gamma_mod.temp( V_a, T0, eos_d )
+        # gamma_mod = eos_d['modtype_d']['GammaMod']
+        # T_ref_a = gamma_mod.temp( V_a, T0, eos_d )
 
-        del_energy_pot_a = self.calc_energy_pot( V_a, T_a, eos_d ) \
-            - self.calc_energy_pot( V_a, T_ref_a, eos_d )
+        # del_energy_pot_a = self.calc_energy_pot( V_a, T_a, eos_d ) \
+        #     - self.calc_energy_pot( V_a, T_ref_a, eos_d )
 
+        therm_dev_a = self.calc_therm_dev( V_a, T_a, eos_d )
+
+        acoef_a, bcoef_a = self.calc_RT_coef( V_a, eos_d )
+
+        del_energy_pot_a = bcoef_a*therm_dev_a
         return del_energy_pot_a
 
     def calc_energy_kin_diff( self, V_a, T_a, eos_d ):
@@ -1785,7 +1793,8 @@ class GammaFiniteStrain(GammaMod):
         """Return scale values for each parameter"""
 
 
-        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
+        # gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
+        gammaR, gammapR = Control.get_params( ['gammaR','gammapR'], eos_d )
 
         if self.V0ref:
             VR, = Control.get_params( ['V0'], eos_d )

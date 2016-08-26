@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sp
+import emcee
 from abc import ABCMeta, abstractmethod
 import scipy.interpolate as interpolate
 import matplotlib.pyplot as plt
@@ -105,7 +106,7 @@ def init_datamod( data_d, prior_d, eos_d, fit_data_type=['P'] ):
 
     return datamod_d
 #====================================================================
-def calc_resid_datamod( param_a, datamod_d ):
+def calc_resid_datamod( param_a, datamod_d, Eerr=None, Perr=None ):
     """
     Error is a fraction of peak-to-peak difference
     """
@@ -124,15 +125,15 @@ def calc_resid_datamod( param_a, datamod_d ):
         # ierr = datamod_d['data_d'][data_type+'err']
 
         # emphasize low temp data
-        Ttr = 3100
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
+        # Ttr = 3100
+        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.01
 
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.6
+        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.5
         # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
         # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
 
         V0 = eos_d['param_d']['V0']
-        ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.5
+        # ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.5
         if data_type == 'P':
             # ierr *= 1.0
             # Ptr = 15.0
@@ -140,11 +141,18 @@ def calc_resid_datamod( param_a, datamod_d ):
             # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
 
             # ierr *= 0.3
+            if Perr is not None:
+                ierr = Perr
+
             imod_val_a = eos_d['modtype_d']['FullMod'].press\
                 (datamod_d['data_d']['V'], datamod_d['data_d']['T'], eos_d)
         elif data_type == 'E':
+            if Eerr is not None:
+                ierr = Eerr
+
             imod_val_a = eos_d['modtype_d']['FullMod'].energy\
                 (datamod_d['data_d']['V'], datamod_d['data_d']['T'], eos_d)
+
 
         iresid_a = (imod_val_a-idat_val_a)/ierr
 
@@ -153,33 +161,161 @@ def calc_resid_datamod( param_a, datamod_d ):
 
     return resid_a
 #====================================================================
-def calc_cost_fun( param_a, datamod_d ):
-    resid_a = calc_resid_datamod(param_a, datamod_d)
+def calc_cost_fun( param_a, datamod_d, Eerr=None, Perr=None ):
+    resid_a = calc_resid_datamod(param_a, datamod_d, Eerr=Eerr, Perr=Perr)
     costval = np.sum(resid_a**2)
     if np.isnan(costval):
         from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
     return costval
 #====================================================================
-def fit_datamod( datamod_d, nrepeat=6 ):
+def lnprob( param_a, datamod_d, Eerr, Perr ):
+    return -0.5*calc_cost_fun( param_a , datamod_d, Eerr=Eerr, Perr=Perr )
+#====================================================================
+def residual_model_error( datamod_d ):
+    eos_d = datamod_d['eos_d']
+
+    V_a = datamod_d['data_d']['V']
+    T_a = datamod_d['data_d']['T']
+    P_a = datamod_d['data_d']['P']
+    E_a = datamod_d['data_d']['E']
+
+    Pmod_a = eos_d['modtype_d']['FullMod'].press(V_a, T_a, eos_d)
+    Emod_a = eos_d['modtype_d']['FullMod'].energy(V_a, T_a, eos_d)
+
+    Presid_a = Pmod_a-P_a
+    Eresid_a = Emod_a-E_a
+
+    Perr = np.std(Presid_a)
+    Eerr = np.std(Eresid_a)
+
+    return Eerr,Perr
+#====================================================================
+def fit( datamod_d, nrepeat=6 ):
+
+    eos_d = datamod_d['eos_d']
+
     param0_a = datamod_d['prior_d']['param_val']
 
     for i in np.arange(nrepeat):
-        fit_tup = optimize.leastsq(lambda param_a,
-                                   datamod_d=datamod_d,param0_a=param0_a:\
+        # fit_tup = optimize.leastsq(lambda param_a,
+        #                            datamod_d=datamod_d,param0_a=param0_a:\
+        #                            calc_resid_datamod( param_a, datamod_d ),
+        #                            param0_a)
+        fit_tup = optimize.leastsq(lambda param_a, datamod_d=datamod_d,param0_a=param0_a:\
                                    calc_resid_datamod( param_a, datamod_d ),
-                                   param0_a)
+                                   param0_a, full_output=True)
         paramf_a = fit_tup[0]
         param0_a = paramf_a
 
+    fvec_a = fit_tup[2]['fvec']
+
     # Set final fit
-    eos_d = datamod_d['eos_d']
     param_key = datamod_d['prior_d']['param_key']
     models.Control.set_params( param_key, paramf_a, eos_d )
 
+    cov_scl = fit_tup[1]
+    resid_var = np.var(fit_tup[2]['fvec'])
+    cov = resid_var*cov_scl
+    paramerr_a = np.sqrt( np.diag(cov) )
+
+    corr = cov/(np.expand_dims(paramerr_a,1)*paramerr_a)
+
+
+
+    Eerr, Perr = residual_model_error( datamod_d )
+
     posterior_d = copy.deepcopy(datamod_d['prior_d'])
     posterior_d['param_val'] = paramf_a
+    posterior_d['param_err'] = paramerr_a
+    posterior_d['corr'] = corr
+    posterior_d['Eerr'] = Eerr
+    posterior_d['Perr'] = Perr
+
     datamod_d['posterior_d'] = posterior_d
+
+#====================================================================
+def runmcmc( datamod_d, nwalkers_fac=3 ):
+    from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+    posterior_d = datamod_d['posterior_d']
+    param_val = posterior_d['param_val']
+    param_err = posterior_d['param_err']
+    corr = posterior_d['corr']
+    Eerr = posterior_d['Eerr']
+    Perr = posterior_d['Perr']
+
+    cov = corr*(np.expand_dims(param_err,1)*param_err)
+
+    ndim = param_val.size
+    nwalkers = np.int(np.ceil(nwalkers_fac*ndim))
+
+    # calc_resid_datamod( paramf_a, datamod_d, Eerr=Eerr, Perr=Perr )
+    # lnprob(paramf_a, datamod_d, Eerr, Perr )
+
+    param_key = posterior_d['param_key']
+    p0 = np.random.multivariate_normal(param_val,0.1*cov,nwalkers)
+
+    sampler = emcee.EnsembleSampler( nwalkers, ndim, lnprob,
+                                    args=[datamod_d, Eerr, Perr] )
+
+    pos_warm = p0
+    Nwarm = 100
+
+
+    pos_warm, prob_warm, state_warm = sampler.run_mcmc(pos_warm,Nwarm)
+
+
+    plt.figure()
+    plt.clf()
+
+    plt.clf()
+    plt.plot(sampler.lnprobability.T,'-')
+
+
+    twait=2
+    for i in np.arange(ndim):
+        plt.clf()
+        plt.plot(sampler.chain[:,:,i].T,'-')
+        plt.ylabel(param_key[i])
+        plt.xlabel('iter')
+        plt.pause(twait)
+
+
+    pos_warm, prob_warm, state_warm = sampler.run_mcmc(pos_warm,Nwarm)
+
+
+    Ndraw = 301
+    sampler.reset()
+    pos, prob, state = sampler.run_mcmc(pos_warm,Ndraw)
+
+
+    samp_a = sampler.chain[:,30:,:].reshape((-1, ndim))
+
+
+    for i in np.arange(ndim):
+        plt.clf()
+        # plt.plot(samp_a[:,i],'-')
+        # plt.ylabel(param_key[i])
+        plt.hist(samp_a[:,i],11)
+        plt.xlabel(param_key[i])
+        plt.pause(1)
+
+
+
+    fig = corner.corner(samp_a[:,0:6], labels=param_key[0:6])
+    i=0;j=1;
+
+    plt.clf()
+    plt.plot(samp_a[:,i],samp_a[:,j],'o')
+    plt.xlabel(param_key[i])
+    plt.ylabel(param_key[j])
+
+    emcee
+    calc_resid_datamod( paramf_a, datamod_d, Eerr=Eerr, Perr=Perr )
+
+
+
 
     pass
 #====================================================================
