@@ -106,6 +106,22 @@ def init_datamod( data_d, prior_d, eos_d, fit_data_type=['P'] ):
 
     return datamod_d
 #====================================================================
+def model_eval( param_a, data_type, datamod_d ):
+    eos_d = datamod_d['eos_d']
+    param_key = datamod_d['prior_d']['param_key']
+    models.Control.set_params( param_key, param_a, eos_d )
+    V_a = datamod_d['data_d']['V']
+    T_a = datamod_d['data_d']['T']
+
+    full_mod = eos_d['modtype_d']['FullMod']
+
+    if data_type == 'P':
+        model_val_a = full_mod.press(V_a, T_a, eos_d)
+    elif data_type == 'E':
+        model_val_a = full_mod.energy(V_a, T_a, eos_d)
+
+    return model_val_a
+#====================================================================
 def calc_resid_datamod( param_a, datamod_d, Eerr=None, Perr=None ):
     """
     Error is a fraction of peak-to-peak difference
@@ -122,12 +138,14 @@ def calc_resid_datamod( param_a, datamod_d, Eerr=None, Perr=None ):
         idat_val_a = datamod_d['data_d'][data_type]
         #using
         ierr = np.ptp(idat_val_a)*np.ones(idat_val_a.shape)
+        # ierr = np.std(idat_val_a)*np.ones(idat_val_a.shape)
         # ierr = datamod_d['data_d'][data_type+'err']
 
         # emphasize low temp data
-        # Ttr = 3100
+        Ttr = 3100
         # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.01
 
+        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
         # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.5
         # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
         # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
@@ -135,7 +153,7 @@ def calc_resid_datamod( param_a, datamod_d, Eerr=None, Perr=None ):
         V0 = eos_d['param_d']['V0']
         # ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.5
         if data_type == 'P':
-            # ierr *= 1.0
+            # ierr *= 0.1
             # Ptr = 15.0
             # ierr[idat_val_a <= Ptr] *= 0.1
             # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
@@ -196,6 +214,17 @@ def fit( datamod_d, nrepeat=6 ):
     eos_d = datamod_d['eos_d']
 
     param0_a = datamod_d['prior_d']['param_val']
+    # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+    # V_a = datamod_d['data_d']['V']
+    # T_a = datamod_d['data_d']['T']
+    # P_a = datamod_d['data_d']['P']
+    # E_a = datamod_d['data_d']['E']
+    # model_eval( param0_a, 'P', datamod_d )
+    # model_eval( param0_a, 'E', datamod_d )
+
+    # plt.clf()
+    # plt.plot(V_a,P_a,'ko',V_a,model_eval( param0_a, 'P', datamod_d ),'rx')
 
     for i in np.arange(nrepeat):
         # fit_tup = optimize.leastsq(lambda param_a,
@@ -208,6 +237,7 @@ def fit( datamod_d, nrepeat=6 ):
         paramf_a = fit_tup[0]
         param0_a = paramf_a
 
+    print paramf_a
     fvec_a = fit_tup[2]['fvec']
 
     # Set final fit
@@ -233,7 +263,6 @@ def fit( datamod_d, nrepeat=6 ):
     posterior_d['Perr'] = Perr
 
     datamod_d['posterior_d'] = posterior_d
-
 #====================================================================
 def runmcmc( datamod_d, nwalkers_fac=3 ):
     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
@@ -254,6 +283,11 @@ def runmcmc( datamod_d, nwalkers_fac=3 ):
     # lnprob(paramf_a, datamod_d, Eerr, Perr )
 
     param_key = posterior_d['param_key']
+
+
+    # Initialize using approximate Laplace covariance matrix
+    # Shrink by factor of 3 around best-fit to avoid getting stuck in improbable
+    # places
     p0 = np.random.multivariate_normal(param_val,0.1*cov,nwalkers)
 
     sampler = emcee.EnsembleSampler( nwalkers, ndim, lnprob,
@@ -262,61 +296,54 @@ def runmcmc( datamod_d, nwalkers_fac=3 ):
     pos_warm = p0
     Nwarm = 100
 
-
     pos_warm, prob_warm, state_warm = sampler.run_mcmc(pos_warm,Nwarm)
 
-
-    plt.figure()
-    plt.clf()
-
-    plt.clf()
-    plt.plot(sampler.lnprobability.T,'-')
+    # sampler4 = emcee.EnsembleSampler( nwalkers, ndim, lnprob,
+    #                                 args=[datamod_d, Eerr, Perr],threads=4 )
+    # pos_warm, prob_warm, state_warm = sampler4.run_mcmc(pos_warm,Nwarm)
 
 
-    twait=2
-    for i in np.arange(ndim):
-        plt.clf()
-        plt.plot(sampler.chain[:,:,i].T,'-')
-        plt.ylabel(param_key[i])
-        plt.xlabel('iter')
-        plt.pause(twait)
+    # plt.figure()
+    # plt.clf()
+
+    # plt.clf()
+    # plt.plot(sampler.lnprobability.T,'-')
 
 
-    pos_warm, prob_warm, state_warm = sampler.run_mcmc(pos_warm,Nwarm)
+    # twait=1.0
+    # for i in np.arange(ndim):
+    #     plt.clf()
+    #     plt.plot(sampler.chain[:,:,i].T,'-')
+    #     plt.ylabel(param_key[i])
+    #     plt.xlabel('iter')
+    #     plt.pause(twait)
 
 
     Ndraw = 301
     sampler.reset()
     pos, prob, state = sampler.run_mcmc(pos_warm,Ndraw)
 
+    # twait=1.0
+    # for i in np.arange(ndim):
+    #     plt.clf()
+    #     plt.plot(sampler.chain[:,:,i].T,'-')
+    #     plt.ylabel(param_key[i])
+    #     plt.xlabel('iter')
+    #     plt.pause(twait)
 
-    samp_a = sampler.chain[:,30:,:].reshape((-1, ndim))
-
-
-    for i in np.arange(ndim):
-        plt.clf()
-        # plt.plot(samp_a[:,i],'-')
-        # plt.ylabel(param_key[i])
-        plt.hist(samp_a[:,i],11)
-        plt.xlabel(param_key[i])
-        plt.pause(1)
-
-
-
-    fig = corner.corner(samp_a[:,0:6], labels=param_key[0:6])
-    i=0;j=1;
-
-    plt.clf()
-    plt.plot(samp_a[:,i],samp_a[:,j],'o')
-    plt.xlabel(param_key[i])
-    plt.ylabel(param_key[j])
-
-    emcee
-    calc_resid_datamod( paramf_a, datamod_d, Eerr=Eerr, Perr=Perr )
+    # twait=1.0
+    # for i in np.arange(ndim):
+    #     plt.clf()
+    #     plt.hist(sampler.chain[:,:,i].reshape((-1,)),30)
+    #     plt.xlabel(param_key[i])
+    #     plt.pause(twait)
 
 
+    # samp_a = sampler.chain[:,10:,:].reshape((-1,ndim))
+    # fig = corner.corner(samp_a[:,0:6], labels=param_key[0:6])
+    # fig = corner.corner(samp_a[:,6:], labels=param_key[6:])
 
-
+    datamod_d['posterior_d']['mcmc'] = sampler
     pass
 #====================================================================
 
