@@ -430,22 +430,28 @@ class CompressPathMod(CompressMod):
         if not self.expand_adj :
             return self.get_param_scale_sub( eos_d )
         else:
-            scale_pos_a, paramkey_pos_a = self.get_param_scale_sub( eos_d )
-            scale_neg_a, paramkey_neg_a = self.expand_adj_mod.get_param_scale_sub( eos_d )
+            scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
+            scale_a = np.append(scale_a,0.01)
+            paramkey_a = np.append(paramkey_a,'logPmin')
 
-            ind_pos_a = self.validate_shared_param_scale(scale_pos_a,paramkey_pos_a,
-                                                         scale_neg_a,paramkey_neg_a)
+            return scale_a, paramkey_a
+            # paramkey_pos_a = np.append(paramkey_pos_a,1.0)
 
-            # Since negative expansion EOS model params are a superset of those
-            # required for the positive compression model, we can simply return the
-            # scale and paramkey values from the negative expansion model
-            scale_a = scale_neg_a
-            paramkey_a = paramkey_neg_a
+            # scale_neg_a, paramkey_neg_a = self.expand_adj_mod.get_param_scale_sub( eos_d )
 
-            if output_ind:
-                return scale_a, paramkey_a, ind_pos_a
-            else:
-                return scale_a, paramkey_a
+            # ind_pos_a = self.validate_shared_param_scale(scale_pos_a,paramkey_pos_a,
+            #                                              scale_neg_a,paramkey_neg_a)
+
+            # # Since negative expansion EOS model params are a superset of those
+            # # required for the positive compression model, we can simply return the
+            # # scale and paramkey values from the negative expansion model
+            # scale_a = scale_neg_a
+            # paramkey_a = paramkey_neg_a
+
+            # if output_ind:
+            #     return scale_a, paramkey_a, ind_pos_a
+            # else:
+            #     return scale_a, paramkey_a
 
     def get_ind_exp( self, V_a, eos_d ):
         V0 = Control.get_params( ['V0'], eos_d )
@@ -984,22 +990,23 @@ class Vinet(CompressPathMod):
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
 class Tait(CompressPathMod):
-    def __init__( self, setPmin=False,
+    def __init__( self, setlogPmin=False,
                  path_const='T', level_const=300, expand_adj_mod=None,
                  expand_adj=None, supress_energy=False, supress_press=False ):
         super(Tait, self).__init__( expand_adj=None )
-        self.setPmin = setPmin
+        self.setlogPmin = setlogPmin
         pass
-    # def __init__( self, setPmin=False, expand_adj=False ):
-    #     self.setPmin = setPmin
+    # def __init__( self, setlogPmin=False, expand_adj=False ):
+    #     self.setlogPmin = setlogPmin
     #     self.expand_adj = expand_adj
     #     pass
 
     def get_eos_params(self, eos_d):
         V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
-        if self.setPmin:
-            Pmin, = Control.get_params( ['Pmin'], eos_d )
-            assert Pmin>0, 'Pmin must be positive.'
+        if self.setlogPmin:
+            logPmin, = Control.get_params( ['logPmin'], eos_d )
+            Pmin = np.exp(logPmin)
+            # assert Pmin>0, 'Pmin must be positive.'
             KP20 = (KP0+1)*(KP0/K0 - 1.0/Pmin)
         else:
             KP20, = Control.get_params( ['KP20'], eos_d )
@@ -1012,7 +1019,7 @@ class Tait(CompressPathMod):
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-        if self.setPmin:
+        if self.setlogPmin:
             # [V0,K0,KP0,E0]
             paramkey_a = np.array(['V0','K0','KP0','E0'])
             scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
@@ -1102,7 +1109,7 @@ class Tait(CompressPathMod):
 
         print dEdp_a.shape
 
-        if self.setPmin:
+        if self.setlogPmin:
             # [V0,K0,KP0,E0]
             print dEdp_a.shape
             dEdp_a = dEdp_a[[0,1,2,4],:]
@@ -2099,6 +2106,8 @@ class GammaFiniteStrain(GammaMod):
         return gamma_a
 #====================================================================
 class ThermalPressMod(FullMod):
+    # Need to impliment get_param_scale_sub
+
     def press( self, V_a, T_a, eos_d ):
         """Returns Press variation along compression curve."""
         V_a, T_a = fill_array( V_a, T_a )
@@ -2154,6 +2163,30 @@ class ThermalPressMod(FullMod):
                                   + thermal_mod.energy( V_a, T_a, eos_d ) )
 
         return energy_a
+
+    def bulk_modulus( self, V_a, T_a, eos_d ):
+        TOL = 1e-4
+
+        P_lo_a = self.press( V_a*(1.0-TOL/2), T_a, eos_d )
+        P_hi_a = self.press( V_a*(1.0+TOL/2), T_a, eos_d )
+        K_a = -V_a*(P_hi_a-P_lo_a)/(V_a*TOL)
+
+        return K_a
+
+    def dPdT( self, V_a, T_a, eos_d, Tscl=1000.0 ):
+        TOL = 1e-4
+
+        P_lo_a = self.press( V_a, T_a*(1.0-TOL/2), eos_d )
+        P_hi_a = self.press( V_a, T_a*(1.0+TOL/2), eos_d )
+        dPdT_a = (P_hi_a-P_lo_a)/(T_a*TOL)*Tscl
+
+        # # By a maxwell relation dPdT_V = dSdV_T
+        # S_lo_a = self.entropy( V_a*(1.0-TOL/2), T_a, eos_d )
+        # S_hi_a = self.entropy( V_a*(1.0+TOL/2), T_a, eos_d )
+        # dSdV_a = (S_hi_a-S_lo_a)/(V_a*TOL)
+        # dPdT_a = dSdV_a*Tscl
+
+        return dPdT_a
 
     def free_energy( self, V_a, T_a, eos_d ):
         """Returns Free Energy."""

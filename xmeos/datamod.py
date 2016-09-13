@@ -106,12 +106,8 @@ def init_datamod( data_d, prior_d, eos_d, fit_data_type=['P'] ):
 
     return datamod_d
 #====================================================================
-def model_eval( param_a, data_type, datamod_d ):
+def model_eval( data_type, V_a, T_a, datamod_d ):
     eos_d = datamod_d['eos_d']
-    param_key = datamod_d['prior_d']['param_key']
-    models.Control.set_params( param_key, param_a, eos_d )
-    V_a = datamod_d['data_d']['V']
-    T_a = datamod_d['data_d']['T']
 
     full_mod = eos_d['modtype_d']['FullMod']
 
@@ -119,10 +115,114 @@ def model_eval( param_a, data_type, datamod_d ):
         model_val_a = full_mod.press(V_a, T_a, eos_d)
     elif data_type == 'E':
         model_val_a = full_mod.energy(V_a, T_a, eos_d)
+    elif data_type == 'dPdT':
+        model_val_a = full_mod.dPdT(V_a, T_a, eos_d)
+    else:
+        assert False, data_type + ' is not a valid data type.'
+
+    #elif data_type == 'dPdT':
 
     return model_val_a
 #====================================================================
-def calc_resid_datamod( param_a, datamod_d, Eerr=None, Perr=None ):
+def calc_isotherm_press_min( Vinit, Tiso, eos_d ):
+    TOL=1e-2
+    full_mod = eos_d['modtype_d']['FullMod']
+
+    V = Vinit
+
+    V_a = V*(1.0+np.array([-TOL,0.0,+TOL]))
+    P_a = full_mod.press( V_a, Tiso, eos_d )
+    coef_a = np.polyfit(V_a,P_a,2)
+    Vext = -coef_a[1]/(2*coef_a[0])
+    Pext = np.polyval(coef_a,Vext)
+    # if coef_a[0]>0:
+    #     Vext = -coef_a[1]/(2*coef_a[0])
+    # else:
+    #     Vext = V+3*
+
+
+    while (coef_a[0]>0) and (np.abs(Vext/V-1.0) > 2*TOL):
+        V = Vext
+        V_a = V*(1.0+np.array([-TOL,0.0,+TOL]))
+        P_a = full_mod.press( V_a, Tiso, eos_d )
+        coef_a = np.polyfit(V_a,P_a,2)
+        if coef_a[0]>0:
+            Vext = -coef_a[1]/(2*coef_a[0])
+            Pext = np.polyval(coef_a,Vext)
+
+    press_min = Pext
+    return press_min
+#====================================================================
+def calc_resid_datamod( datamod_d, err_d={}, unweighted=False ):
+    """
+    Error is a fraction of peak-to-peak difference
+    """
+    scale = 0.01
+
+    eos_d = datamod_d['eos_d']
+    full_mod = eos_d['modtype_d']['FullMod']
+    # set parameter values
+    # for key,val in zip(param_key,param_a):
+    #     eos_d['param_d'][key] = val
+
+    P_a = datamod_d['data_d']['P']
+    V_a = datamod_d['data_d']['V']
+    T_a = datamod_d['data_d']['T']
+
+    Vmax = np.max(V_a)
+    P_phys_bnd_scale = 0.1
+    T_phys_bnd = np.array([1500.0,5000.0])
+    P_phys_bnd = np.array([calc_isotherm_press_min( Vmax, T_phys_bnd[0], eos_d ),
+                           calc_isotherm_press_min( Vmax, T_phys_bnd[1], eos_d )])
+    phys_bnd_resid = np.exp(5*P_phys_bnd/P_phys_bnd_scale)
+    # K constraints are not sufficient to ensure physical zero press values
+    # K_mod_a = full_mod.bulk_modulus( V_a, T_a, eos_d )
+
+    resid_a = []
+    for data_type in datamod_d['fit_data_type']:
+        idat_val_a = datamod_d['data_d'][data_type]
+
+        # Use fixed error or Infer from spread in data
+        if unweighted:
+            ierr = 1.0
+        elif err_d.has_key(data_type):
+            ierr = err_d[data_type]
+        else:
+            ierr = scale*np.std(idat_val_a)
+
+        if not unweighted:
+            if np.size(ierr)==1:
+                ierr = ierr*np.ones(idat_val_a.size)
+
+            ierr[P_a<0] *= 1e8
+
+        # ierr[K_mod_a < 0] *= 1e-10
+
+        # Fitting dPdT may require too much accuracy
+        # if data_type == 'dPdT':
+        #     ierr[P_a>0] *= 1e+2
+
+
+        # evaluate model
+        imod_val_a = model_eval( data_type, V_a, T_a, datamod_d )
+
+        # Cannot simple penalize negative thermal press
+        if data_type == 'dPdT':
+            dPdT_mod_a = imod_val_a
+            dPdT_scl = 1e-1 #GPa/1000K
+            mask_neg_dPdT = dPdT_mod_a<0
+            ierr[mask_neg_dPdT] *= np.exp(-5*dPdT_mod_a[mask_neg_dPdT]/dPdT_scl)
+
+        iresid_a = (imod_val_a-idat_val_a)/ierr
+
+        # if data_type == 'dPdT':
+        #     ierr[P_a>0] *= 1e+2
+        resid_a = np.concatenate((resid_a,iresid_a))
+
+    resid_a = np.append(resid_a,phys_bnd_resid)
+    return resid_a
+#====================================================================
+def model_eval_list( V_a, T_a, param_a, datamod_d ):
     """
     Error is a fraction of peak-to-peak difference
     """
@@ -133,81 +233,50 @@ def calc_resid_datamod( param_a, datamod_d, Eerr=None, Perr=None ):
     # for key,val in zip(param_key,param_a):
     #     eos_d['param_d'][key] = val
 
-    resid_a = []
+    model_val_l = []
     for data_type in datamod_d['fit_data_type']:
-        idat_val_a = datamod_d['data_d'][data_type]
-        #using
-        ierr = np.ptp(idat_val_a)*np.ones(idat_val_a.shape)
-        # ierr = np.std(idat_val_a)*np.ones(idat_val_a.shape)
-        # ierr = datamod_d['data_d'][data_type+'err']
+        imodel_val_a = model_eval( data_type, V_a, T_a, datamod_d )
+        model_val_l.append( imodel_val_a )
 
-        # emphasize low temp data
-        Ttr = 3100
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.01
-
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.5
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
-        # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.8
-
-        V0 = eos_d['param_d']['V0']
-        # ierr[datamod_d['data_d']['V']>=0.99*V0] *= 0.5
-        if data_type == 'P':
-            # ierr *= 0.1
-            # Ptr = 15.0
-            # ierr[idat_val_a <= Ptr] *= 0.1
-            # ierr[datamod_d['data_d']['T']<=Ttr] *= 0.1
-
-            # ierr *= 0.3
-            if Perr is not None:
-                ierr = Perr
-
-            imod_val_a = eos_d['modtype_d']['FullMod'].press\
-                (datamod_d['data_d']['V'], datamod_d['data_d']['T'], eos_d)
-        elif data_type == 'E':
-            if Eerr is not None:
-                ierr = Eerr
-
-            imod_val_a = eos_d['modtype_d']['FullMod'].energy\
-                (datamod_d['data_d']['V'], datamod_d['data_d']['T'], eos_d)
-
-
-        iresid_a = (imod_val_a-idat_val_a)/ierr
-
-        resid_a = np.concatenate((resid_a,iresid_a))
-
-
+    return model_val_l
+#====================================================================
+def set_fit_params( param_a, datamod_d ):
+    eos_d = datamod_d['eos_d']
+    param_key = datamod_d['prior_d']['param_key']
+    models.Control.set_params( param_key, param_a, eos_d )
+    pass
+#====================================================================
+def eval_resid_datamod( param_a, datamod_d, err_d={}, unweighted=False ):
+    set_fit_params( param_a, datamod_d )
+    resid_a = calc_resid_datamod(datamod_d, err_d=err_d)
     return resid_a
 #====================================================================
-def calc_cost_fun( param_a, datamod_d, Eerr=None, Perr=None ):
-    resid_a = calc_resid_datamod(param_a, datamod_d, Eerr=Eerr, Perr=Perr)
+def eval_cost_fun( param_a, datamod_d, err_d ):
+    set_fit_params( param_a, datamod_d )
+    resid_a = calc_resid_datamod(datamod_d, err_d=err_d)
     costval = np.sum(resid_a**2)
     if np.isnan(costval):
         from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
     return costval
-#====================================================================
-def lnprob( param_a, datamod_d, Eerr, Perr ):
-    return -0.5*calc_cost_fun( param_a , datamod_d, Eerr=Eerr, Perr=Perr )
+def lnprob( param_a, datamod_d, err_d ):
+    return -0.5*eval_cost_fun( param_a , datamod_d, err_d )
 #====================================================================
 def residual_model_error( datamod_d ):
     eos_d = datamod_d['eos_d']
+    param_key = datamod_d['prior_d']['param_key']
 
-    V_a = datamod_d['data_d']['V']
-    T_a = datamod_d['data_d']['T']
-    P_a = datamod_d['data_d']['P']
-    E_a = datamod_d['data_d']['E']
+    Nparam = datamod_d['prior_d']['param_key'].size
+    # calculate unweighted residuals
+    resid_a = calc_resid_datamod(datamod_d,unweighted=True)
+    N = datamod_d['data_d']['V'].size
 
-    Pmod_a = eos_d['modtype_d']['FullMod'].press(V_a, T_a, eos_d)
-    Emod_a = eos_d['modtype_d']['FullMod'].energy(V_a, T_a, eos_d)
+    err_d={}
+    for ind,data_type in enumerate(datamod_d['fit_data_type']):
+        iresid_a = resid_a[ind*N:(ind+1)*N]
+        err_d[data_type] = np.sqrt(np.mean(iresid_a**2))
 
-    Presid_a = Pmod_a-P_a
-    Eresid_a = Emod_a-E_a
-
-    Perr = np.std(Presid_a)
-    Eerr = np.std(Eresid_a)
-
-    return Eerr,Perr
+    return err_d
 #====================================================================
 def fit( datamod_d, nrepeat=6 ):
 
@@ -220,8 +289,6 @@ def fit( datamod_d, nrepeat=6 ):
     # T_a = datamod_d['data_d']['T']
     # P_a = datamod_d['data_d']['P']
     # E_a = datamod_d['data_d']['E']
-    # model_eval( param0_a, 'P', datamod_d )
-    # model_eval( param0_a, 'E', datamod_d )
 
     # plt.clf()
     # plt.plot(V_a,P_a,'ko',V_a,model_eval( param0_a, 'P', datamod_d ),'rx')
@@ -232,8 +299,9 @@ def fit( datamod_d, nrepeat=6 ):
         #                            calc_resid_datamod( param_a, datamod_d ),
         #                            param0_a)
         fit_tup = optimize.leastsq(lambda param_a, datamod_d=datamod_d,param0_a=param0_a:\
-                                   calc_resid_datamod( param_a, datamod_d ),
+                                   eval_resid_datamod( param_a, datamod_d ),
                                    param0_a, full_output=True)
+
         paramf_a = fit_tup[0]
         param0_a = paramf_a
 
@@ -252,17 +320,16 @@ def fit( datamod_d, nrepeat=6 ):
     corr = cov/(np.expand_dims(paramerr_a,1)*paramerr_a)
 
 
-
-    Eerr, Perr = residual_model_error( datamod_d )
+    err_d = residual_model_error( datamod_d )
 
     posterior_d = copy.deepcopy(datamod_d['prior_d'])
     posterior_d['param_val'] = paramf_a
     posterior_d['param_err'] = paramerr_a
     posterior_d['corr'] = corr
-    posterior_d['Eerr'] = Eerr
-    posterior_d['Perr'] = Perr
+    posterior_d['err'] = err_d
 
     datamod_d['posterior_d'] = posterior_d
+    pass
 #====================================================================
 def runmcmc( datamod_d, nwalkers_fac=3 ):
     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
@@ -279,7 +346,7 @@ def runmcmc( datamod_d, nwalkers_fac=3 ):
     ndim = param_val.size
     nwalkers = np.int(np.ceil(nwalkers_fac*ndim))
 
-    # calc_resid_datamod( paramf_a, datamod_d, Eerr=Eerr, Perr=Perr )
+    # calc_resid_datamod( datamod_d, Eerr=Eerr, Perr=Perr )
     # lnprob(paramf_a, datamod_d, Eerr, Perr )
 
     param_key = posterior_d['param_key']
