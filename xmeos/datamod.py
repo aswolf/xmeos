@@ -153,7 +153,8 @@ def calc_isotherm_press_min( Vinit, Tiso, eos_d ):
     press_min = Pext
     return press_min
 #====================================================================
-def calc_resid_datamod( datamod_d, err_d={}, unweighted=False ):
+def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
+                       mask_neg_press=False ):
     """
     Error is a fraction of peak-to-peak difference
     """
@@ -195,6 +196,8 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False ):
                 ierr = ierr*np.ones(idat_val_a.size)
 
             ierr[P_a<0] *= 1e8
+            # if mask_neg_press:
+            #     ierr[P_a<0] *= 1e8
 
         # ierr[K_mod_a < 0] *= 1e-10
 

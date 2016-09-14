@@ -724,6 +724,10 @@ class GammaMod(EosMod):
     """
     __metaclass__ = ABCMeta
 
+    def __init__( self, V0ref=True ):
+        self.V0ref = V0ref
+        pass
+
     @abstractmethod
     def gamma( self, V_a, eos_d ):
         """Returns Gruneisen Param (gamma) variation due to compression."""
@@ -738,6 +742,10 @@ class GammaMod(EosMod):
         V_a: sample volume array
         TR: temperature at V=VR
         """
+        if np.isscalar(V_a):
+            V_a = np.array([V_a])
+
+        TOL = 1e-8
         Nsamp = 81
         # Nsamp = 281
         # Nsamp = 581
@@ -751,24 +759,45 @@ class GammaMod(EosMod):
         Vmin = np.min(V_a)
         Vmax = np.max(V_a)
 
-        T_a = np.zeros(V_a.size)
+        dVmax = np.log(Vmax/VR)
+        dVmin = np.log(Vmin/VR)
 
-        if Vmax > VR:
+        T_a = TR*np.ones(V_a.size)
+
+        if np.abs(dVmax) < TOL:
+            dVmax = 0.0
+        if np.abs(dVmin) < TOL:
+            dVmin = 0.0
+
+
+        if dVmax > TOL:
+            indhi_a = np.where(np.log(V_a/VR) > TOL)[0]
+            # indhi_a = np.where(V_a > VR)[0]
+
+            # ensure numerical stability by shifting
+            # if (Vmax-VR)<=TOL:
+            #     T_a[indhi_a] = TR
+            # else:
             Vhi_a = np.linspace(VR,Vmax,Nsamp)
             gammahi_a = self.gamma( Vhi_a, eos_d )
             logThi_a = integrate.cumtrapz(-gammahi_a/Vhi_a,x=Vhi_a)
             logThi_a = np.append([0],logThi_a)
             logtemphi_f = interpolate.interp1d(Vhi_a,logThi_a,kind='cubic')
-            indhi_a = np.where(V_a > VR)[0]
             T_a[indhi_a] = TR*np.exp(logtemphi_f(V_a[indhi_a]))
 
-        if Vmin < VR:
+        if dVmin < -TOL:
+            indlo_a = np.where(np.log(V_a/VR) < -TOL)[0]
+            # indlo_a = np.where(V_a <= VR)[0]
+
+            # # ensure numerical stability by shifting
+            # if (VR-Vmin)<TOL:
+            #     T_a[indlo_a] = TR
+            # else:
             Vlo_a = np.linspace(VR,Vmin,Nsamp)
             gammalo_a = self.gamma( Vlo_a, eos_d )
             logTlo_a = integrate.cumtrapz(-gammalo_a/Vlo_a,x=Vlo_a)
             logTlo_a = np.append([0],logTlo_a)
             logtemplo_f = interpolate.interp1d(Vlo_a,logTlo_a,kind='cubic')
-            indlo_a = np.where(V_a <= VR)[0]
             T_a[indlo_a] = TR*np.exp(logtemplo_f(V_a[indlo_a]))
 
         return T_a
@@ -1530,6 +1559,8 @@ class RosenfeldTaranzonaCompress(ThermalMod):
         """
         Entropy depends on whether reference Compress Path is isotherm or adiabat
         """
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
         V0, S0 = Control.get_params( ['V0','S0'], eos_d )
         T0, = Control.get_params( ['T0'], eos_d )
 
@@ -1992,10 +2023,6 @@ class MieGrunDebye(MieGrun):
             return np.exp( logfval_a )
 #====================================================================
 class GammaPowLaw(GammaMod):
-    def __init__( self, V0ref=False ):
-        self.V0ref = V0ref
-        pass
-
     def get_param_scale_sub( self, eos_d ):
         """Return scale values for each parameter"""
 
@@ -2051,10 +2078,6 @@ class GammaPowLaw(GammaMod):
         return T_a
 #====================================================================
 class GammaFiniteStrain(GammaMod):
-    def __init__( self, V0ref=False ):
-        self.V0ref = V0ref
-        pass
-
     def get_param_scale_sub( self, eos_d ):
         """Return scale values for each parameter"""
 
