@@ -2023,25 +2023,53 @@ class MieGrunDebye(MieGrun):
             return np.exp( logfval_a )
 #====================================================================
 class GammaPowLaw(GammaMod):
+
+    def __init__( self, V0ref=True, use_gammap=False ):
+        self.V0ref = V0ref
+        self.use_gammap = use_gammap
+        pass
+
+    def get_paramkey( self, eos_d ):
+        if self.use_gammap:
+            gammaderiv_typ = 'gammap'
+        else:
+            gammaderiv_typ = 'q'
+
+        if self.V0ref:
+            VRkey = 'V0'
+            gammaRkey = 'gamma0'
+            gammaderivkey = gammaderiv_typ+'0'
+        else:
+            VRkey = 'VR'
+            gammaRkey = 'gammaR'
+            gammaderivkey = gammaderiv_typ+'R'
+
+        paramkey_a = [gammaRkey, gammaderivkey, VRkey]
+        return paramkey_a
+
+    def get_model_params( self, eos_d, ):
+        paramkey_a = self.get_paramkey( eos_d )
+        gammaR, gammaderiv, VR = Control.get_params(paramkey_a, eos_d)
+
+        if self.use_gammap:
+            qR = gammaderiv/gammaR
+        else:
+            qR = gammaderiv
+
+        return ( gammaR, qR, VR )
+
     def get_param_scale_sub( self, eos_d ):
         """Return scale values for each parameter"""
 
-
-        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
-
-        if self.V0ref:
-            VR, = Control.get_params( ['V0'], eos_d )
-            VRkey = 'V0'
-        else:
-            VR, = Control.get_params( ['VR'], eos_d )
-            VRkey = 'VR'
+        paramkey_a = self.get_paramkey( eos_d )
+        gammaR, gammaderiv, VR = Control.get_params(paramkey_a, eos_d)
 
         gammaR_scl = 1.0
-        qR_scl = 1.0
         VR_scl = VR
+        # scale value for gammaderiv is equal to 1 for both gammap and q
+        gammaderiv_scl = 1.0
 
-        paramkey_a = np.array(['gammaR','qR',VRkey])
-        scale_a = np.array([gammaR,qR,VR])
+        scale_a = np.array([gammaR_scl,gammaderiv_scl,VR_scl])
 
         return scale_a, paramkey_a
 
@@ -2051,14 +2079,7 @@ class GammaPowLaw(GammaMod):
         # gamma_a = gamma0 *(V_a/V0)**qR
 
         # generalized version
-        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
-
-        if self.V0ref:
-            VR, = Control.get_params( ['V0'], eos_d )
-        else:
-            VR, = Control.get_params( ['VR'], eos_d )
-
-
+        gammaR, qR, VR = self.get_model_params( eos_d )
         gamma_a = gammaR *(V_a/VR)**qR
 
         return gamma_a
@@ -2070,63 +2091,71 @@ class GammaPowLaw(GammaMod):
         TR: temperature at V=VR
         """
 
-        # OLD version fixed to zero-press ref volume
-        gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
+        # generalized version
+        gammaR, qR, VR = self.get_model_params( eos_d )
         gamma_a = self.gamma( V_a, eos_d )
         T_a = TR*np.exp( -(gamma_a - gammaR)/qR )
 
         return T_a
 #====================================================================
 class GammaFiniteStrain(GammaMod):
+    def get_paramkey( self, eos_d ):
+        if self.V0ref:
+            VRkey = 'V0'
+            gammaRkey = 'gamma0'
+            gammapRkey = 'gammap0'
+        else:
+            VRkey = 'VR'
+            gammaRkey = 'gammaR'
+            gammapRkey = 'gammapR'
+
+        paramkey_a = [gammaRkey, gammapRkey, VRkey]
+        return paramkey_a
+
+    def calc_strain_coefs( self, eos_d ):
+        paramkey_a = self.get_paramkey( eos_d )
+        gammaR, gammapR, VR = Control.get_params(paramkey_a, eos_d)
+
+        a1 = 6*gammaR
+        a2 = -12*gammaR +36*gammaR**2 -18*gammapR
+        return a1, a2
+
     def get_param_scale_sub( self, eos_d ):
         """Return scale values for each parameter"""
 
-
-        # gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
-        gammaR, gammapR = Control.get_params( ['gammaR','gammapR'], eos_d )
-
-        if self.V0ref:
-            VR, = Control.get_params( ['V0'], eos_d )
-            VRkey = 'V0'
-        else:
-            VR, = Control.get_params( ['VR'], eos_d )
-            VRkey = 'VR'
+        paramkey_a = self.get_paramkey( eos_d )
+        gammaR, gammapR, VR = Control.get_params( paramkey_a, eos_d )
 
         gammaR_scl = 1.0
         gammapR_scl = 1.0
-        #qR_scl = 1.0
         VR_scl = VR
 
-        # paramkey_a = np.array(['gammaR','qR',VRkey])
-        # scale_a = np.array([gammaR,qR,VR])
-        paramkey_a = np.array(['gammaR','gammapR',VRkey])
-        scale_a = np.array([gammaR,gammapR,VR])
+        scale_a = np.array([gammaR_scl,gammapR_scl,VR_scl])
 
         return scale_a, paramkey_a
 
-    def gamma( self, V_a, eos_d ):
-        # OLD version fixed to zero-press ref volume
-        # V0, gamma0, qR = Control.get_params( ['V0','gamma0','qR'], eos_d )
-        # gamma_a = gamma0 *(V_a/V0)**qR
+    def calc_fstrain( self, V_a, eos_d ):
+        paramkey_a = self.get_paramkey( eos_d )
+        gammaR, gammapR, VR = Control.get_params(paramkey_a, eos_d)
 
-        # generalized version
-        # gammaR, qR = Control.get_params( ['gammaR','qR'], eos_d )
-        gammaR, gammapR = Control.get_params( ['gammaR','gammapR'], eos_d )
-        a1 = 6*gammaR
-        a2 = -12*gammaR +36*gammaR**2 -18*gammapR
-
-        if self.V0ref:
-            VR, = Control.get_params( ['V0'], eos_d )
-        else:
-            VR, = Control.get_params( ['VR'], eos_d )
-
-
-        # gamma_a = gammaR *(V_a/VR)**qR
         fstr = 0.5*((VR/V_a)**(2./3)-1.0)
+        return fstr
 
-        gamma_a = (2*fstr+1)*(a1+a2*fstr)/(6*(1+a1*fstr+0.5*a2*fstr**2))
+    def gamma( self, V_a, eos_d ):
+        a1, a2 = self.calc_strain_coefs( eos_d )
+        fstr_a = self.calc_fstrain( V_a, eos_d )
+
+        gamma_a = (2*fstr_a+1)*(a1+a2*fstr_a)/(6*(1+a1*fstr_a+0.5*a2*fstr_a**2))
 
         return gamma_a
+
+    def temp( self, V_a, TR, eos_d ):
+        a1, a2 = self.calc_strain_coefs( eos_d )
+        fstr_a = self.calc_fstrain( V_a, eos_d )
+
+        T_a = TR*np.sqrt(1 + a1*fstr_a + 0.5*a2*fstr_a**2)
+
+        return T_a
 #====================================================================
 class ThermalPressMod(FullMod):
     # Need to impliment get_param_scale_sub
