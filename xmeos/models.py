@@ -1408,7 +1408,8 @@ class RosenfeldTaranzonaCompress(ThermalMod):
         self.coef_kind= coef_kind
 
         calc_coef = getattr(self, 'calc_coef_'+coef_kind)
-        self.calc_bcoef = lambda V_a, eos_d: calc_coef( V_a, 'bcoef', eos_d )
+        self.calc_bcoef = lambda V_a, eos_d, deriv=0: calc_coef( V_a, 'bcoef',
+                                                                eos_d, deriv=deriv )
 
         if acoef_fun is None:
             self.calc_acoef = lambda V_a, eos_d: calc_coef( V_a, 'acoef', eos_d )
@@ -1576,28 +1577,62 @@ class RosenfeldTaranzonaCompress(ThermalMod):
         S_a = S0 + dS_heat_a + dS_compress_a
         return S_a
 
+    def calc_gamma( self, V_a, T_a, eos_d ):
+        gamma_mod = eos_d['modtype_d']['GammaMod']
+        T0, = Control.get_params( ['T0'], eos_d )
+
+        gamma_0S_a = gamma_mod.gamma(V_a,eos_d)
+        T_0S_a = gamma_mod.temp(V_a,T0,eos_d)
+
+        bcoef_a = self.calc_bcoef(V_a,eos_d)
+        bcoef_der1_a = self.calc_bcoef(V_a,eos_d,deriv=1)
+
+        CV_a = self.calc_heat_capacity( V_a, T_a, eos_d )
+        CV_0S_a = self.calc_heat_capacity( V_a, T_0S_a, eos_d )
+
+        dS_pot_a = GenRosenfeldTaranzona().calc_entropy_pot( T_a, eos_d,
+                                                            Tref=T_0S_a,
+                                                            bcoef_a=bcoef_a )
+        gamma_a = gamma_0S_a*(CV_0S_a/CV_a) \
+            + V_a*(bcoef_der1_a/bcoef_a)*(dS_pot_a/CV_a)
+        return gamma_a
+
     #========================
     #  Empirical Coefficient Model
     #========================
 
-    def calc_coef_poly( self, V_a, coef_key, eos_d ):
+    def calc_coef_poly( self, V_a, coef_key, eos_d, deriv=0 ):
         poly_coef_a = Control.get_array_params( coef_key, eos_d )
         # coef_a = np.polyval(poly_coef_a[::-1], V_a)
-        coef_a = np.polyval(poly_coef_a, V_a)
+        if deriv==0:
+            coef_a = np.polyval(poly_coef_a, V_a)
+        else:
+            dpoly_coef_a = np.polyder(poly_coef_a,deriv)
+            coef_a = np.polyval(dpoly_coef_a, V_a)
+
         return coef_a
 
-    def calc_coef_logpoly( self, V_a, coef_key, eos_d ):
+    def calc_coef_logpoly( self, V_a, coef_key, eos_d, deriv=0 ):
         V0, = Control.get_params( ['V0'], eos_d )
         logpoly_coef_a = Control.get_array_params( coef_key, eos_d )
         # coef_a = np.polyval(logpoly_coef_a[::-1], np.log(V_a/V0))
-        coef_a = np.polyval(logpoly_coef_a, np.log(V_a/V0))
+        if deriv==0:
+            coef_a = np.polyval(logpoly_coef_a, np.log(V_a/V0))
+        else:
+            dlogpoly_coef_a = np.polyder(logpoly_coef_a,deriv)
+            coef_a = V_a**(-deriv)*np.polyval(dlogpoly_coef_a, np.log(V_a/V0))
+
         return coef_a
 
-    def calc_coef_polynorm( self, V_a, coef_key, eos_d ):
+    def calc_coef_polynorm( self, V_a, coef_key, eos_d, deriv=0 ):
         V0, = Control.get_params( ['V0'], eos_d )
         polynorm_coef_a = Control.get_array_params( coef_key, eos_d )
         # coef_a = np.polyval(polynorm_coef_a[::-1], V_a/V0-1.0 )
-        coef_a = np.polyval(polynorm_coef_a, V_a/V0-1.0 )
+        if deriv==0:
+            coef_a = np.polyval(polynorm_coef_a, V_a/V0-1.0 )
+        else:
+            dpolynorm_coef_a = np.polyder(polynorm_coef_a,deriv)
+            coef_a = V0**(-deriv)*np.polyval(dpolynorm_coef_a, V_a)
         return coef_a
 
     #========================
@@ -1674,6 +1709,7 @@ class RosenfeldTaranzonaAdiabat(RosenfeldTaranzonaCompress):
                 +3./2*kB*(T0S_a-T0)
 
         return E0S_a
+
 #====================================================================
 class RosenfeldTaranzonaIsotherm(RosenfeldTaranzonaCompress):
     def __init__( self, coef_kind='logpoly' ):
