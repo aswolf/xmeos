@@ -1768,7 +1768,9 @@ class MieGrun(ThermalMod):
 #====================================================================
 class MieGrunDebye(MieGrun):
     def __init__( self ):
-       super(MieGrunDebye, self).__init__( path_const='V' )
+       super(MieGrunDebye, self).__init__()
+       path_const='V'
+       self.path_const = path_const
 
     def energy( self, V_a, T_a, eos_d ):
         '''
@@ -1814,7 +1816,7 @@ class MieGrunDebye(MieGrun):
         # entropy_a = Cvmax*Cv_const/3. \
             #     *(4*debye_func( x_a )-3*np.log( 1-np.exp( -x_a ) ) )
         entropy_a = 1.0/3*(Cvmax/TS_ratio) \
-            *(4*debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
+            *(4*self.debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
 
         return entropy_a
 
