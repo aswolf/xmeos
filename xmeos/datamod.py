@@ -334,6 +334,24 @@ def fit( datamod_d, nrepeat=6 ):
     datamod_d['posterior_d'] = posterior_d
     pass
 #====================================================================
+def eos_posterior_draw( datamod_d ):
+
+    eos_draw_d = copy.deepcopy(datamod_d['eos_d'])
+    posterior_d = datamod_d['posterior_d']
+    param_val_a = posterior_d['param_val']
+    param_err_a = posterior_d['param_err']
+    corr_a = posterior_d['corr']
+
+    cov_a= param_err_a*np.expand_dims(param_err_a,1)
+    param_draw_a = sp.random.multivariate_normal(param_val_a,cov_a)
+
+
+    param_key = posterior_d['param_key']
+    models.Control.set_params( param_key, param_draw_a, eos_draw_d )
+
+    return eos_draw_d
+
+#====================================================================
 def runmcmc( datamod_d, nwalkers_fac=3 ):
     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
