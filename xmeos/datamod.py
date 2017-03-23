@@ -274,10 +274,15 @@ def residual_model_error( datamod_d ):
     resid_a = calc_resid_datamod(datamod_d,unweighted=True)
     N = datamod_d['data_d']['V'].size
 
+    Nparam = len(datamod_d['prior_d']['param_key'])
+    Ndat_typ = len(datamod_d['fit_data_type'])
+
     err_d={}
     for ind,data_type in enumerate(datamod_d['fit_data_type']):
         iresid_a = resid_a[ind*N:(ind+1)*N]
-        err_d[data_type] = np.sqrt(np.mean(iresid_a**2))
+        Ndof = iresid_a.size-Nparam/Ndat_typ
+        err_d[data_type] = np.sqrt(np.sum(iresid_a**2)/Ndof)
+        # err_d[data_type] = np.sqrt(np.mean(iresid_a**2))
 
     return err_d
 #====================================================================
@@ -350,7 +355,6 @@ def eos_posterior_draw( datamod_d ):
     models.Control.set_params( param_key, param_draw_a, eos_draw_d )
 
     return eos_draw_d
-
 #====================================================================
 def runmcmc( datamod_d, nwalkers_fac=3 ):
     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
