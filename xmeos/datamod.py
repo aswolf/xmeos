@@ -156,7 +156,7 @@ def calc_isotherm_press_min( Vinit, Tiso, eos_d ):
 def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
                        mask_neg_press=False ):
     """
-    Error is a fraction of peak-to-peak difference
+    Error is a fraction of absolute scatter in datatype (std of P or E)
     """
     scale = 0.01
 
@@ -301,19 +301,30 @@ def fit( datamod_d, nrepeat=6 ):
     # plt.clf()
     # plt.plot(V_a,P_a,'ko',V_a,model_eval( param0_a, 'P', datamod_d ),'rx')
 
+    err_d = {}
+    # plt.figure()
+    # plt.clf()
+
     for i in np.arange(nrepeat):
         # fit_tup = optimize.leastsq(lambda param_a,
         #                            datamod_d=datamod_d,param0_a=param0_a:\
         #                            calc_resid_datamod( param_a, datamod_d ),
         #                            param0_a)
         fit_tup = optimize.leastsq(lambda param_a, datamod_d=datamod_d,param0_a=param0_a:\
-                                   eval_resid_datamod( param_a, datamod_d ),
+                                   eval_resid_datamod( param_a, datamod_d, err_d=err_d ),
                                    param0_a, full_output=True)
+
+        # Update error estimate from residuals
+        err_d = residual_model_error( datamod_d )
+
+        # plt.plot(fit_tup[2]['fvec'],'ro')
+        # plt.draw()
+        # plt.pause(.1)
+        # plt.plot(fit_tup[2]['fvec'],'ko')
 
         paramf_a = fit_tup[0]
         param0_a = paramf_a
 
-    print paramf_a
     fvec_a = fit_tup[2]['fvec']
 
     # Set final fit
@@ -322,6 +333,11 @@ def fit( datamod_d, nrepeat=6 ):
 
     cov_scl = fit_tup[1]
     resid_var = np.var(fit_tup[2]['fvec'])
+    # plt.figure()
+    # plt.plot(fit_tup[2]['fvec'],'ko')
+    # plt.pause(2)
+
+
     cov = resid_var*cov_scl
     paramerr_a = np.sqrt( np.diag(cov) )
 
@@ -347,7 +363,7 @@ def eos_posterior_draw( datamod_d ):
     param_err_a = posterior_d['param_err']
     corr_a = posterior_d['corr']
 
-    cov_a= param_err_a*np.expand_dims(param_err_a,1)
+    cov_a= corr_a*(param_err_a*np.expand_dims(param_err_a,1))
     param_draw_a = sp.random.multivariate_normal(param_val_a,cov_a)
 
 
