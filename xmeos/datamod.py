@@ -111,6 +111,10 @@ def model_eval( data_type, V_a, T_a, datamod_d ):
 
     full_mod = eos_d['modtype_d']['FullMod']
 
+    # print(data_type)
+    # print(V_a)
+    # print(T_a)
+
     if data_type == 'P':
         model_val_a = full_mod.press(V_a, T_a, eos_d)
     elif data_type == 'E':
@@ -119,6 +123,9 @@ def model_eval( data_type, V_a, T_a, datamod_d ):
         model_val_a = full_mod.dPdT(V_a, T_a, eos_d)
     else:
         assert False, data_type + ' is not a valid data type.'
+
+    # print(model_val_a)
+    # print('------')
 
     #elif data_type == 'dPdT':
 
@@ -170,12 +177,18 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
     V_a = datamod_d['data_d']['V']
     T_a = datamod_d['data_d']['T']
 
-    Vmax = np.max(V_a)
-    P_phys_bnd_scale = 0.1
-    T_phys_bnd = np.array([1500.0,5000.0])
-    P_phys_bnd = np.array([calc_isotherm_press_min( Vmax, T_phys_bnd[0], eos_d ),
-                           calc_isotherm_press_min( Vmax, T_phys_bnd[1], eos_d )])
-    phys_bnd_resid = np.exp(5*P_phys_bnd/P_phys_bnd_scale)
+    ###########
+    # protect from unphysical zero values
+    ###########
+
+    # Vmax = np.max(V_a)
+    # P_phys_bnd_scale = 0.1
+    # T_phys_bnd = np.array([1500.0,5000.0])
+    # P_phys_bnd = np.array([calc_isotherm_press_min( Vmax, T_phys_bnd[0], eos_d ),
+    #                        calc_isotherm_press_min( Vmax, T_phys_bnd[1], eos_d )])
+    # phys_bnd_resid = np.exp(5*P_phys_bnd/P_phys_bnd_scale)
+
+
     # K constraints are not sufficient to ensure physical zero press values
     # K_mod_a = full_mod.bulk_modulus( V_a, T_a, eos_d )
 
@@ -195,7 +208,11 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
             if np.size(ierr)==1:
                 ierr = ierr*np.ones(idat_val_a.size)
 
-            ierr[P_a<0] *= 1e8
+            # TEMPORARILY remove overweighting of low-press points
+            # since it forces an unknown error earlier
+            # ierr[P_a<0] *= 1e8
+
+
             # if mask_neg_press:
             #     ierr[P_a<0] *= 1e8
 
@@ -222,7 +239,7 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
         #     ierr[P_a>0] *= 1e+2
         resid_a = np.concatenate((resid_a,iresid_a))
 
-    resid_a = np.append(resid_a,phys_bnd_resid)
+    # resid_a = np.append(resid_a,phys_bnd_resid)
     return resid_a
 #====================================================================
 def model_eval_list( V_a, T_a, param_a, datamod_d ):
@@ -250,6 +267,7 @@ def set_fit_params( param_a, datamod_d ):
     pass
 #====================================================================
 def eval_resid_datamod( param_a, datamod_d, err_d={}, unweighted=False ):
+    # print(param_a)
     set_fit_params( param_a, datamod_d )
     resid_a = calc_resid_datamod(datamod_d, err_d=err_d)
     return resid_a
@@ -316,6 +334,7 @@ def fit( datamod_d, nrepeat=6 ):
 
         # Update error estimate from residuals
         err_d = residual_model_error( datamod_d )
+
 
         # plt.plot(fit_tup[2]['fvec'],'ro')
         # plt.draw()

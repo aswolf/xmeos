@@ -833,7 +833,7 @@ class BirchMurn3(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
         V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
 
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
 
         press_a = 3.0/2*K0 * (vratio_a**(-7.0/3) - vratio_a**(-5.0/3)) * \
             (1 + 3.0/4*(KP0-4)*(vratio_a**(-2.0/3)-1))
@@ -844,7 +844,7 @@ class BirchMurn3(CompressPathMod):
         V0, K0, KP0, E0 = Control.get_params( ['V0','K0','KP0','E0'], eos_d )
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
 
         fstrain_a = 0.5*(vratio_a**(-2.0/3) - 1)
 
@@ -875,7 +875,7 @@ class BirchMurn4(CompressPathMod):
         V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
         nexp = +2.0
 
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
@@ -892,7 +892,7 @@ class BirchMurn4(CompressPathMod):
 
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
@@ -928,7 +928,7 @@ class GenFiniteStrain(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
         V0, K0, KP0, KP20, nexp = Control.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
 
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
@@ -941,7 +941,7 @@ class GenFiniteStrain(CompressPathMod):
         V0, K0, KP0, KP20, E0, nexp = Control.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
@@ -967,7 +967,7 @@ class Vinet(CompressPathMod):
         V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
 
         eta = 3./2*(KP0-1)
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
         x_a = vratio_a**(1./3)
 
         press_a = 3*K0*(1-x_a)*x_a**(-2)*np.exp(eta*(1-x_a))
@@ -983,8 +983,8 @@ class Vinet(CompressPathMod):
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         eta = 3./2*(KP0-1)
-        vratio_a = V_a/V0
-        x_a = vratio_a**(1./3)
+        vratio_a = 1.0*V_a/V0
+        x_a = vratio_a**(1.0/3)
 
 
         energy_a = E0 + 9*K0*V0/PV_ratio/eta**2*\
@@ -999,7 +999,7 @@ class Vinet(CompressPathMod):
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
         eta = 3./2*(KP0-1)
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
         x = vratio_a**(1./3)
 
         scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
@@ -1070,7 +1070,7 @@ class Tait(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
 
         press_a = 1.0/b*(((vratio_a + a - 1.0)/a)**(-1.0/c) - 1.0)
 
@@ -1082,7 +1082,7 @@ class Tait(CompressPathMod):
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
         PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = V_a/V0
+        vratio_a = 1.0*V_a/V0
 
         press_a = self.calc_press( V_a, eos_d )
         eta_a = b*press_a + 1.0
@@ -2007,6 +2007,8 @@ class GammaFiniteStrain(GammaMod):
         gammaR, gammapR, VR = Control.get_params(paramkey_a, eos_d)
 
         fstr = 0.5*((VR/V_a)**(2./3)-1.0)
+        # print (V_a)
+        # if np.any(np.isnan(V_a)):
         return fstr
 
     def gamma( self, V_a, eos_d ):
