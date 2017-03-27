@@ -208,13 +208,10 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
             if np.size(ierr)==1:
                 ierr = ierr*np.ones(idat_val_a.size)
 
-            # TEMPORARILY remove overweighting of low-press points
-            # since it forces an unknown error earlier
-            # ierr[P_a<0] *= 1e8
+            # overweighting of low-press points
+            # ierr[P_a<30] = 0.1*ierr[P_a<30]
 
 
-            # if mask_neg_press:
-            #     ierr[P_a<0] *= 1e8
 
         # ierr[K_mod_a < 0] *= 1e-10
 
@@ -226,12 +223,12 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
         # evaluate model
         imod_val_a = model_eval( data_type, V_a, T_a, datamod_d )
 
-        # Cannot simple penalize negative thermal press
-        if data_type == 'dPdT':
-            dPdT_mod_a = imod_val_a
-            dPdT_scl = 1e-1 #GPa/1000K
-            mask_neg_dPdT = dPdT_mod_a<0
-            ierr[mask_neg_dPdT] *= np.exp(-5*dPdT_mod_a[mask_neg_dPdT]/dPdT_scl)
+        # # Cannot simple penalize negative thermal press
+        # if data_type == 'dPdT':
+        #     dPdT_mod_a = imod_val_a
+        #     dPdT_scl = 1e-1 #GPa/1000K
+        #     mask_neg_dPdT = dPdT_mod_a<0
+        #     ierr[mask_neg_dPdT] *= np.exp(-5*dPdT_mod_a[mask_neg_dPdT]/dPdT_scl)
 
         iresid_a = (imod_val_a-idat_val_a)/ierr
 
@@ -280,6 +277,7 @@ def eval_cost_fun( param_a, datamod_d, err_d ):
         from IPython import embed; embed(); import ipdb; ipdb.set_trace()
 
     return costval
+#====================================================================
 def lnprob( param_a, datamod_d, err_d ):
     return -0.5*eval_cost_fun( param_a , datamod_d, err_d )
 #====================================================================
@@ -295,14 +293,25 @@ def residual_model_error( datamod_d ):
     Nparam = len(datamod_d['prior_d']['param_key'])
     Ndat_typ = len(datamod_d['fit_data_type'])
 
+
+
     err_d={}
+    R2fit_d={}
     for ind,data_type in enumerate(datamod_d['fit_data_type']):
         iresid_a = resid_a[ind*N:(ind+1)*N]
+        idat_val_a = datamod_d['data_d'][data_type]
+        # print(idat_val_a)
+        # print(iresid_a)
+        ivar0 = np.var(idat_val_a)
+        iresidvar = np.mean(iresid_a**2)
+        R2fit_d[data_type] = 1- iresidvar/ivar0
+
+
         Ndof = iresid_a.size-Nparam/Ndat_typ
         err_d[data_type] = np.sqrt(np.sum(iresid_a**2)/Ndof)
         # err_d[data_type] = np.sqrt(np.mean(iresid_a**2))
 
-    return err_d
+    return err_d, R2fit_d
 #====================================================================
 def fit( datamod_d, nrepeat=6 ):
 
@@ -333,7 +342,7 @@ def fit( datamod_d, nrepeat=6 ):
                                    param0_a, full_output=True)
 
         # Update error estimate from residuals
-        err_d = residual_model_error( datamod_d )
+        err_d, R2fit_d = residual_model_error( datamod_d )
 
 
         # plt.plot(fit_tup[2]['fvec'],'ro')
@@ -363,13 +372,14 @@ def fit( datamod_d, nrepeat=6 ):
     corr = cov/(np.expand_dims(paramerr_a,1)*paramerr_a)
 
 
-    err_d = residual_model_error( datamod_d )
+    err_d, R2fit_d = residual_model_error( datamod_d )
 
     posterior_d = copy.deepcopy(datamod_d['prior_d'])
     posterior_d['param_val'] = paramf_a
     posterior_d['param_err'] = paramerr_a
     posterior_d['corr'] = corr
     posterior_d['err'] = err_d
+    posterior_d['R2fit'] = R2fit_d
 
     datamod_d['posterior_d'] = posterior_d
     pass
