@@ -208,8 +208,9 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
             if np.size(ierr)==1:
                 ierr = ierr*np.ones(idat_val_a.size)
 
-            # overweighting of low-press points
-            # ierr[P_a<30] = 0.1*ierr[P_a<30]
+            # # overweighting of low-press points
+            # Pwt_thresh = 20
+            # ierr[P_a<Pwt_thresh] = 0.001*ierr[P_a<Pwt_thresh]
 
 
 
@@ -365,6 +366,9 @@ def fit( datamod_d, nrepeat=6 ):
     # plt.plot(fit_tup[2]['fvec'],'ko')
     # plt.pause(2)
 
+    # print(eos_d)
+    # print(resid_var)
+    # print(cov_scl)
 
     cov = resid_var*cov_scl
     paramerr_a = np.sqrt( np.diag(cov) )
