@@ -177,6 +177,12 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
     V_a = datamod_d['data_d']['V']
     T_a = datamod_d['data_d']['T']
 
+    # Pmod_a = full_mod.press( V_a, T_a, eos_d )
+    dPdT_mod_a = full_mod.dPdT( V_a, T_a, eos_d )
+    # ind_dPdT_neg = np.where((P_a>0) & (dPdT_mod_a<0))[0]
+    ind_dPdT_neg = np.where(dPdT_mod_a<0)[0]
+    dPdTfac = 1e3
+
     ###########
     # protect from unphysical zero values
     ###########
@@ -232,6 +238,10 @@ def calc_resid_datamod( datamod_d, err_d={}, unweighted=False,
         #     ierr[mask_neg_dPdT] *= np.exp(-5*dPdT_mod_a[mask_neg_dPdT]/dPdT_scl)
 
         iresid_a = (imod_val_a-idat_val_a)/ierr
+
+
+        if len(ind_dPdT_neg) > 0:
+            iresid_a[ind_dPdT_neg] *= dPdTfac
 
         # if data_type == 'dPdT':
         #     ierr[P_a>0] *= 1e+2
@@ -328,6 +338,7 @@ def fit( datamod_d, nrepeat=6 ):
 
     # plt.clf()
     # plt.plot(V_a,P_a,'ko',V_a,model_eval( param0_a, 'P', datamod_d ),'rx')
+
 
     err_d = {}
     # plt.figure()
