@@ -818,8 +818,21 @@ class FullMod(EosMod):
         raise NotImplementedError("'energy' function not implimented for this model")
 
     def therm_exp( self, V_a, T_a, eos_d ):
-        """Returns Total Thermal Expansion."""
-        raise NotImplementedError("'thermal_exp' function not implimented for this model")
+        TOL = 1e-4
+        V_a, T_a = fill_array( V_a, T_a )
+
+        dlogV = 1e-4
+        S_a = self.entropy( V_a, T_a, eos_d )
+        KT_a = self.bulk_modulus( V_a, T_a, eos_d )
+
+        S_hi_a = self.entropy( np.exp(dlogV)*V_a, T_a, eos_d )
+        S_lo_a = self.entropy( np.exp(-dlogV)*V_a, T_a, eos_d )
+
+        dSdlogV_a = (S_hi_a-S_lo_a) / (2*dlogV)
+        alpha_a = dSdlogV_a/(KT_a*V_a*eos_d['const_d']['PV_ratio'])
+
+        return alpha_a
+
 
     def bulk_mod( self, V_a, T_a, eos_d ):
         """Returns Total Bulk Modulus."""
@@ -1709,7 +1722,6 @@ class RosenfeldTaranzonaAdiabat(RosenfeldTaranzonaCompress):
                 +3./2*kB*(T0S_a-T0)
 
         return E0S_a
-
 #====================================================================
 class RosenfeldTaranzonaIsotherm(RosenfeldTaranzonaCompress):
     def __init__( self, coef_kind='logpoly' ):
@@ -1756,14 +1768,14 @@ class MieGrun(ThermalMod):
         gamma_mod, = Control.get_modtypes( ['GammaMod'], eos_d )
 
         # Needed functions
-        energy_therm_a = self.energy( V_a, T_a, eos_d )
+        energy_therm_a = self.calc_energy( V_a, T_a, eos_d )
         gamma_a = gamma_mod.gamma( V_a, eos_d )
 
         press_therm_a = PV_ratio*(gamma_a/V_a)*energy_therm_a
         return press_therm_a
 
     @abstractmethod
-    def energy( self, V_a, T_a, eos_d ):
+    def calc_energy( self, V_a, T_a, eos_d ):
         """Returns Thermal Component of Energy."""
 #====================================================================
 class MieGrunDebye(MieGrun):
@@ -1772,7 +1784,7 @@ class MieGrunDebye(MieGrun):
        path_const='V'
        self.path_const = path_const
 
-    def energy( self, V_a, T_a, eos_d ):
+    def calc_energy( self, V_a, T_a, eos_d ):
         '''
         Thermal Energy for Debye model
 
@@ -1788,7 +1800,9 @@ class MieGrunDebye(MieGrun):
         gamma_mod, = Control.get_modtypes( ['GammaMod'], eos_d )
 
         theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
-        Tref_a = gamma_mod.temp( V_a, T0, eos_d )
+        # Tref_a = gamma_mod.temp( V_a, T0, eos_d )
+        Tref_a = self.calc_temp_path(V_a,eos_d)
+
         # print theta_a
 
         ######################
@@ -1803,7 +1817,7 @@ class MieGrunDebye(MieGrun):
 
         return energy_therm_a
 
-    def entropy( self, V_a, T_a, eos_d ):
+    def calc_entropy( self, V_a, T_a, eos_d ):
         V_a, T_a = fill_array( V_a, T_a )
 
         Cvmax, thetaR = Control.get_params( ['Cvmax','thetaR'], eos_d )
@@ -1815,12 +1829,16 @@ class MieGrunDebye(MieGrun):
 
         # entropy_a = Cvmax*Cv_const/3. \
             #     *(4*debye_func( x_a )-3*np.log( 1-np.exp( -x_a ) ) )
-        entropy_a = 1.0/3*(Cvmax/TS_ratio) \
+
+        # TS_ratio????
+        # entropy_a = 1.0/3*(Cvmax/TS_ratio) \
+        #     *(4*self.debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
+        entropy_a = 1.0/3*(Cvmax) \
             *(4*self.debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
 
         return entropy_a
 
-    def heat_capacity( self, V_a, T_a, eos_d ):
+    def calc_heat_capacity( self, V_a, T_a, eos_d ):
         V_a, T_a = fill_array( V_a, T_a )
 
         Cvmax, thetaR = Control.get_params( ['Cvmax','thetaR'], eos_d )
@@ -1889,6 +1907,29 @@ class MieGrunDebye(MieGrun):
                                  logfval_a )
             # exponentiate to get integral value
             return np.exp( logfval_a )
+
+    def calc_temp_path( self, V_a, eos_d ):
+        T0, = Control.get_params( ['T0'], eos_d )
+
+        gamma_mod, = Control.get_modtypes( ['GammaMod'], eos_d )
+        Tref_a = gamma_mod.temp( V_a, T0, eos_d )
+
+        return Tref_a
+
+    def calc_free_energy( self, V_a, T_a, eos_d ):
+        E_tot = self.calc_energy( V_a, T_a, eos_d )
+        S_tot = self.calc_entropy( V_a, T_a, eos_d )
+        F_tot = E_tot - T_a*S_tot
+
+        return F_tot
+
+    def calc_gamma( self, V_a, T_a, eos_d ):
+        gamma_mod = eos_d['modtype_d']['GammaMod']
+        T0, = Control.get_params( ['T0'], eos_d )
+
+        gamma_0S_a = gamma_mod.gamma(V_a,eos_d)
+        return gamma_0S_a
+
 #====================================================================
 class GammaPowLaw(GammaMod):
 
@@ -2143,7 +2184,9 @@ class ThermalPressMod(FullMod):
 
         free_energy_S0_a = energy_S0_a - Tref_a*S0
 
-        dF_a = thermal_mod.calc_free_energy( V_a, T_a, eos_d )
+        # Fix bug for nonzero ref entropy values, need to subtract off reference
+        dF_a = thermal_mod.calc_free_energy( V_a, T_a, eos_d ) \
+            - thermal_mod.calc_free_energy( V_a, Tref_a, eos_d )
         free_energy_a = free_energy_S0_a + dF_a
 
         return free_energy_a
@@ -2211,6 +2254,7 @@ class MieGrunPtherm(FullMod):
         K_a = -V_a*(P_hi_a-P_lo_a)/(V_a*TOL)
 
         return K_a
+
 
     def dPdT( self, V_a, T_a, eos_d, Tscl=1000.0 ):
         TOL = 1e-4
