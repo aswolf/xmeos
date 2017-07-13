@@ -4,6 +4,10 @@ from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
 
+from core import EosMod
+import core
+
+
 #====================================================================
 # Base Class
 #====================================================================

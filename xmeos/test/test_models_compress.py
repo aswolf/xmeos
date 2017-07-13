@@ -1,6 +1,7 @@
 import numpy as np
-import models
 from models import compress
+from models import core
+
 import pytest
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -34,11 +35,11 @@ class BaseTestCompressPathMod(object):
         param_key_a = ['V0','K0','KP0','E0']
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
-        models.Control.set_consts( [], [], eos_d )
+        core.set_consts( [], [], eos_d )
 
         self.load_compress_path_mod( eos_d )
 
-        models.Control.set_params( param_key_a, param_val_a, eos_d )
+        core.set_params( param_key_a, param_val_a, eos_d )
 
         return eos_d
 
@@ -53,6 +54,7 @@ class BaseTestCompressPathMod(object):
         Vmod_a = np.linspace(.7,1.2,Nsamp)*param_d['V0']
         dV = Vmod_a[1] - Vmod_a[0]
 
+        print(eos_d)
         # print eos_d['modtype_d']
         compress_path_mod = eos_d['modtype_d']['CompressPathMod']
 
@@ -145,7 +147,7 @@ class BaseTest4thOrdCompressPathMod(BaseTestCompressPathMod):
 
         # Add K''0 param
         KP20 = -1.1*eos_d['param_d']['KP0']/eos_d['param_d']['K0']
-        models.Control.set_params( ['KP20'], [KP20], eos_d )
+        core.set_params( ['KP20'], [KP20], eos_d )
 
         return eos_d
 #====================================================================
@@ -157,8 +159,10 @@ class BaseTest4thOrdCompressPathMod(BaseTestCompressPathMod):
 #====================================================================
 class TestVinetCompressPathMod(BaseTestCompressPathMod):
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod = models.Vinet(path_const='S')
-        models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
+        compress_path_mod = compress.Vinet(path_const='S')
+        print('--------mod----------')
+        print(compress_path_mod)
+        core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 
     def test_energy_perturb_eval(self):
@@ -167,14 +171,14 @@ class TestVinetCompressPathMod(BaseTestCompressPathMod):
 #====================================================================
 class TestBM3CompressPathMod(BaseTestCompressPathMod):
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod = models.BirchMurn3(path_const='S')
-        models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
+        compress_path_mod = compress.BirchMurn3(path_const='S')
+        core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 #====================================================================
 class TestBM4CompressPathMod(BaseTest4thOrdCompressPathMod):
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod = models.BirchMurn4(path_const='S')
-        models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
+        compress_path_mod = compress.BirchMurn4(path_const='S')
+        core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 #====================================================================
 class TestGenFiniteStrainCompressPathMod(BaseTest4thOrdCompressPathMod):
@@ -184,19 +188,19 @@ class TestGenFiniteStrainCompressPathMod(BaseTest4thOrdCompressPathMod):
 
         # Add nexp param
         nexp = +2.0
-        models.Control.set_params( ['nexp'], [nexp], eos_d )
+        core.set_params( ['nexp'], [nexp], eos_d )
 
         return eos_d
 
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod = models.GenFiniteStrain(path_const='S')
-        models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
+        compress_path_mod = compress.GenFiniteStrain(path_const='S')
+        core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 #====================================================================
 class TestTaitCompressPathMod(BaseTest4thOrdCompressPathMod):
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod = models.Tait(path_const='S')
-        models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
+        compress_path_mod = compress.Tait(path_const='S')
+        core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 
     def test_energy_perturb_eval(self):
@@ -213,8 +217,8 @@ class TestCompareCompressPathMods(object):
         param_key_a = ['V0','K0','KP0','E0']
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
-        models.Control.set_consts( [], [], eos_d )
-        models.Control.set_params( param_key_a, param_val_a, eos_d )
+        core.set_consts( [], [], eos_d )
+        core.set_params( param_key_a, param_val_a, eos_d )
 
         return eos_d
 
@@ -222,9 +226,9 @@ class TestCompareCompressPathMods(object):
         eos_vinet_d = self.init_params({})
         eos_tait_d = self.init_params({})
 
-        models.Control.set_modtypes( ['CompressPathMod'], [models.Vinet(path_const='S')],
+        core.set_modtypes( ['CompressPathMod'], [compress.Vinet(path_const='S')],
                            eos_vinet_d )
-        models.Control.set_modtypes( ['CompressPathMod'], [models.Tait(path_const='S')],
+        core.set_modtypes( ['CompressPathMod'], [compress.Tait(path_const='S')],
                            eos_tait_d )
 
         return eos_vinet_d, eos_tait_d
@@ -274,7 +278,7 @@ class TestCompareCompressPathMods(object):
 
         eos_vinet_d, eos_tait_d = self.get_eos_mods()
         KP20 = -1.1*eos_tait_d['param_d']['KP0']/eos_tait_d['param_d']['K0']
-        models.Control.set_params( ['KP20'], [KP20], eos_tait_d )
+        core.set_params( ['KP20'], [KP20], eos_tait_d )
 
         energy_vin_a, Vmod_vin_a = self.calc_energy( eos_vinet_d )
         energy_tait_a, Vmod_tait_a = self.calc_energy( eos_tait_d )
@@ -341,8 +345,8 @@ class TestCompareCompressPathMods(object):
 #====================================================================
 class TestExpandCompressPathMod(BaseTest4thOrdCompressPathMod):
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod   = models.Vinet(path_const='S',expand_adj_mod=models.Tait())
-        models.Control.set_modtypes(['CompressPathMod'],[compress_path_mod], eos_d )
+        compress_path_mod   = compress.Vinet(path_const='S',expand_adj_mod=compress.Tait())
+        core.set_modtypes(['CompressPathMod'],[compress_path_mod], eos_d )
 
         pass
 
@@ -426,59 +430,3 @@ class TestExpandCompressPathMod(BaseTest4thOrdCompressPathMod):
 
 
 
-#====================================================================
-# SEC:3 Test Admin Funcs
-#====================================================================
-class TestControl(object):
-    def test_get_array_params(self):
-        TOL = 1e-6
-        eos_d, acoef_a = self.init_params()
-        param_a = models.Control.get_array_params('acoef',eos_d)
-
-        assert np.all(np.abs(param_a-acoef_a)<TOL), 'Stored and retrieved parameter array do not match within TOL'
-
-        param_a = models.Control.get_array_params('V0',eos_d)
-        assert param_a.size==0, 'non-array parameter should not be retrievable with get_array_params()'
-
-        pass
-
-    def test_set_array_params(self):
-        TOL = 1e-6
-        eos_d = {}
-        # Set model parameter values
-        E0 = 0.0 # eV/atom
-        V0 = 38.0 # 1e-5 m^3 / kg
-        K0 = 25.0 # GPa
-        KP0 = 9.0 # 1
-        acoef_a = np.array([1.3,-.23,9.99,-88])
-
-        param_key_a = ['V0','K0','KP0','E0']
-        param_val_a = np.array([ V0, K0, KP0, E0 ])
-        models.Control.set_params( param_key_a, param_val_a, eos_d )
-
-        models.Control.set_array_params( 'acoef', acoef_a, eos_d )
-        models.Control.set_consts( [], [], eos_d )
-
-        param_a =  models.Control.get_array_params( 'acoef', eos_d )
-
-        assert np.all(np.abs(param_a-acoef_a)<TOL), 'Stored and retrieved parameter array do not match within TOL'
-
-        pass
-
-    def init_params(self):
-        eos_d = {}
-        # Set model parameter values
-        E0 = 0.0 # eV/atom
-        V0 = 38.0 # 1e-5 m^3 / kg
-        K0 = 25.0 # GPa
-        KP0 = 9.0 # 1
-        acoef = np.array([1.3,-.23,9.99,-88])
-
-        param_key_a = ['V0','K0','KP0','E0','acoef_0','acoef_1','acoef_2','acoef_3']
-        param_val_a = np.array([ V0, K0, KP0, E0, acoef[0], acoef[1], acoef[2], acoef[3] ])
-
-        models.Control.set_consts( [], [], eos_d )
-
-        models.Control.set_params( param_key_a, param_val_a, eos_d )
-        return eos_d, acoef
-#====================================================================

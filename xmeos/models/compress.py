@@ -4,6 +4,9 @@ from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
 
+from core import EosMod
+import core
+
 #====================================================================
 # Base Classes
 #====================================================================
@@ -150,7 +153,7 @@ class CompressPathMod(CompressMod):
             #     return scale_a, paramkey_a
 
     def get_ind_exp( self, V_a, eos_d ):
-        V0 = Control.get_params( ['V0'], eos_d )
+        V0 = core.get_params( ['V0'], eos_d )
         ind_exp = np.where( V_a > V0 )[0]
         return ind_exp
 
@@ -177,7 +180,7 @@ class CompressPathMod(CompressMod):
                 '(e.g. it should be press or energy)'
 
         try:
-            param = Control.get_params( [paramname], eos_d )[0]
+            param = core.get_params( [paramname], eos_d )[0]
             dparam = scale*dxfrac
             # print 'param: ' + np.str(param)
             # print 'dparam: ' + np.str(dparam)
@@ -185,13 +188,13 @@ class CompressPathMod(CompressMod):
             assert False, 'This is not a valid parameter name'
 
         # set param value in eos_d dict
-        Control.set_params( [paramname,], [param+dparam,], eos_d )
+        core.set_params( [paramname,], [param+dparam,], eos_d )
 
         # Note that self is implicitly included
         dval_a = fun(V_a, eos_d) - val0_a
 
         # reset param to original value
-        Control.set_params( [paramname], [param], eos_d )
+        core.set_params( [paramname], [param], eos_d )
 
         deriv_a = dval_a/dxfrac
         return deriv_a
@@ -311,7 +314,7 @@ class CompressPathMod(CompressMod):
 #====================================================================
 class BirchMurn3(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
 
         vratio_a = 1.0*V_a/V0
 
@@ -321,8 +324,8 @@ class BirchMurn3(CompressPathMod):
         return press_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, E0 = Control.get_params( ['V0','K0','KP0','E0'], eos_d )
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = 1.0*V_a/V0
 
@@ -336,8 +339,8 @@ class BirchMurn3(CompressPathMod):
 class BirchMurn4(CompressPathMod):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         paramkey_a = np.array(['V0','K0','KP0','KP20','E0'])
         scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
@@ -352,7 +355,7 @@ class BirchMurn4(CompressPathMod):
     def calc_press( self, V_a, eos_d ):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # press_a = self.gen_finite_strain_mod.press( V_a, eos_d )
-        V0, K0, KP0, KP20 = Control.get_params( ['V0','K0','KP0','KP20'], eos_d )
+        V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
         nexp = +2.0
 
         vratio_a = 1.0*V_a/V0
@@ -367,10 +370,10 @@ class BirchMurn4(CompressPathMod):
     def calc_energy( self, V_a, eos_d ):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # energy_a = self.gen_finite_strain_mod.energy( V_a, eos_d )
-        V0, K0, KP0, KP20, E0 = Control.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+        V0, K0, KP0, KP20, E0 = core.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
         nexp = +2.0
 
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
@@ -406,7 +409,7 @@ class GenFiniteStrain(CompressPathMod):
                 return a1,a2,a3
 
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0, KP20, nexp = Control.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
+        V0, K0, KP0, KP20, nexp = core.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
 
         vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
@@ -418,8 +421,8 @@ class GenFiniteStrain(CompressPathMod):
         return press_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, KP20, E0, nexp = Control.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, KP20, E0, nexp = core.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
@@ -435,8 +438,8 @@ class GenFiniteStrain(CompressPathMod):
 class Vinet(CompressPathMod):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         paramkey_a = np.array(['V0','K0','KP0','E0'])
         scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
@@ -444,7 +447,7 @@ class Vinet(CompressPathMod):
         return scale_a, paramkey_a
 
     def calc_press( self, V_a, eos_d ):
-        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
 
         eta = 3./2*(KP0-1)
         vratio_a = 1.0*V_a/V0
@@ -455,12 +458,12 @@ class Vinet(CompressPathMod):
         return press_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, E0 = Control.get_params( ['V0','K0','KP0','E0'], eos_d )
+        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
         # print V0
         # print K0
         # print KP0
         # print E0
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         eta = 3./2*(KP0-1)
         vratio_a = 1.0*V_a/V0
@@ -475,8 +478,8 @@ class Vinet(CompressPathMod):
     def calc_energy_perturb( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
-        V0, K0, KP0, E0 = Control.get_params( ['V0','K0','KP0','E0'], eos_d )
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         eta = 3./2*(KP0-1)
         vratio_a = 1.0*V_a/V0
@@ -511,14 +514,14 @@ class Tait(CompressPathMod):
     #     pass
 
     def get_eos_params(self, eos_d):
-        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
         if self.setlogPmin:
-            logPmin, = Control.get_params( ['logPmin'], eos_d )
+            logPmin, = core.get_params( ['logPmin'], eos_d )
             Pmin = np.exp(logPmin)
             # assert Pmin>0, 'Pmin must be positive.'
             KP20 = (KP0+1)*(KP0/K0 - 1.0/Pmin)
         else:
-            KP20, = Control.get_params( ['KP20'], eos_d )
+            KP20, = core.get_params( ['KP20'], eos_d )
 
         return V0,K0,KP0,KP20
 
@@ -526,7 +529,7 @@ class Tait(CompressPathMod):
         """Return scale values for each parameter"""
 
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         if self.setlogPmin:
             # [V0,K0,KP0,E0]
@@ -558,9 +561,9 @@ class Tait(CompressPathMod):
 
     def calc_energy( self, V_a, eos_d ):
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
-        E0, = Control.get_params( ['E0'], eos_d )
+        E0, = core.get_params( ['E0'], eos_d )
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = 1.0*V_a/V0
 
@@ -576,10 +579,10 @@ class Tait(CompressPathMod):
     def calc_energy_perturb_deprecate( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
-        E0, = Control.get_params( ['E0'], eos_d )
+        E0, = core.get_params( ['E0'], eos_d )
 
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = V_a/V0
 
@@ -634,8 +637,8 @@ class Tait(CompressPathMod):
 class RosenfeldTaranzonaShiftedAdiabat(CompressPathMod):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
-        V0, K0, KP0 = Control.get_params( ['V0','K0','KP0'], eos_d )
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         paramkey_a = np.array(['V0','K0','KP0','E0'])
         scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
@@ -643,7 +646,7 @@ class RosenfeldTaranzonaShiftedAdiabat(CompressPathMod):
         return scale_a, paramkey_a
 
     def calc_press( self, V_a, eos_d ):
-        PV_ratio, = Control.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
         fac = 1e-3
         Vhi_a = V_a*(1.0 + 0.5*fac)
         Vlo_a = V_a*(1.0 - 0.5*fac)
@@ -658,14 +661,14 @@ class RosenfeldTaranzonaShiftedAdiabat(CompressPathMod):
         return P0S_a
 
     def calc_energy( self, V_a, eos_d ):
-        V0, T0, mexp  = Control.get_params( ['V0','T0','mexp'], eos_d )
-        kB, = Control.get_consts( ['kboltz'], eos_d )
+        V0, T0, mexp  = core.get_params( ['V0','T0','mexp'], eos_d )
+        kB, = core.get_consts( ['kboltz'], eos_d )
 
-        poly_blogcoef_a = Control.get_array_params( 'blogcoef', eos_d )
+        poly_blogcoef_a = core.get_array_params( 'blogcoef', eos_d )
 
 
         compress_path_mod, thermal_mod, gamma_mod = \
-            Control.get_modtypes( ['CompressPathMod', 'ThermalMod', 'GammaMod'],
+            core.get_modtypes( ['CompressPathMod', 'ThermalMod', 'GammaMod'],
                                  eos_d )
 
         free_energy_isotherm_a = compress_path_mod.energy(V_a,eos_d)

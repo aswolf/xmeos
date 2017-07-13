@@ -1,8 +1,15 @@
+
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
+
+from core import EosMod
+import core
+
+
+
 
 #====================================================================
 # Base Class
@@ -40,9 +47,9 @@ class GammaMod(EosMod):
         # Nsamp = 581
 
         if self.V0ref:
-            VR, = Control.get_params( ['V0'], eos_d )
+            VR, = core.get_params( ['V0'], eos_d )
         else:
-            VR, = Control.get_params( ['VR'], eos_d )
+            VR, = core.get_params( ['VR'], eos_d )
 
 
         Vmin = np.min(V_a)
@@ -122,7 +129,7 @@ class GammaPowLaw(GammaMod):
 
     def get_model_params( self, eos_d, ):
         paramkey_a = self.get_paramkey( eos_d )
-        gammaR, gammaderiv, VR = Control.get_params(paramkey_a, eos_d)
+        gammaR, gammaderiv, VR = core.get_params(paramkey_a, eos_d)
 
         if self.use_gammap:
             qR = gammaderiv/gammaR
@@ -135,7 +142,7 @@ class GammaPowLaw(GammaMod):
         """Return scale values for each parameter"""
 
         paramkey_a = self.get_paramkey( eos_d )
-        gammaR, gammaderiv, VR = Control.get_params(paramkey_a, eos_d)
+        gammaR, gammaderiv, VR = core.get_params(paramkey_a, eos_d)
 
         gammaR_scl = 1.0
         VR_scl = VR
@@ -148,7 +155,7 @@ class GammaPowLaw(GammaMod):
 
     def gamma( self, V_a, eos_d ):
         # OLD version fixed to zero-press ref volume
-        # V0, gamma0, qR = Control.get_params( ['V0','gamma0','qR'], eos_d )
+        # V0, gamma0, qR = core.get_params( ['V0','gamma0','qR'], eos_d )
         # gamma_a = gamma0 *(V_a/V0)**qR
 
         # generalized version
@@ -187,7 +194,7 @@ class GammaFiniteStrain(GammaMod):
 
     def calc_strain_coefs( self, eos_d ):
         paramkey_a = self.get_paramkey( eos_d )
-        gammaR, gammapR, VR = Control.get_params(paramkey_a, eos_d)
+        gammaR, gammapR, VR = core.get_params(paramkey_a, eos_d)
 
         a1 = 6*gammaR
         a2 = -12*gammaR +36*gammaR**2 -18*gammapR
@@ -197,7 +204,7 @@ class GammaFiniteStrain(GammaMod):
         """Return scale values for each parameter"""
 
         paramkey_a = self.get_paramkey( eos_d )
-        gammaR, gammapR, VR = Control.get_params( paramkey_a, eos_d )
+        gammaR, gammapR, VR = core.get_params( paramkey_a, eos_d )
 
         gammaR_scl = 1.0
         gammapR_scl = 1.0
@@ -209,7 +216,7 @@ class GammaFiniteStrain(GammaMod):
 
     def calc_fstrain( self, V_a, eos_d ):
         paramkey_a = self.get_paramkey( eos_d )
-        gammaR, gammapR, VR = Control.get_params(paramkey_a, eos_d)
+        gammaR, gammapR, VR = core.get_params(paramkey_a, eos_d)
 
         fstr = 0.5*((VR/V_a)**(2./3)-1.0)
         # print (V_a)
