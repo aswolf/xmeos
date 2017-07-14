@@ -1,5 +1,4 @@
-from __future__ import print_function
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function, division
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
@@ -149,7 +148,7 @@ class CompressPath(with_metaclass(ABCMeta, EosMod)):
 
     def press( self, V_a, eos_d, apply_expand_adj=True):
         if self.supress_press:
-            zero_a = 0.0*V_a
+            zero_a = 0*V_a
             return zero_a
 
         else:
@@ -164,7 +163,7 @@ class CompressPath(with_metaclass(ABCMeta, EosMod)):
 
     def energy( self, V_a, eos_d, apply_expand_adj=True ):
         if self.supress_energy:
-            zero_a = 0.0*V_a
+            zero_a = 0*V_a
             return zero_a
 
         else:
@@ -272,10 +271,10 @@ class BirchMurn3(CompressPath):
     def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
 
-        vratio_a = 1.0*V_a/V0
+        vratio_a = V_a/V0
 
-        press_a = 3.0/2*K0 * (vratio_a**(-7.0/3) - vratio_a**(-5.0/3)) * \
-            (1 + 3.0/4*(KP0-4)*(vratio_a**(-2.0/3)-1))
+        press_a = 3/2*K0 * (vratio_a**(-7/3) - vratio_a**(-5/3)) * \
+            (1 + 3/4*(KP0-4)*(vratio_a**(-2/3)-1))
 
         return press_a
 
@@ -283,11 +282,11 @@ class BirchMurn3(CompressPath):
         V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = 1.0*V_a/V0
+        vratio_a = V_a/V0
 
-        fstrain_a = 0.5*(vratio_a**(-2.0/3) - 1)
+        fstrain_a = 1/2*(vratio_a**(-2/3) - 1)
 
-        energy_a = E0 + 9.0/2*(V0*K0/PV_ratio)*\
+        energy_a = E0 + 9/2*(V0*K0/PV_ratio)*\
             ( KP0*fstrain_a**3 + fstrain_a**2*(1-4*fstrain_a) )
 
         return energy_a
@@ -304,22 +303,22 @@ class BirchMurn4(CompressPath):
         return scale_a, paramkey_a
 
     def _calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20 ):
-        a1 = 3./2*(KP0-nexp-2)
-        a2 = 3./2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11./9*nexp**2)
+        a1 = 3/2*(KP0-nexp-2)
+        a2 = 3/2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11/9*nexp**2)
         return a1,a2
 
     def _calc_press( self, V_a, eos_d ):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # press_a = self.gen_finite_strain_mod.press( V_a, eos_d )
         V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
-        nexp = +2.0
+        nexp = +2
 
-        vratio_a = 1.0*V_a/V0
-        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+        vratio_a = V_a/V0
+        fstrain_a = 1/nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
 
-        press_a = 3.0*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
+        press_a = 3*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
             fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
         return press_a
 
@@ -327,18 +326,18 @@ class BirchMurn4(CompressPath):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # energy_a = self.gen_finite_strain_mod.energy( V_a, eos_d )
         V0, K0, KP0, KP20, E0 = core.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
-        nexp = +2.0
+        nexp = +2
 
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = 1.0*V_a/V0
-        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+        vratio_a = V_a/V0
+        fstrain_a = 1/nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
 
 
-        energy_a = E0 + 9.0*(V0*K0/PV_ratio)*\
-            ( 0.5*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
+        energy_a = E0 + 9*(V0*K0/PV_ratio)*\
+            ( 1/2*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
 
         return energy_a
 #====================================================================
@@ -351,28 +350,28 @@ class GenFiniteStrain(CompressPath):
     """
 
     def _calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20=None, KP30=None):
-        a1 = 3./2*(KP0-nexp-2)
+        a1 = 3/2*(KP0-nexp-2)
         if KP20 is None:
             return a1
         else:
-            a2 = 3./2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11./9*nexp**2)
+            a2 = 3/2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11/9*nexp**2)
             if KP30 is None:
                 return a1,a2
             else:
-                a3 = 1./8*(9*K0**2*KP30 + 6*(6*KP0-5*nexp-6)*K0*KP20
+                a3 = 1/8*(9*K0**2*KP30 + 6*(6*KP0-5*nexp-6)*K0*KP20
                            +((3*KP0-5*nexp-6)**2 +10*nexp**2 + 30*nexp + 18)*KP0
-                           -(50./3*nexp**3 + 70*nexp**2 + 90*nexp + 36))
+                           -(50/3*nexp**3 + 70*nexp**2 + 90*nexp + 36))
                 return a1,a2,a3
 
     def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0, KP20, nexp = core.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
 
-        vratio_a = 1.0*V_a/V0
-        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+        vratio_a = V_a/V0
+        fstrain_a = 1/nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
 
-        press_a = 3.0*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
+        press_a = 3*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
             fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
         return press_a
 
@@ -380,14 +379,14 @@ class GenFiniteStrain(CompressPath):
         V0, K0, KP0, KP20, E0, nexp = core.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = 1.0*V_a/V0
-        fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
+        vratio_a = V_a/V0
+        fstrain_a = 1/nexp*(vratio_a**(-nexp/3) - 1)
 
         a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
 
 
-        energy_a = E0 + 9.0*(V0*K0/PV_ratio)*\
-            ( 0.5*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
+        energy_a = E0 + 9*(V0*K0/PV_ratio)*\
+            ( 1/2*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
 
         return energy_a
 #====================================================================
@@ -405,9 +404,9 @@ class Vinet(CompressPath):
     def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
 
-        eta = 3./2*(KP0-1)
-        vratio_a = 1.0*V_a/V0
-        x_a = vratio_a**(1./3)
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1/3)
 
         press_a = 3*K0*(1-x_a)*x_a**(-2)*np.exp(eta*(1-x_a))
 
@@ -421,9 +420,9 @@ class Vinet(CompressPath):
         # print E0
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
-        eta = 3./2*(KP0-1)
-        vratio_a = 1.0*V_a/V0
-        x_a = vratio_a**(1.0/3)
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1/3)
 
 
         energy_a = E0 + 9*K0*V0/PV_ratio/eta**2*\
@@ -437,14 +436,14 @@ class Vinet(CompressPath):
         V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
-        eta = 3./2*(KP0-1)
-        vratio_a = 1.0*V_a/V0
-        x = vratio_a**(1./3)
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x = vratio_a**(1/3)
 
         scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
 
         # NOTE: CHECK UNITS (PV_RATIO) here
-        dEdp_a = 1.0/PV_ratio*np.vstack\
+        dEdp_a = 1/PV_ratio*np.vstack\
             ([-3*K0*(eta**2*x*(x-1) + 3*eta*(x-1) - 3*np.exp(eta*(x-1)) + 3)\
               *np.exp(-eta*(x-1))/eta**2,
               -9*V0*(eta*(x-1) - np.exp(eta*(x-1)) + 1)*np.exp(-eta*(x-1))/eta**2,
@@ -469,13 +468,13 @@ class Tait(CompressPath):
     #     self.expand_adj = expand_adj
     #     pass
 
-    def get_eos_params(self, eos_d):
+    def _get_eos_params(self, eos_d):
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
         if self.setlogPmin:
             logPmin, = core.get_params( ['logPmin'], eos_d )
             Pmin = np.exp(logPmin)
             # assert Pmin>0, 'Pmin must be positive.'
-            KP20 = (KP0+1)*(KP0/K0 - 1.0/Pmin)
+            KP20 = (KP0+1)*(KP0/K0 - 1/Pmin)
         else:
             KP20, = core.get_params( ['KP20'], eos_d )
 
@@ -484,7 +483,7 @@ class Tait(CompressPath):
     def get_param_scale_sub( self, eos_d ):
         """Return scale values for each parameter"""
 
-        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
+        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         if self.setlogPmin:
@@ -499,32 +498,32 @@ class Tait(CompressPath):
 
         return scale_a, paramkey_a
 
-    def eos_to_abc_params(self, K0, KP0, KP20):
-        a = (KP0 + 1.0)/(K0*KP20 + KP0 + 1.0)
-        b = -KP20/(KP0+1.0) + KP0/K0
-        c = (K0*KP20 + KP0 + 1.0)/(-K0*KP20 + KP0**2 + KP0)
+    def _eos_to_abc_params(self, K0, KP0, KP20):
+        a = (KP0 + 1)/(K0*KP20 + KP0 + 1)
+        b = -KP20/(KP0+1) + KP0/K0
+        c = (K0*KP20 + KP0 + 1)/(-K0*KP20 + KP0**2 + KP0)
 
         return a,b,c
 
     def _calc_press( self, V_a, eos_d ):
-        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
-        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
-        vratio_a = 1.0*V_a/V0
+        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
+        a,b,c = self._eos_to_abc_params(K0,KP0,KP20)
+        vratio_a = V_a/V0
 
-        press_a = 1.0/b*(((vratio_a + a - 1.0)/a)**(-1.0/c) - 1.0)
+        press_a = 1/b*(((vratio_a + a - 1)/a)**(-1/c) - 1)
 
         return press_a
 
     def _calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
+        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
         E0, = core.get_params( ['E0'], eos_d )
-        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
+        a,b,c = self._eos_to_abc_params(K0,KP0,KP20)
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
-        vratio_a = 1.0*V_a/V0
+        vratio_a = V_a/V0
 
         press_a = self._calc_press( V_a, eos_d )
-        eta_a = b*press_a + 1.0
+        eta_a = b*press_a + 1
         eta_pow_a = eta_a**(-c)
         #  NOTE: Need to simplify energy expression here
         energy_a = E0 + (V0/b)/PV_ratio*(a*c/(c-1)-1)\
@@ -533,27 +532,31 @@ class Tait(CompressPath):
         return energy_a
 
     def _calc_energy_perturb_deprecate( self, V_a, eos_d ):
-        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
-        V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
+        """
+        Returns Energy pertubation basis functions resulting from
+        fractional changes to EOS params.
+
+        """
+        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
         E0, = core.get_params( ['E0'], eos_d )
 
-        a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
+        a,b,c = self._eos_to_abc_params(K0,KP0,KP20)
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = V_a/V0
 
         press_a = self._calc_press( V_a, eos_d )
-        eta_a = b*press_a + 1.0
+        eta_a = b*press_a + 1
         eta_pow_a = eta_a**(-c)
 
         scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
 
         # [V0,K0,KP0,KP20,E0]
         dEdp_a = np.ones((4, V_a.size))
-        # dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
-        dEdp_a[0,:] = 1.0/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c) \
-            + 1.0/(PV_ratio*b)*(a*c/(c-1)-1)
-        dEdp_a[-1,:] = 1.0
+        # dEdp_a[0,:] = 1/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a -1 + (1-a)*(a+c))
+        dEdp_a[0,:] = 1/(PV_ratio*b*(c-1))*eta_a*(-a*eta_pow_a +a -1 -a*c+c) \
+            + 1/(PV_ratio*b)*(a*c/(c-1)-1)
+        dEdp_a[-1,:] = 1
 
         # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
         # 1x3
@@ -567,13 +570,13 @@ class Tait(CompressPath):
         abc_jac = np.array([[-KP20*(KP0+1)/(K0*KP20+KP0+1)**2,
                              K0*KP20/(K0*KP20+KP0+1)**2,
                              -K0*(KP0+1)/(K0*KP20+KP0+1)**2],
-                            [-KP0/K0**2, KP20/(KP0+1)**2 + 1./K0, -1.0/(KP0+1)],
-                            [KP20*(KP0**2+2.*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
+                            [-KP0/K0**2, KP20/(KP0+1)**2 + 1/K0, -1/(KP0+1)],
+                            [KP20*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2,
                              (-K0*KP20+KP0**2+KP0-(2*KP0+1)*(K0*KP20+KP0+1))/\
                              (-K0*KP20+KP0**2+KP0)**2,
                              K0*(KP0**2+2*KP0+1)/(-K0*KP20+KP0**2+KP0)**2]])
 
-        dEdp_a[1:4,:] = 1.0/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
+        dEdp_a[1:4,:] = 1/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
 
         print(dEdp_a.shape)
 
