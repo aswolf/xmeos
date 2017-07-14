@@ -4,6 +4,10 @@ __pycache__
 #temp vim files
 .*.swp
 .*.swo
+
+# futurize backup files
+.*.bak
+
 #database binary files
 *.db
 #temp ipython notebook files
