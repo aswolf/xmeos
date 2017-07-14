@@ -3,6 +3,26 @@ import scipy as sp
 from abc import ABCMeta, abstractmethod
 
 #====================================================================
+# Base EOS Model Class
+#====================================================================
+class EosMod(object):
+    """
+    Abstract Equation of State Parent Base class
+    """
+    __metaclass__ = ABCMeta
+
+    def __init__( self ):
+        pass
+
+    def get_param_scale( self, eos_d, apply_expand_adj=True):
+        """Return scale values for each parameter"""
+        return self.get_param_scale_sub( eos_d )
+
+    def get_param_scale_sub( self, eos_d ):
+        raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
+#====================================================================
+
+#====================================================================
 def init_consts( eos_d ):
     eos_d['const_d'] = default_consts()
     pass
@@ -208,25 +228,6 @@ def fill_array( var1, var2 ):
         assert False, 'var1 and var2 must both be equal shape or size=1'
 
     return var1_a, var2_a
-#====================================================================
-#====================================================================
-# Base EOS Model Class
-#====================================================================
-class EosMod(object):
-    """
-    Abstract Equation of State Parent Base class
-    """
-    __metaclass__ = ABCMeta
-
-    def __init__( self ):
-        pass
-
-    def get_param_scale( self, eos_d, apply_expand_adj=True):
-        """Return scale values for each parameter"""
-        return self.get_param_scale_sub( eos_d )
-
-    def get_param_scale_sub( self, eos_d ):
-        raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
 #====================================================================
 
 #====================================================================

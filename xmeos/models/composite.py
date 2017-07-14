@@ -309,3 +309,58 @@ class MieGrunPtherm(CompositeMod):
         return Cv_a
 #====================================================================
 
+#====================================================================
+class RosenfeldTaranzonaShiftedAdiabat(CompressPath):
+    def get_param_scale_sub( self, eos_d):
+        """Return scale values for each parameter"""
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+
+        paramkey_a = np.array(['V0','K0','KP0','E0'])
+        scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
+
+        return scale_a, paramkey_a
+
+    def _calc_press( self, V_a, eos_d ):
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+        fac = 1e-3
+        Vhi_a = V_a*(1.0 + 0.5*fac)
+        Vlo_a = V_a*(1.0 - 0.5*fac)
+
+        dV_a = Vhi_a-Vlo_a
+
+
+        E0S_hi_a = self._calc_energy(Vhi_a, eos_d)
+        E0S_lo_a = self._calc_energy(Vlo_a, eos_d)
+
+        P0S_a = -PV_ratio*(E0S_hi_a - E0S_lo_a)/dV_a
+        return P0S_a
+
+    def _calc_energy( self, V_a, eos_d ):
+        V0, T0, mexp  = core.get_params( ['V0','T0','mexp'], eos_d )
+        kB, = core.get_consts( ['kboltz'], eos_d )
+
+        poly_blogcoef_a = core.get_array_params( 'blogcoef', eos_d )
+
+
+        compress_path_mod, thermal_mod, gamma_mod = \
+            core.get_modtypes( ['CompressPath', 'ThermalMod', 'GammaMod'],
+                                 eos_d )
+
+        free_energy_isotherm_a = compress_path_mod.energy(V_a,eos_d)
+
+        T0S_a = gamma_mod.temp(V_a,T0,eos_d)
+
+
+        bV_a = np.polyval(poly_blogcoef_a,np.log(V_a/V0))
+
+        dS_a = -mexp/(mexp-1)*bV_a/T0*((T0S_a/T0)**(mexp-1)-1)\
+            -3./2*kB*np.log(T0S_a/T0)
+
+
+        energy_isotherm_a = free_energy_isotherm_a + T0*dS_a
+        E0S_a = energy_isotherm_a + bV_a*((T0S_a/T0)**mexp-1)\
+            +3./2*kB*(T0S_a-T0)
+
+        return E0S_a
+#====================================================================

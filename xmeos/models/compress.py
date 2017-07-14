@@ -1,8 +1,12 @@
+# # coding: utf-8
+# from __future__ import absolute_import, division, print_function, unicode_literals
+
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
+
 
 from core import EosMod
 import core
@@ -10,64 +14,7 @@ import core
 #====================================================================
 # Base Classes
 #====================================================================
-class CompressMod(EosMod):
-    """
-    Abstract Equation of State class to describe Compression Behavior
-
-    generally depends on both vol and temp
-    """
-    __metaclass__ = ABCMeta
-
-    def press( self, V_a, T_a, eos_d ):
-        """Returns Press behavior due to compression."""
-        return self.calc_press(V_a, T_a, eos_d)
-
-    def vol( self, P_a, T_a, eos_d ):
-        """Returns Vol behavior due to compression."""
-        return self.calc_vol(V_a, T_a, eos_d)
-
-    def energy( self, V_a, T_a, eos_d ):
-        """Returns Energy behavior due to compression."""
-        return self.calc_energy(V_a, T_a, eos_d)
-
-    def energy_perturb( self, V_a, T_a, eos_d ):
-        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
-        return self.calc_energy_perturb(V_a, T_a, eos_d)
-
-    def bulk_mod( self, V_a, T_a, eos_d ):
-        """Returns Bulk Modulus behavior due to compression."""
-        return self.calc_bulk_mod(V_a, T_a, eos_d)
-
-    def bulk_mod_deriv( self, V_a, T_a, eos_d ):
-        """Returns Bulk Modulus Deriv (K') behavior due to compression."""
-        return self.calc_bulk_mod_deriv(V_a, T_a, eos_d)
-
-    # Standard methods must be overridden (as needed) by implimentation model
-    def calc_press( self, V_a, T_a, eos_d ):
-        """Calculates Press behavior due to compression."""
-        raise NotImplementedError("'calc_press' function not implimented for this model")
-
-    def calc_vol( self, P_a, T_a, eos_d ):
-        """Calculates Vol behavior due to compression."""
-        raise NotImplementedError("'calc_vol' function not implimented for this model")
-
-    def calc_energy( self, V_a, T_a, eos_d ):
-        """Calculates Energy behavior due to compression."""
-        raise NotImplementedError("'calc_energy' function not implimented for this model")
-
-    def calc_energy_perturb( self, V_a, T_a, eos_d ):
-        """Calculates Energy pertubation basis functions resulting from fractional changes to EOS params."""
-        raise NotImplementedError("'calc_energy_perturb' function not implimented for this model")
-
-    def calc_bulk_mod( self, V_a, T_a, eos_d ):
-        """Calculates Bulk Modulus behavior due to compression."""
-        raise NotImplementedError("'calc_bulk_mod' function not implimented for this model")
-
-    def calc_bulk_mod_deriv( self, V_a, T_a, eos_d ):
-        """Calculates Bulk Modulus Deriv (K') behavior due to compression."""
-        raise NotImplementedError("'calc_bulk_mod_deriv' function not implimented for this model")
-#====================================================================
-class CompressPathMod(CompressMod):
+class CompressPath(EosMod):
     """
     Abstract Equation of State class for a reference Compression Path
 
@@ -133,7 +80,6 @@ class CompressPathMod(CompressMod):
             scale_a = np.append(scale_a,0.01)
             paramkey_a = np.append(paramkey_a,'logPmin')
 
-            return scale_a, paramkey_a
             # paramkey_pos_a = np.append(paramkey_pos_a,1.0)
 
             # scale_neg_a, paramkey_neg_a = self.expand_adj_mod.get_param_scale_sub( eos_d )
@@ -151,8 +97,9 @@ class CompressPathMod(CompressMod):
             #     return scale_a, paramkey_a, ind_pos_a
             # else:
             #     return scale_a, paramkey_a
+            return scale_a, paramkey_a
 
-    def get_ind_exp( self, V_a, eos_d ):
+    def get_ind_expand( self, V_a, eos_d ):
         V0 = core.get_params( ['V0'], eos_d )
         ind_exp = np.where( V_a > V0 )[0]
         return ind_exp
@@ -199,17 +146,19 @@ class CompressPathMod(CompressMod):
         deriv_a = dval_a/dxfrac
         return deriv_a
 
+    # NEED to write infer volume function
+
     def press( self, V_a, eos_d, apply_expand_adj=True):
         if self.supress_press:
             zero_a = 0.0*V_a
             return zero_a
 
         else:
-            press_a = self.calc_press(V_a, eos_d)
+            press_a = self._calc_press(V_a, eos_d)
             if self.expand_adj and apply_expand_adj:
-                ind_exp = self.get_ind_exp(V_a, eos_d)
+                ind_exp = self.get_ind_expand(V_a, eos_d)
                 if (ind_exp.size>0):
-                    press_a[ind_exp] = self.expand_adj_mod.calc_press( V_a[ind_exp], eos_d )
+                    press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
 
             return press_a
         pass
@@ -220,35 +169,35 @@ class CompressPathMod(CompressMod):
             return zero_a
 
         else:
-            energy_a =  self.calc_energy(V_a, eos_d)
+            energy_a =  self._calc_energy(V_a, eos_d)
             if self.expand_adj and apply_expand_adj:
-                ind_exp = self.get_ind_exp(V_a, eos_d)
+                ind_exp = self.get_ind_expand(V_a, eos_d)
                 if apply_expand_adj and (ind_exp.size>0):
-                    energy_a[ind_exp] = self.expand_adj_mod.calc_energy( V_a[ind_exp], eos_d )
+                    energy_a[ind_exp] = self.expand_adj_mod._calc_energy( V_a[ind_exp], eos_d )
 
             return energy_a
 
     def bulk_mod( self, V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_a =  self.calc_bulk_mod(V_a, eos_d)
+        bulk_mod_a =  self._calc_bulk_mod(V_a, eos_d)
         if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_exp(V_a, eos_d)
+            ind_exp = self.get_ind_expand(V_a, eos_d)
             if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_a[ind_exp] = self.expand_adj_mod.calc_bulk_mod( V_a[ind_exp], eos_d )
+                bulk_mod_a[ind_exp] = self.expand_adj_mod._calc_bulk_mod( V_a[ind_exp], eos_d )
 
         return bulk_mod_a
 
     def bulk_mod_deriv(  self,V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_deriv_a =  self.calc_bulk_mod_deriv(V_a, eos_d)
+        bulk_mod_deriv_a =  self._calc_bulk_mod_deriv(V_a, eos_d)
         if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_exp(V_a, eos_d)
+            ind_exp = self.get_ind_expand(V_a, eos_d)
             if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_deriv_a[ind_exp] = self.expand_adj_mod_deriv.calc_bulk_mod_deriv( V_a[ind_exp], eos_d )
+                bulk_mod_deriv_a[ind_exp] = self.expand_adj_mod_deriv._calc_bulk_mod_deriv( V_a[ind_exp], eos_d )
 
         return bulk_mod_deriv_a
 
     def energy_perturb( self, V_a, eos_d, apply_expand_adj=True ):
         # Eval positive press values
-        Eperturb_pos_a, scale_a, paramkey_a  = self.calc_energy_perturb( V_a, eos_d )
+        Eperturb_pos_a, scale_a, paramkey_a  = self._calc_energy_perturb( V_a, eos_d )
 
         if (self.expand_adj==False) or (apply_expand_adj==False):
             return Eperturb_pos_a, scale_a, paramkey_a
@@ -263,10 +212,10 @@ class CompressPathMod(CompressMod):
             Eperturb_a[ind_pos,:] = Eperturb_pos_a
 
             # Overwrite negative pressure Expansion regions
-            ind_exp = self.get_ind_exp(V_a, eos_d)
+            ind_exp = self.get_ind_expand(V_a, eos_d)
             if ind_exp.size>0:
                 Eperturb_adj_a = \
-                    self.expand_adj_mod.calc_energy_perturb( V_a[ind_exp],
+                    self.expand_adj_mod._calc_energy_perturb( V_a[ind_exp],
                                                             eos_d )[0]
                 Eperturb_a[:,ind_exp] = Eperturb_adj_a
 
@@ -277,15 +226,23 @@ class CompressPathMod(CompressMod):
     def get_param_scale_sub( self, eos_d):
         raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
 
-    def calc_press( self, V_a, eos_d ):
+    ####################
+    # Required Methods #
+    ####################
+    @abstractmethod
+    def _calc_press( self, V_a, eos_d ):
         """Returns Press variation along compression curve."""
-        raise NotImplementedError("'press' function not implimented for this model")
+        pass
 
-    def calc_energy( self, V_a, eos_d ):
+    @abstractmethod
+    def _calc_energy( self, V_a, eos_d ):
         """Returns Energy along compression curve."""
-        raise NotImplementedError("'energy' function not implimented for this model")
+        pass
 
-    def calc_energy_perturb( self, V_a, eos_d ):
+    ####################
+    # Optional Methods #
+    ####################
+    def _calc_energy_perturb( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
         fname = 'energy'
@@ -300,11 +257,11 @@ class CompressPathMod(CompressMod):
 
         return Eperturb_a, scale_a, paramkey_a
 
-    def calc_bulk_mod( self, V_a, eos_d ):
+    def _calc_bulk_mod( self, V_a, eos_d ):
         """Returns Bulk Modulus variation along compression curve."""
         raise NotImplementedError("'bulk_mod' function not implimented for this model")
 
-    def calc_bulk_mod_deriv( self, V_a, eos_d ):
+    def _calc_bulk_mod_deriv( self, V_a, eos_d ):
         """Returns Bulk Modulus Deriv (K') variation along compression curve."""
         raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
 #====================================================================
@@ -312,8 +269,8 @@ class CompressPathMod(CompressMod):
 #====================================================================
 # Implementations
 #====================================================================
-class BirchMurn3(CompressPathMod):
-    def calc_press( self, V_a, eos_d ):
+class BirchMurn3(CompressPath):
+    def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
 
         vratio_a = 1.0*V_a/V0
@@ -323,7 +280,7 @@ class BirchMurn3(CompressPathMod):
 
         return press_a
 
-    def calc_energy( self, V_a, eos_d ):
+    def _calc_energy( self, V_a, eos_d ):
         V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
@@ -336,7 +293,7 @@ class BirchMurn3(CompressPathMod):
 
         return energy_a
 #====================================================================
-class BirchMurn4(CompressPathMod):
+class BirchMurn4(CompressPath):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
         V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
@@ -347,12 +304,12 @@ class BirchMurn4(CompressPathMod):
 
         return scale_a, paramkey_a
 
-    def calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20 ):
+    def _calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20 ):
         a1 = 3./2*(KP0-nexp-2)
         a2 = 3./2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11./9*nexp**2)
         return a1,a2
 
-    def calc_press( self, V_a, eos_d ):
+    def _calc_press( self, V_a, eos_d ):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # press_a = self.gen_finite_strain_mod.press( V_a, eos_d )
         V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
@@ -361,13 +318,13 @@ class BirchMurn4(CompressPathMod):
         vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
-        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
+        a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
 
         press_a = 3.0*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
             fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
         return press_a
 
-    def calc_energy( self, V_a, eos_d ):
+    def _calc_energy( self, V_a, eos_d ):
         # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
         # energy_a = self.gen_finite_strain_mod.energy( V_a, eos_d )
         V0, K0, KP0, KP20, E0 = core.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
@@ -378,7 +335,7 @@ class BirchMurn4(CompressPathMod):
         vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
-        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
+        a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20)
 
 
         energy_a = E0 + 9.0*(V0*K0/PV_ratio)*\
@@ -386,7 +343,7 @@ class BirchMurn4(CompressPathMod):
 
         return energy_a
 #====================================================================
-class GenFiniteStrain(CompressPathMod):
+class GenFiniteStrain(CompressPath):
     """
     Generalized Finite Strain EOS from Jeanloz1989b
 
@@ -394,7 +351,7 @@ class GenFiniteStrain(CompressPathMod):
           nexp=-2 yields lagragian strain EOS
     """
 
-    def calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20=None, KP30=None):
+    def _calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20=None, KP30=None):
         a1 = 3./2*(KP0-nexp-2)
         if KP20 is None:
             return a1
@@ -408,26 +365,26 @@ class GenFiniteStrain(CompressPathMod):
                            -(50./3*nexp**3 + 70*nexp**2 + 90*nexp + 36))
                 return a1,a2,a3
 
-    def calc_press( self, V_a, eos_d ):
+    def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0, KP20, nexp = core.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
 
         vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
-        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
+        a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
 
         press_a = 3.0*K0*(1+a1*fstrain_a + a2*fstrain_a**2)*\
             fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
         return press_a
 
-    def calc_energy( self, V_a, eos_d ):
+    def _calc_energy( self, V_a, eos_d ):
         V0, K0, KP0, KP20, E0, nexp = core.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
         PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
 
         vratio_a = 1.0*V_a/V0
         fstrain_a = 1./nexp*(vratio_a**(-nexp/3) - 1)
 
-        a1,a2 = self.calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
+        a1,a2 = self._calc_strain_energy_coeffs(nexp,K0,KP0,KP20=KP20)
 
 
         energy_a = E0 + 9.0*(V0*K0/PV_ratio)*\
@@ -435,7 +392,7 @@ class GenFiniteStrain(CompressPathMod):
 
         return energy_a
 #====================================================================
-class Vinet(CompressPathMod):
+class Vinet(CompressPath):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
@@ -446,7 +403,7 @@ class Vinet(CompressPathMod):
 
         return scale_a, paramkey_a
 
-    def calc_press( self, V_a, eos_d ):
+    def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
 
         eta = 3./2*(KP0-1)
@@ -457,7 +414,7 @@ class Vinet(CompressPathMod):
 
         return press_a
 
-    def calc_energy( self, V_a, eos_d ):
+    def _calc_energy( self, V_a, eos_d ):
         V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
         # print V0
         # print K0
@@ -475,7 +432,7 @@ class Vinet(CompressPathMod):
 
         return energy_a
 
-    def calc_energy_perturb( self, V_a, eos_d ):
+    def _calc_energy_perturb( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
         V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
@@ -501,7 +458,7 @@ class Vinet(CompressPathMod):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-class Tait(CompressPathMod):
+class Tait(CompressPath):
     def __init__( self, setlogPmin=False,
                  path_const='T', level_const=300, expand_adj_mod=None,
                  expand_adj=None, supress_energy=False, supress_press=False ):
@@ -550,7 +507,7 @@ class Tait(CompressPathMod):
 
         return a,b,c
 
-    def calc_press( self, V_a, eos_d ):
+    def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
         vratio_a = 1.0*V_a/V0
@@ -559,7 +516,7 @@ class Tait(CompressPathMod):
 
         return press_a
 
-    def calc_energy( self, V_a, eos_d ):
+    def _calc_energy( self, V_a, eos_d ):
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
         E0, = core.get_params( ['E0'], eos_d )
         a,b,c = self.eos_to_abc_params(K0,KP0,KP20)
@@ -567,7 +524,7 @@ class Tait(CompressPathMod):
 
         vratio_a = 1.0*V_a/V0
 
-        press_a = self.calc_press( V_a, eos_d )
+        press_a = self._calc_press( V_a, eos_d )
         eta_a = b*press_a + 1.0
         eta_pow_a = eta_a**(-c)
         #  NOTE: Need to simplify energy expression here
@@ -576,7 +533,7 @@ class Tait(CompressPathMod):
 
         return energy_a
 
-    def calc_energy_perturb_deprecate( self, V_a, eos_d ):
+    def _calc_energy_perturb_deprecate( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
         V0, K0, KP0, KP20 = self.get_eos_params(eos_d)
         E0, = core.get_params( ['E0'], eos_d )
@@ -586,7 +543,7 @@ class Tait(CompressPathMod):
 
         vratio_a = V_a/V0
 
-        press_a = self.calc_press( V_a, eos_d )
+        press_a = self._calc_press( V_a, eos_d )
         eta_a = b*press_a + 1.0
         eta_pow_a = eta_a**(-c)
 
@@ -633,58 +590,4 @@ class Tait(CompressPathMod):
         #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
         return Eperturb_a, scale_a, paramkey_a
-#====================================================================
-class RosenfeldTaranzonaShiftedAdiabat(CompressPathMod):
-    def get_param_scale_sub( self, eos_d):
-        """Return scale values for each parameter"""
-        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
-
-        paramkey_a = np.array(['V0','K0','KP0','E0'])
-        scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
-
-        return scale_a, paramkey_a
-
-    def calc_press( self, V_a, eos_d ):
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
-        fac = 1e-3
-        Vhi_a = V_a*(1.0 + 0.5*fac)
-        Vlo_a = V_a*(1.0 - 0.5*fac)
-
-        dV_a = Vhi_a-Vlo_a
-
-
-        E0S_hi_a = self.calc_energy(Vhi_a, eos_d)
-        E0S_lo_a = self.calc_energy(Vlo_a, eos_d)
-
-        P0S_a = -PV_ratio*(E0S_hi_a - E0S_lo_a)/dV_a
-        return P0S_a
-
-    def calc_energy( self, V_a, eos_d ):
-        V0, T0, mexp  = core.get_params( ['V0','T0','mexp'], eos_d )
-        kB, = core.get_consts( ['kboltz'], eos_d )
-
-        poly_blogcoef_a = core.get_array_params( 'blogcoef', eos_d )
-
-
-        compress_path_mod, thermal_mod, gamma_mod = \
-            core.get_modtypes( ['CompressPathMod', 'ThermalMod', 'GammaMod'],
-                                 eos_d )
-
-        free_energy_isotherm_a = compress_path_mod.energy(V_a,eos_d)
-
-        T0S_a = gamma_mod.temp(V_a,T0,eos_d)
-
-
-        bV_a = np.polyval(poly_blogcoef_a,np.log(V_a/V0))
-
-        dS_a = -mexp/(mexp-1)*bV_a/T0*((T0S_a/T0)**(mexp-1)-1)\
-            -3./2*kB*np.log(T0S_a/T0)
-
-
-        energy_isotherm_a = free_energy_isotherm_a + T0*dS_a
-        E0S_a = energy_isotherm_a + bV_a*((T0S_a/T0)**mexp-1)\
-            +3./2*kB*(T0S_a-T0)
-
-        return E0S_a
 #====================================================================

@@ -7,6 +7,8 @@ import scipy.interpolate as interpolate
 from core import EosMod
 import core
 
+# thermal models often contain gamma models
+
 #====================================================================
 # Base Classes
 #====================================================================
@@ -286,6 +288,199 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 
         entropy_a = Sref + delS_heat_a
         return entropy_a
+#====================================================================
+
+
+
+
+
+
+
+
+
+#====================================================================
+# Composite model
+#====================================================================
+
+#====================================================================
+class MieGrun(ThermalMod):
+    """
+    Mie-Gruneisen Equation of State Model
+    (requires extension to define thermal energy model)
+    """
+    __metaclass__ = ABCMeta
+
+    def press( self, V_a, T_a, eos_d ):
+        V_a, T_a = fill_array( V_a, T_a )
+
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
+
+        # Needed functions
+        energy_therm_a = self.calc_energy( V_a, T_a, eos_d )
+        gamma_a = gamma_mod.gamma( V_a, eos_d )
+
+        press_therm_a = PV_ratio*(gamma_a/V_a)*energy_therm_a
+        return press_therm_a
+
+    @abstractmethod
+    def calc_energy( self, V_a, T_a, eos_d ):
+        """Returns Thermal Component of Energy."""
+#====================================================================
+class MieGrunDebye(MieGrun):
+    def __init__( self ):
+       super(MieGrunDebye, self).__init__()
+       path_const='V'
+       self.path_const = path_const
+
+    def calc_energy( self, V_a, T_a, eos_d ):
+        '''
+        Thermal Energy for Debye model
+
+        Relies on reference profile properties stored in eos_d defined by:
+        * debye_temp_f( V_a, T_a )
+        * ref_temp_f( V_a, T_a )
+        '''
+        V_a, T_a = fill_array( V_a, T_a )
+
+        # NOTE: T0 refers to temp on ref adiabat evaluated at V0
+        Cvmax, T0, thetaR = core.get_params( ['Cvmax','T0','thetaR'], eos_d )
+        TS_ratio, = core.get_consts( ['TS_ratio'], eos_d )
+        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
+
+        theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
+        # Tref_a = gamma_mod.temp( V_a, T0, eos_d )
+        Tref_a = self.calc_temp_path(V_a,eos_d)
+
+        # print theta_a
+
+        ######################
+        # NOTE: Some weird issue with TS_ratio!!!
+        ######################
+        # energy_therm_a = (Cvmax/TS_ratio)*(
+        #     + T_a*self.debye_func( theta_a/T_a )
+        #     - Tref_a*self.debye_func( theta_a/Tref_a ) )
+        energy_therm_a = (Cvmax)*(
+            + T_a*self.debye_func( theta_a/T_a )
+            - Tref_a*self.debye_func( theta_a/Tref_a ) )
+
+        return energy_therm_a
+
+    def calc_entropy( self, V_a, T_a, eos_d ):
+        V_a, T_a = fill_array( V_a, T_a )
+
+        Cvmax, thetaR = core.get_params( ['Cvmax','thetaR'], eos_d )
+        TS_ratio, = core.get_consts( ['TS_ratio'], eos_d )
+        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
+
+        theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
+        x_a = theta_a/T_a
+
+        # entropy_a = Cvmax*Cv_const/3. \
+            #     *(4*debye_func( x_a )-3*np.log( 1-np.exp( -x_a ) ) )
+
+        # TS_ratio????
+        # entropy_a = 1.0/3*(Cvmax/TS_ratio) \
+        #     *(4*self.debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
+        entropy_a = 1.0/3*(Cvmax) \
+            *(4*self.debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
+
+        return entropy_a
+
+    def calc_heat_capacity( self, V_a, T_a, eos_d ):
+        V_a, T_a = fill_array( V_a, T_a )
+
+        Cvmax, thetaR = core.get_params( ['Cvmax','thetaR'], eos_d )
+        TS_ratio, = core.get_consts( ['TS_ratio'], eos_d )
+        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
+
+        theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
+
+        # The reference adiabat terms in the internal energy are temperature
+        # independent, and thus play no role in heat capacity
+        x_a = theta_a/T_a
+        # heat_capacity_a = (Cvmax/TS_ratio)*\
+        #     (4*self.debye_func( x_a )-3*x_a/(np.exp(x_a)-1))
+
+        ######################
+        # NOTE: Some weird issue with TS_ratio!!!
+        ######################
+        heat_capacity_a = (Cvmax)*\
+            (4*self.debye_func( x_a )-3*x_a/(np.exp(x_a)-1))
+
+        return heat_capacity_a
+
+    def debye_func( self, x_a ):
+        """
+        Return debye integral value
+
+        - calculation done using interpolation in a lookup table
+        - interpolation done in log-space where behavior is close to linear
+        - linear extrapolation is implemented manually
+        """
+
+        if np.isscalar( x_a ):
+            assert x_a >= 0, 'x_a values must be greater than zero.'
+        else:
+            assert all( x_a >= 0 ), 'x_a values must be greater than zero.'
+            # Lookup table
+            # interpolate in log space where behavior is nearly linear
+            debyex_a = np.array( [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
+                                  1.1, 1.2, 1.3, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8,
+                                  3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0,
+                                  5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0] )
+            debyelogf_a = np.array( [ 0.0, -0.03770187, -0.07580279, -0.11429475,
+                                     -0.15316866, -0.19241674, -0.2320279 , -0.27199378,
+                                     -0.31230405, -0.35294619, -0.39390815, -0.43518026,
+                                     -0.47674953, -0.51860413, -0.56072866, -0.64573892,
+                                     -0.73167389, -0.81841793, -0.90586032, -0.99388207,
+                                     -1.08236598, -1.17119911, -1.26026101, -1.34944183,
+                                     -1.43863241, -1.52771969, -1.61660856, -1.70519469,
+                                     -1.79338479, -1.88108917, -1.96822938, -2.05471771,
+                                     -2.14049175, -2.35134476, -2.55643273, -2.75507892,
+                                     -2.94682783, -3.13143746, -3.30880053, -3.47894273,
+                                     -3.64199587, -3.79820337, -3.94785746] )
+            # Create interpolation function
+            logdeb_func = interpolate.interp1d( debyex_a, debyelogf_a,
+                                               kind='cubic',
+                                               bounds_error=False,
+                                               fill_value=np.nan )
+            logfval_a = logdeb_func( x_a )
+
+            # Check for extrapolated values indicated by NaN
+            #   - replace with linear extrapolation
+            logfextrap_a = debyelogf_a[-1] + (x_a - debyex_a[-1]) \
+                *(debyelogf_a[-1]-debyelogf_a[-2])\
+                /(debyex_a[-1]-debyex_a[-2])
+            logfval_a = np.where( x_a > debyex_a[-1], logfextrap_a,
+                                 logfval_a )
+            # exponentiate to get integral value
+            return np.exp( logfval_a )
+
+    def calc_temp_path( self, V_a, eos_d ):
+        T0, = core.get_params( ['T0'], eos_d )
+
+        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
+        Tref_a = gamma_mod.temp( V_a, T0, eos_d )
+
+        return Tref_a
+
+    def calc_free_energy( self, V_a, T_a, eos_d ):
+        E_tot = self.calc_energy( V_a, T_a, eos_d )
+        S_tot = self.calc_entropy( V_a, T_a, eos_d )
+        F_tot = E_tot - T_a*S_tot
+
+        return F_tot
+
+    def calc_gamma( self, V_a, T_a, eos_d ):
+        gamma_mod = eos_d['modtype_d']['GammaMod']
+        T0, = core.get_params( ['T0'], eos_d )
+
+        gamma_0S_a = gamma_mod.gamma(V_a,eos_d)
+        return gamma_0S_a
+#====================================================================
+
+
 #====================================================================
 class RosenfeldTaranzonaCompress(ThermalMod):
     """
@@ -656,180 +851,4 @@ class RosenfeldTaranzonaIsotherm(RosenfeldTaranzonaCompress):
             -3./2*kB*np.log(T0S_a/T0)
 
         return dS_a
-#====================================================================
-class MieGrun(ThermalMod):
-    """
-    Mie-Gruneisen Equation of State Model
-    (requires extension to define thermal energy model)
-    """
-    __metaclass__ = ABCMeta
-
-    def press( self, V_a, T_a, eos_d ):
-        V_a, T_a = fill_array( V_a, T_a )
-
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
-        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
-
-        # Needed functions
-        energy_therm_a = self.calc_energy( V_a, T_a, eos_d )
-        gamma_a = gamma_mod.gamma( V_a, eos_d )
-
-        press_therm_a = PV_ratio*(gamma_a/V_a)*energy_therm_a
-        return press_therm_a
-
-    @abstractmethod
-    def calc_energy( self, V_a, T_a, eos_d ):
-        """Returns Thermal Component of Energy."""
-#====================================================================
-class MieGrunDebye(MieGrun):
-    def __init__( self ):
-       super(MieGrunDebye, self).__init__()
-       path_const='V'
-       self.path_const = path_const
-
-    def calc_energy( self, V_a, T_a, eos_d ):
-        '''
-        Thermal Energy for Debye model
-
-        Relies on reference profile properties stored in eos_d defined by:
-        * debye_temp_f( V_a, T_a )
-        * ref_temp_f( V_a, T_a )
-        '''
-        V_a, T_a = fill_array( V_a, T_a )
-
-        # NOTE: T0 refers to temp on ref adiabat evaluated at V0
-        Cvmax, T0, thetaR = core.get_params( ['Cvmax','T0','thetaR'], eos_d )
-        TS_ratio, = core.get_consts( ['TS_ratio'], eos_d )
-        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
-
-        theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
-        # Tref_a = gamma_mod.temp( V_a, T0, eos_d )
-        Tref_a = self.calc_temp_path(V_a,eos_d)
-
-        # print theta_a
-
-        ######################
-        # NOTE: Some weird issue with TS_ratio!!!
-        ######################
-        # energy_therm_a = (Cvmax/TS_ratio)*(
-        #     + T_a*self.debye_func( theta_a/T_a )
-        #     - Tref_a*self.debye_func( theta_a/Tref_a ) )
-        energy_therm_a = (Cvmax)*(
-            + T_a*self.debye_func( theta_a/T_a )
-            - Tref_a*self.debye_func( theta_a/Tref_a ) )
-
-        return energy_therm_a
-
-    def calc_entropy( self, V_a, T_a, eos_d ):
-        V_a, T_a = fill_array( V_a, T_a )
-
-        Cvmax, thetaR = core.get_params( ['Cvmax','thetaR'], eos_d )
-        TS_ratio, = core.get_consts( ['TS_ratio'], eos_d )
-        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
-
-        theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
-        x_a = theta_a/T_a
-
-        # entropy_a = Cvmax*Cv_const/3. \
-            #     *(4*debye_func( x_a )-3*np.log( 1-np.exp( -x_a ) ) )
-
-        # TS_ratio????
-        # entropy_a = 1.0/3*(Cvmax/TS_ratio) \
-        #     *(4*self.debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
-        entropy_a = 1.0/3*(Cvmax) \
-            *(4*self.debye_func( x_a )-3*np.log( np.exp( x_a ) - 1 ) + 3*x_a)
-
-        return entropy_a
-
-    def calc_heat_capacity( self, V_a, T_a, eos_d ):
-        V_a, T_a = fill_array( V_a, T_a )
-
-        Cvmax, thetaR = core.get_params( ['Cvmax','thetaR'], eos_d )
-        TS_ratio, = core.get_consts( ['TS_ratio'], eos_d )
-        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
-
-        theta_a = gamma_mod.temp( V_a, thetaR, eos_d )
-
-        # The reference adiabat terms in the internal energy are temperature
-        # independent, and thus play no role in heat capacity
-        x_a = theta_a/T_a
-        # heat_capacity_a = (Cvmax/TS_ratio)*\
-        #     (4*self.debye_func( x_a )-3*x_a/(np.exp(x_a)-1))
-
-        ######################
-        # NOTE: Some weird issue with TS_ratio!!!
-        ######################
-        heat_capacity_a = (Cvmax)*\
-            (4*self.debye_func( x_a )-3*x_a/(np.exp(x_a)-1))
-
-        return heat_capacity_a
-
-    def debye_func( self, x_a ):
-        """
-        Return debye integral value
-
-        - calculation done using interpolation in a lookup table
-        - interpolation done in log-space where behavior is close to linear
-        - linear extrapolation is implemented manually
-        """
-
-        if np.isscalar( x_a ):
-            assert x_a >= 0, 'x_a values must be greater than zero.'
-        else:
-            assert all( x_a >= 0 ), 'x_a values must be greater than zero.'
-            # Lookup table
-            # interpolate in log space where behavior is nearly linear
-            debyex_a = np.array( [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
-                                  1.1, 1.2, 1.3, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8,
-                                  3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0,
-                                  5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0] )
-            debyelogf_a = np.array( [ 0.0, -0.03770187, -0.07580279, -0.11429475,
-                                     -0.15316866, -0.19241674, -0.2320279 , -0.27199378,
-                                     -0.31230405, -0.35294619, -0.39390815, -0.43518026,
-                                     -0.47674953, -0.51860413, -0.56072866, -0.64573892,
-                                     -0.73167389, -0.81841793, -0.90586032, -0.99388207,
-                                     -1.08236598, -1.17119911, -1.26026101, -1.34944183,
-                                     -1.43863241, -1.52771969, -1.61660856, -1.70519469,
-                                     -1.79338479, -1.88108917, -1.96822938, -2.05471771,
-                                     -2.14049175, -2.35134476, -2.55643273, -2.75507892,
-                                     -2.94682783, -3.13143746, -3.30880053, -3.47894273,
-                                     -3.64199587, -3.79820337, -3.94785746] )
-            # Create interpolation function
-            logdeb_func = interpolate.interp1d( debyex_a, debyelogf_a,
-                                               kind='cubic',
-                                               bounds_error=False,
-                                               fill_value=np.nan )
-            logfval_a = logdeb_func( x_a )
-
-            # Check for extrapolated values indicated by NaN
-            #   - replace with linear extrapolation
-            logfextrap_a = debyelogf_a[-1] + (x_a - debyex_a[-1]) \
-                *(debyelogf_a[-1]-debyelogf_a[-2])\
-                /(debyex_a[-1]-debyex_a[-2])
-            logfval_a = np.where( x_a > debyex_a[-1], logfextrap_a,
-                                 logfval_a )
-            # exponentiate to get integral value
-            return np.exp( logfval_a )
-
-    def calc_temp_path( self, V_a, eos_d ):
-        T0, = core.get_params( ['T0'], eos_d )
-
-        gamma_mod, = core.get_modtypes( ['GammaMod'], eos_d )
-        Tref_a = gamma_mod.temp( V_a, T0, eos_d )
-
-        return Tref_a
-
-    def calc_free_energy( self, V_a, T_a, eos_d ):
-        E_tot = self.calc_energy( V_a, T_a, eos_d )
-        S_tot = self.calc_entropy( V_a, T_a, eos_d )
-        F_tot = E_tot - T_a*S_tot
-
-        return F_tot
-
-    def calc_gamma( self, V_a, T_a, eos_d ):
-        gamma_mod = eos_d['modtype_d']['GammaMod']
-        T0, = core.get_params( ['T0'], eos_d )
-
-        gamma_0S_a = gamma_mod.gamma(V_a,eos_d)
-        return gamma_0S_a
 #====================================================================

@@ -21,7 +21,7 @@ slow = pytest.mark.skipif(
 #====================================================================
 # SEC:1 Abstract Test Classes
 #====================================================================
-class BaseTestCompressPathMod(object):
+class BaseTestCompressPath(object):
     @abstractmethod
     def load_compress_path_mod(self, eos_d):
         assert False, 'must implement load_compress_path_mod()'
@@ -140,10 +140,10 @@ class BaseTestCompressPathMod(object):
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
 #====================================================================
-class BaseTest4thOrdCompressPathMod(BaseTestCompressPathMod):
+class BaseTest4thOrdCompressPath(BaseTestCompressPath):
     def init_params(self,eos_d):
         # Use parents init_params method
-        eos_d = super(BaseTest4thOrdCompressPathMod,self).init_params(eos_d)
+        eos_d = super(BaseTest4thOrdCompressPath,self).init_params(eos_d)
 
         # Add K''0 param
         KP20 = -1.1*eos_d['param_d']['KP0']/eos_d['param_d']['K0']
@@ -157,9 +157,9 @@ class BaseTest4thOrdCompressPathMod(BaseTestCompressPathMod):
 #====================================================================
 # 2.1: CompressPathMod Tests
 #====================================================================
-class TestVinetCompressPathMod(BaseTestCompressPathMod):
+class TestVinetCompressPathMod(BaseTestCompressPath):
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod = compress.Vinet(path_const='S')
+        compress_path_mod = compress.Vinet(path_const='T')
         print('--------mod----------')
         print(compress_path_mod)
         core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
@@ -169,19 +169,19 @@ class TestVinetCompressPathMod(BaseTestCompressPathMod):
         self.do_test_energy_perturb_eval()
         pass
 #====================================================================
-class TestBM3CompressPathMod(BaseTestCompressPathMod):
+class TestBM3CompressPathMod(BaseTestCompressPath):
     def load_compress_path_mod(self, eos_d):
         compress_path_mod = compress.BirchMurn3(path_const='S')
         core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 #====================================================================
-class TestBM4CompressPathMod(BaseTest4thOrdCompressPathMod):
+class TestBM4CompressPathMod(BaseTest4thOrdCompressPath):
     def load_compress_path_mod(self, eos_d):
         compress_path_mod = compress.BirchMurn4(path_const='S')
         core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 #====================================================================
-class TestGenFiniteStrainCompressPathMod(BaseTest4thOrdCompressPathMod):
+class TestGenFiniteStrainCompressPathMod(BaseTest4thOrdCompressPath):
     def init_params(self,eos_d):
         # Use parents init_params method
         eos_d = super(TestGenFiniteStrainCompressPathMod,self).init_params(eos_d)
@@ -197,7 +197,7 @@ class TestGenFiniteStrainCompressPathMod(BaseTest4thOrdCompressPathMod):
         core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 #====================================================================
-class TestTaitCompressPathMod(BaseTest4thOrdCompressPathMod):
+class TestTaitCompressPathMod(BaseTest4thOrdCompressPath):
     def load_compress_path_mod(self, eos_d):
         compress_path_mod = compress.Tait(path_const='S')
         core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
@@ -343,7 +343,7 @@ class TestCompareCompressPathMods(object):
 
         pass
 #====================================================================
-class TestExpandCompressPathMod(BaseTest4thOrdCompressPathMod):
+class TestExpandCompressPathMod(BaseTest4thOrdCompressPath):
     def load_compress_path_mod(self, eos_d):
         compress_path_mod   = compress.Vinet(path_const='S',expand_adj_mod=compress.Tait())
         core.set_modtypes(['CompressPathMod'],[compress_path_mod], eos_d )
@@ -427,6 +427,7 @@ class TestExpandCompressPathMod(BaseTest4thOrdCompressPathMod):
     def test_energy_perturb_eval(self):
         self.do_test_energy_perturb_eval()
         pass
+#====================================================================
 
 
 
