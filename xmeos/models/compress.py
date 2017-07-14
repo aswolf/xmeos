@@ -1,3 +1,5 @@
+from __future__ import print_function
+from __future__ import absolute_import
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
@@ -5,13 +7,14 @@ from scipy import integrate
 import scipy.interpolate as interpolate
 
 
-from core import EosMod
-import core
+from .core import EosMod
+from . import core
+from future.utils import with_metaclass
 
 #====================================================================
 # Base Classes
 #====================================================================
-class CompressPath(EosMod):
+class CompressPath(with_metaclass(ABCMeta, EosMod)):
     """
     Abstract Equation of State class for a reference Compression Path
 
@@ -19,7 +22,6 @@ class CompressPath(EosMod):
 
     For this restricted path, thermodyn properties depend only on volume
     """
-    __metaclass__ = ABCMeta
 
     path_opts = ['T','S']
     supress_energy = False
@@ -573,11 +575,11 @@ class Tait(CompressPath):
 
         dEdp_a[1:4,:] = 1.0/PV_ratio*np.dot(abc_jac.T,dEdabc_a)
 
-        print dEdp_a.shape
+        print(dEdp_a.shape)
 
         if self.setlogPmin:
             # [V0,K0,KP0,E0]
-            print dEdp_a.shape
+            print(dEdp_a.shape)
             dEdp_a = dEdp_a[[0,1,2,4],:]
 
 

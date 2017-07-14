@@ -5,8 +5,8 @@ __pycache__
 .*.swp
 .*.swo
 
-# futurize backup files
-.*.bak
+# futurize python backup files
+*py.bak
 
 #database binary files
 *.db
