@@ -163,15 +163,18 @@ class BaseTest4thOrdCompressPath(BaseTestCompressPath):
 #====================================================================
 class TestVinetCompressPathMod(BaseTestCompressPath):
     def load_compress_path_mod(self, eos_d):
-        compress_path_mod = compress.Vinet(path_const='T')
+
+        compress_path_mod = core.CompressMod(kind='Vinet',path_const='T',
+                                             level_const=300 )
+        # compress_path_mod = compress.Vinet(path_const='T')
         print('--------mod----------')
         print(compress_path_mod)
         core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 
-    def test_energy_perturb_eval(self):
-        self.do_test_energy_perturb_eval()
-        pass
+    # def test_energy_perturb_eval(self):
+    #     self.do_test_energy_perturb_eval()
+    #     pass
 #====================================================================
 class TestBM3CompressPathMod(BaseTestCompressPath):
     def load_compress_path_mod(self, eos_d):

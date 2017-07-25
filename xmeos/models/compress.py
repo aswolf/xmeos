@@ -7,15 +7,17 @@ from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
 
-
-from .core import EosMod
-from .core import Calculator
+# from .core import Calculator
 from . import core
+
+# from .core import EosMod
+# from .core import Calculator
+# from . import core
 
 #====================================================================
 # Base Classes
 #====================================================================
-class CompressCalc(with_metaclass(ABCMeta, Calculator)):
+class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
     """
     Abstract Equation of State class for a reference Compression Path
 
@@ -111,8 +113,41 @@ class CompressCalc(with_metaclass(ABCMeta, Calculator)):
     def get_level_const( self ):
         return self.level_const
 
+
+    # NEED to write infer volume function
+    #   Standard methods must be overridden (as needed) by implimentation model
+
+    def get_param_scale_sub( self, eos_d):
+        raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
+
+    ####################
+    # Required Methods #
+    ####################
+    @abstractmethod
+    def _init_param_names( self ):
+        """Initialize list of calculator parameter names."""
+        pass
+
+    @abstractmethod
+    def _init_required_calculators( self ):
+        """Initialize list of other required calculators."""
+        pass
+
+    @abstractmethod
+    def _calc_press( self, V_a, eos_d ):
+        """Returns Press variation along compression curve."""
+        pass
+
+    @abstractmethod
+    def _calc_energy( self, V_a, eos_d ):
+        """Returns Energy along compression curve."""
+        pass
+
+    ####################
+    # Optional Methods #
+    ####################
     # EOS property functions
-    def param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=1e-6):
+    def _calc_param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=1e-6):
         scale_a, paramkey_a = self.get_param_scale( eos_d, apply_expand_adj=True )
         scale = scale_a[paramkey_a==paramname][0]
         # print 'scale: ' + np.str(scale)
@@ -147,102 +182,6 @@ class CompressCalc(with_metaclass(ABCMeta, Calculator)):
         deriv_a = dval_a/dxfrac
         return deriv_a
 
-    # NEED to write infer volume function
-
-    def press( self, V_a, eos_d, apply_expand_adj=True):
-        if self.supress_press:
-            zero_a = 0*V_a
-            return zero_a
-
-        else:
-            press_a = self._calc_press(V_a, eos_d)
-            if self.expand_adj and apply_expand_adj:
-                ind_exp = self.get_ind_expand(V_a, eos_d)
-                if (ind_exp.size>0):
-                    press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
-
-            return press_a
-        pass
-
-    def energy( self, V_a, eos_d, apply_expand_adj=True ):
-        if self.supress_energy:
-            zero_a = 0*V_a
-            return zero_a
-
-        else:
-            energy_a =  self._calc_energy(V_a, eos_d)
-            if self.expand_adj and apply_expand_adj:
-                ind_exp = self.get_ind_expand(V_a, eos_d)
-                if apply_expand_adj and (ind_exp.size>0):
-                    energy_a[ind_exp] = self.expand_adj_mod._calc_energy( V_a[ind_exp], eos_d )
-
-            return energy_a
-
-    def bulk_mod( self, V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_a =  self._calc_bulk_mod(V_a, eos_d)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a, eos_d)
-            if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_a[ind_exp] = self.expand_adj_mod._calc_bulk_mod( V_a[ind_exp], eos_d )
-
-        return bulk_mod_a
-
-    def bulk_mod_deriv(  self,V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_deriv_a =  self._calc_bulk_mod_deriv(V_a, eos_d)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a, eos_d)
-            if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_deriv_a[ind_exp] = self.expand_adj_mod_deriv._calc_bulk_mod_deriv( V_a[ind_exp], eos_d )
-
-        return bulk_mod_deriv_a
-
-    def energy_perturb( self, V_a, eos_d, apply_expand_adj=True ):
-        # Eval positive press values
-        Eperturb_pos_a, scale_a, paramkey_a  = self._calc_energy_perturb( V_a, eos_d )
-
-        if (self.expand_adj==False) or (apply_expand_adj==False):
-            return Eperturb_pos_a, scale_a, paramkey_a
-        else:
-            Nparam_pos = Eperturb_pos_a.shape[0]
-
-            scale_a, paramkey_a, ind_pos = \
-                self.get_param_scale( eos_d, apply_expand_adj=True,
-                                     output_ind=True )
-
-            Eperturb_a = np.zeros((paramkey_a.size, V_a.size))
-            Eperturb_a[ind_pos,:] = Eperturb_pos_a
-
-            # Overwrite negative pressure Expansion regions
-            ind_exp = self.get_ind_expand(V_a, eos_d)
-            if ind_exp.size>0:
-                Eperturb_adj_a = \
-                    self.expand_adj_mod._calc_energy_perturb( V_a[ind_exp],
-                                                            eos_d )[0]
-                Eperturb_a[:,ind_exp] = Eperturb_adj_a
-
-            return Eperturb_a, scale_a, paramkey_a
-
-    #   Standard methods must be overridden (as needed) by implimentation model
-
-    def get_param_scale_sub( self, eos_d):
-        raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
-
-    ####################
-    # Required Methods #
-    ####################
-    @abstractmethod
-    def _calc_press( self, V_a, eos_d ):
-        """Returns Press variation along compression curve."""
-        pass
-
-    @abstractmethod
-    def _calc_energy( self, V_a, eos_d ):
-        """Returns Energy along compression curve."""
-        pass
-
-    ####################
-    # Optional Methods #
-    ####################
     def _calc_energy_perturb( self, V_a, eos_d ):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
@@ -251,7 +190,7 @@ class CompressCalc(with_metaclass(ABCMeta, Calculator)):
             ( eos_d, apply_expand_adj=self.expand_adj )
         Eperturb_a = []
         for paramname in paramkey_a:
-            iEperturb_a = self.param_deriv( fname, paramname, V_a, eos_d)
+            iEperturb_a = self._calc_param_deriv( fname, paramname, V_a, eos_d)
             Eperturb_a.append(iEperturb_a)
 
         Eperturb_a = np.array(Eperturb_a)
@@ -293,6 +232,16 @@ class BirchMurn3(CompressCalc):
             ( KP0*fstrain_a**3 + fstrain_a**2*(1-4*fstrain_a) )
 
         return energy_a
+
+    def _init_param_names( self ):
+        """Initialize list of calculator parameter names."""
+        self._param_names = ['V0','K0','KP0','E0']
+        pass
+
+    def _init_required_calculators( self ):
+        """Initialize list of other required calculators."""
+        self._required_calculators = None
+        pass
 #====================================================================
 class BirchMurn4(CompressCalc):
     def get_param_scale_sub( self, eos_d):
@@ -343,6 +292,16 @@ class BirchMurn4(CompressCalc):
             ( 1/2*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
 
         return energy_a
+
+    def _init_param_names( self ):
+        """Initialize list of calculator parameter names."""
+        self._param_names = ['V0','K0','KP0','KP20','E0']
+        pass
+
+    def _init_required_calculators( self ):
+        """Initialize list of other required calculators."""
+        self._required_calculators = None
+        pass
 #====================================================================
 class GenFiniteStrain(CompressCalc):
     """
@@ -392,6 +351,16 @@ class GenFiniteStrain(CompressCalc):
             ( 1/2*fstrain_a**2 + a1/3*fstrain_a**3 + a2/4*fstrain_a**4)
 
         return energy_a
+
+    def _init_param_names( self ):
+        """Initialize list of calculator parameter names."""
+        self._param_names = ['V0','K0','KP0','KP20','E0','nexp']
+        pass
+
+    def _init_required_calculators( self ):
+        """Initialize list of other required calculators."""
+        self._required_calculators = None
+        pass
 #====================================================================
 class Vinet(CompressCalc):
     def get_param_scale_sub( self, eos_d):
@@ -458,6 +427,16 @@ class Vinet(CompressCalc):
         #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
         return Eperturb_a, scale_a, paramkey_a
+
+    def _init_param_names( self ):
+        """Initialize list of calculator parameter names."""
+        self._param_names = ['V0','K0','KP0','E0']
+        pass
+
+    def _init_required_calculators( self ):
+        """Initialize list of other required calculators."""
+        self._required_calculators = None
+        pass
 #====================================================================
 class Tait(CompressCalc):
     def __init__( self, setlogPmin=False,
@@ -595,4 +574,14 @@ class Tait(CompressCalc):
         #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
         return Eperturb_a, scale_a, paramkey_a
+
+    def _init_param_names( self ):
+        """Initialize list of calculator parameter names."""
+        self._param_names = ['V0','K0','KP0','KP20','E0']
+        pass
+
+    def _init_required_calculators( self ):
+        """Initialize list of other required calculators."""
+        self._required_calculators = None
+        pass
 #====================================================================

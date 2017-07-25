@@ -6,6 +6,8 @@ import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
 
+import models
+
 # xmeos.models.Calculator
 # xmeos.models.Eos
 #====================================================================
@@ -66,7 +68,7 @@ class EosMod(with_metaclass(ABCMeta)):
             Kind of calculator object.
 
         """
-        assert isinstance(Calculator(), calc), \
+        assert isinstance(calc,Calculator), \
             'calc must be a valid Calculator object instance.'
 
         if   kind=='compress':
@@ -279,10 +281,11 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
     _kind_opts = ['Vinet','BirchMurn3','BirchMurn4','GenFiniteStrain','Tait']
 
     def __init__( self, kind='Vinet',path_const='T', level_const=300 ):
-        self._init_calculator(kind)
+        self._init_calculator(kind,path_const,level_const)
+        self.expand_adj = False
         pass
 
-    def _init_calculator( self, kind, path_const, level_cosnt ):
+    def _init_calculator( self, kind, path_const, level_const ):
         assert kind in self._kind_opts, kind + ' is not a valid ' + \
             'CompressMod Calculator. You must select one of: ' + self._kind_opts
 
@@ -293,26 +296,26 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
         self._path_const = path_const
         self._level_const = level_const
 
-        _kind_opts = ['Vinet','BirchMurn3','BirchMurn4','GenFiniteStrain','Tait']
         if   kind=='Vinet':
-            calc = compress.Vinet(path_const=path_const,
-                                  level_const=level_const)
+            calc = models.compress.Vinet(path_const=path_const,
+                                         level_const=level_const)
         elif kind=='BirchMurn3':
-            calc = compress.BirchMurn3(path_const=path_const,
+            calc = models.compress.BirchMurn3(path_const=path_const,
                                        level_const=level_const)
         elif kind=='BirchMurn4':
-            calc = compress.BirchMurn4(path_const=path_const,
+            calc = models.compress.BirchMurn4(path_const=path_const,
                                        level_const=level_const)
         elif kind=='GenFiniteStrain':
-            calc = compress.GenFiniteStrain(path_const=path_const,
+            calc = models.compress.GenFiniteStrain(path_const=path_const,
                                             level_const=level_const)
         elif kind=='Tait':
-            calc = compress.Tait(path_const=path_const,
-                                 level_const=level_const)
+            calc = models.compress.Tait(path_const=path_const,
+                                        level_const=level_const)
         else:
             raise NotImplementedError(kind+' is not a valid '+\
                                       'CompressMod Calculator.')
 
+        print(calc)
         self._set_calculator( calc, kind='compress' )
         pass
 
@@ -325,36 +328,25 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
         return self._level_const
 
     def press( self, V_a, eos_d, apply_expand_adj=True):
-        if self.supress_press:
-            zero_a = 0*V_a
-            return zero_a
+        press_a = self.compress_calculator._calc_press(V_a, eos_d)
+        if self.expand_adj and apply_expand_adj:
+            ind_exp = self.get_ind_expand(V_a, eos_d)
+            if (ind_exp.size>0):
+                press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
 
-        else:
-            press_a = self._calc_press(V_a, eos_d)
-            if self.expand_adj and apply_expand_adj:
-                ind_exp = self.get_ind_expand(V_a, eos_d)
-                if (ind_exp.size>0):
-                    press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
-
-            return press_a
-        pass
+        return press_a
 
     def energy( self, V_a, eos_d, apply_expand_adj=True ):
-        if self.supress_energy:
-            zero_a = 0*V_a
-            return zero_a
+        energy_a =  self.compress_calculator._calc_energy(V_a, eos_d)
+        if self.expand_adj and apply_expand_adj:
+            ind_exp = self.get_ind_expand(V_a, eos_d)
+            if apply_expand_adj and (ind_exp.size>0):
+                energy_a[ind_exp] = self.expand_adj_mod._calc_energy( V_a[ind_exp], eos_d )
 
-        else:
-            energy_a =  self._calc_energy(V_a, eos_d)
-            if self.expand_adj and apply_expand_adj:
-                ind_exp = self.get_ind_expand(V_a, eos_d)
-                if apply_expand_adj and (ind_exp.size>0):
-                    energy_a[ind_exp] = self.expand_adj_mod._calc_energy( V_a[ind_exp], eos_d )
-
-            return energy_a
+        return energy_a
 
     def bulk_mod( self, V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_a =  self._calc_bulk_mod(V_a, eos_d)
+        bulk_mod_a =  self.compress_calculator._calc_bulk_mod(V_a, eos_d)
         if self.expand_adj and apply_expand_adj:
             ind_exp = self.get_ind_expand(V_a, eos_d)
             if apply_expand_adj and (ind_exp.size>0):
@@ -363,7 +355,7 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
         return bulk_mod_a
 
     def bulk_mod_deriv(  self,V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_deriv_a =  self._calc_bulk_mod_deriv(V_a, eos_d)
+        bulk_mod_deriv_a =  self.compress_calculator._calc_bulk_mod_deriv(V_a, eos_d)
         if self.expand_adj and apply_expand_adj:
             ind_exp = self.get_ind_expand(V_a, eos_d)
             if apply_expand_adj and (ind_exp.size>0):
@@ -373,7 +365,7 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
 
     def energy_perturb( self, V_a, eos_d, apply_expand_adj=True ):
         # Eval positive press values
-        Eperturb_pos_a, scale_a, paramkey_a  = self._calc_energy_perturb( V_a, eos_d )
+        Eperturb_pos_a, scale_a, paramkey_a  = self.compress_calculator._calc_energy_perturb( V_a, eos_d )
 
         if (self.expand_adj==False) or (apply_expand_adj==False):
             return Eperturb_pos_a, scale_a, paramkey_a
@@ -405,15 +397,7 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
     ####################
     # Required Methods #
     ####################
-    @abstractmethod
-    def _calc_press( self, V_a, eos_d ):
-        """Returns Press variation along compression curve."""
-        pass
 
-    @abstractmethod
-    def _calc_energy( self, V_a, eos_d ):
-        """Returns Energy along compression curve."""
-        pass
 
     ####################
     # Optional Methods #
@@ -422,6 +406,7 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
         fname = 'energy'
+
         scale_a, paramkey_a = self.get_param_scale\
             ( eos_d, apply_expand_adj=self.expand_adj )
         Eperturb_a = []
@@ -433,13 +418,6 @@ class CompressMod(with_metaclass(ABCMeta, EosMod)):
 
         return Eperturb_a, scale_a, paramkey_a
 
-    def _calc_bulk_mod( self, V_a, eos_d ):
-        """Returns Bulk Modulus variation along compression curve."""
-        raise NotImplementedError("'bulk_mod' function not implimented for this model")
-
-    def _calc_bulk_mod_deriv( self, V_a, eos_d ):
-        """Returns Bulk Modulus Deriv (K') variation along compression curve."""
-        raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
 #====================================================================
 
 #====================================================================
@@ -471,7 +449,7 @@ class Calculator(with_metaclass(ABCMeta)):
         provides a list of those calculator types.
 
         """
-        return self._param_names
+        return self._required_calculators
 #====================================================================
 
 #====================================================================
