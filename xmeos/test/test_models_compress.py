@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import absolute_import, print_function, division
 from builtins import object
 import numpy as np
 from models import compress
@@ -56,7 +56,9 @@ class BaseTestCompressPath(object):
         Vmod_a = np.linspace(.7,1.2,Nsamp)*param_d['V0']
         dV = Vmod_a[1] - Vmod_a[0]
 
-        print(eos_d)
+        # print(eos_d)
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
         # print eos_d['modtype_d']
         compress_path_mod = eos_d['modtype_d']['CompressPathMod']
 

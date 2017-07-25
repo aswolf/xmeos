@@ -1,4 +1,6 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, print_function, division
+from future.utils import with_metaclass
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
@@ -7,19 +9,20 @@ import scipy.interpolate as interpolate
 
 
 from .core import EosMod
+from .core import Calculator
 from . import core
-from future.utils import with_metaclass
 
 #====================================================================
 # Base Classes
 #====================================================================
-class CompressPath(with_metaclass(ABCMeta, EosMod)):
+class CompressCalc(with_metaclass(ABCMeta, Calculator)):
     """
     Abstract Equation of State class for a reference Compression Path
 
     Path can either be isothermal (T=const) or adiabatic (S=const)
 
     For this restricted path, thermodyn properties depend only on volume
+
     """
 
     path_opts = ['T','S']
@@ -267,7 +270,7 @@ class CompressPath(with_metaclass(ABCMeta, EosMod)):
 #====================================================================
 # Implementations
 #====================================================================
-class BirchMurn3(CompressPath):
+class BirchMurn3(CompressCalc):
     def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
 
@@ -291,7 +294,7 @@ class BirchMurn3(CompressPath):
 
         return energy_a
 #====================================================================
-class BirchMurn4(CompressPath):
+class BirchMurn4(CompressCalc):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
         V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
@@ -341,7 +344,7 @@ class BirchMurn4(CompressPath):
 
         return energy_a
 #====================================================================
-class GenFiniteStrain(CompressPath):
+class GenFiniteStrain(CompressCalc):
     """
     Generalized Finite Strain EOS from Jeanloz1989b
 
@@ -390,7 +393,7 @@ class GenFiniteStrain(CompressPath):
 
         return energy_a
 #====================================================================
-class Vinet(CompressPath):
+class Vinet(CompressCalc):
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
@@ -456,7 +459,7 @@ class Vinet(CompressPath):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-class Tait(CompressPath):
+class Tait(CompressCalc):
     def __init__( self, setlogPmin=False,
                  path_const='T', level_const=300, expand_adj_mod=None,
                  expand_adj=None, supress_energy=False, supress_press=False ):

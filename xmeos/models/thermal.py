@@ -1,25 +1,28 @@
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, print_function, division
+from builtins import str
+from builtins import range
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
 
-from core import EosMod
-import core
+from .core import EosMod
+from . import core
+from future.utils import with_metaclass
 
 # thermal models often contain gamma models
 
 #====================================================================
 # Base Classes
 #====================================================================
-class ThermalMod(EosMod):
+class ThermalMod(with_metaclass(ABCMeta, EosMod)):
     """
     Abstract Equation of State class to describe Thermal Behavior
 
     generally depends on both vol and temp
     """
-
-    __metaclass__ = ABCMeta
 
     # EOS property functions
     def energy( self, V_a, T_a, eos_d ):
@@ -58,7 +61,7 @@ class ThermalMod(EosMod):
         """Returns thermally expanded volume."""
         raise NotImplementedError("'vol' function not implimented for this model")
 #====================================================================
-class ThermalPathMod(ThermalMod):
+class ThermalPathMod(with_metaclass(ABCMeta, ThermalMod)):
     """
     Abstract Equation of State class for a reference Thermal Path
 
@@ -66,8 +69,6 @@ class ThermalPathMod(ThermalMod):
 
     For this restricted path, thermodyn properties depend only on temperature.
     """
-
-    __metaclass__ = ABCMeta
 
     path_opts = ['P','V']
 
@@ -123,7 +124,7 @@ class ThermalPathMod(ThermalMod):
 #====================================================================
 
 #====================================================================
-class GenRosenfeldTaranzona(ThermalPathMod):
+class GenRosenfeldTaranzona(with_metaclass(ABCMeta, ThermalPathMod)):
     """
     Generalized Rosenfeld-Taranzona Equation of State Model (Rosenfeld1998)
     - Cv takes on general form of shifted power-law as in original
@@ -132,7 +133,6 @@ class GenRosenfeldTaranzona(ThermalPathMod):
     - only applicable to isochores
     - must provide a method to evaluate properties along isochore
     """
-    __metaclass__ = ABCMeta
 
     def get_param_scale_sub( self, eos_d):
         """Return scale values for each parameter"""
@@ -303,12 +303,11 @@ class GenRosenfeldTaranzona(ThermalPathMod):
 #====================================================================
 
 #====================================================================
-class MieGrun(ThermalMod):
+class MieGrun(with_metaclass(ABCMeta, ThermalMod)):
     """
     Mie-Gruneisen Equation of State Model
     (requires extension to define thermal energy model)
     """
-    __metaclass__ = ABCMeta
 
     def press( self, V_a, T_a, eos_d ):
         V_a, T_a = fill_array( V_a, T_a )
@@ -482,13 +481,12 @@ class MieGrunDebye(MieGrun):
 
 
 #====================================================================
-class RosenfeldTaranzonaCompress(ThermalMod):
+class RosenfeldTaranzonaCompress(with_metaclass(ABCMeta, ThermalMod)):
     """
     Volume-dependent Rosenfeld-Taranzona Equation of State
       - must impliment particular volume-dependence
 
     """
-    __metaclass__ = ABCMeta
 
     #========================
     #  Override Method

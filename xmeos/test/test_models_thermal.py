@@ -1,3 +1,5 @@
+from __future__ import absolute_import, print_function, division
+from builtins import object
 import numpy as np
 from models import thermal
 from models import core
@@ -53,7 +55,7 @@ class BaseTestThermalPathMod(object):
         Cv_diff_a = heat_capacity_num_a-heat_capacity_a
         # Cverr =  np.max(np.abs(Cv_diff_a/Cv_range))
         Cverr =  np.max(np.abs(Cv_diff_a/Cv_scl))
-        CVTOL = 1.0/Nsamp
+        CVTOL = 1/Nsamp
 
         # print self
         # print PTOL*Prange
@@ -106,7 +108,7 @@ class BaseTestThermalMod(object):
         Cv_diff_a = heat_capacity_num_a-heat_capacity_a
         # Cverr =  np.max(np.abs(Cv_diff_a/Cv_range))
         Cverr =  np.max(np.abs(Cv_diff_a/Cv_scl))
-        CVTOL = 1.0/Nsamp
+        CVTOL = 1/Nsamp
 
         # print self
         # print PTOL*Prange
@@ -141,7 +143,7 @@ class TestGenRosenfeldTaranzona(BaseTestThermalPathMod):
         # Set model parameter values
         acoef = -158.2
         bcoef = .042
-        mexp = 3.0/5
+        mexp = 3/5
         lognfac = 0.0
         T0 = 5000.0
 
