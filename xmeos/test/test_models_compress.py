@@ -4,6 +4,7 @@ import numpy as np
 # from models import compress
 # from models import core
 import xmeos
+from xmeos.models import core
 
 import pytest
 import matplotlib.pyplot as plt
@@ -38,7 +39,7 @@ class BaseTestCompressPath(object):
         param_key_a = ['V0','K0','KP0','E0']
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
-        xmeos.models.set_consts( [], [], eos_d )
+        # xmeos.models.set_consts( [], [], eos_d )
 
         self.load_compress_path_mod( eos_d )
 
@@ -66,7 +67,7 @@ class BaseTestCompressPath(object):
         press_a = compress_path_mod.press(Vmod_a,eos_d)
         energy_a = compress_path_mod.energy(Vmod_a,eos_d)
 
-        press_num_a = -eos_d['const_d']['PV_ratio']*np.gradient(energy_a,dV)
+        press_num_a = -core.CONSTS['PV_ratio']*np.gradient(energy_a,dV)
 
         Prange = np.max(press_a)-np.min(press_a)
         press_diff_a = press_num_a-press_a
@@ -225,7 +226,7 @@ class TestCompareCompressPathMods(object):
         param_key_a = ['V0','K0','KP0','E0']
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
-        core.set_consts( [], [], eos_d )
+        # core.set_consts( [], [], eos_d )
         core.set_params( param_key_a, param_val_a, eos_d )
 
         return eos_d

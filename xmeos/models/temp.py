@@ -73,3 +73,50 @@
 
             return Eperturb_a, scale_a, paramkey_a
 
+    def get_param_scale( self, eos_d, apply_expand_adj=False , output_ind=False):
+        if not self.expand_adj :
+            return self.get_param_scale_sub( eos_d )
+        else:
+            scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
+            scale_a = np.append(scale_a,0.01)
+            paramkey_a = np.append(paramkey_a,'logPmin')
+
+            # paramkey_pos_a = np.append(paramkey_pos_a,1.0)
+
+            # scale_neg_a, paramkey_neg_a = self.expand_adj_mod.get_param_scale_sub( eos_d )
+
+            # ind_pos_a = self.validate_shared_param_scale(scale_pos_a,paramkey_pos_a,
+            #                                              scale_neg_a,paramkey_neg_a)
+
+            # # Since negative expansion EOS model params are a superset of those
+            # # required for the positive compression model, we can simply return the
+            # # scale and paramkey values from the negative expansion model
+            # scale_a = scale_neg_a
+            # paramkey_a = paramkey_neg_a
+
+            # if output_ind:
+            #     return scale_a, paramkey_a, ind_pos_a
+            # else:
+            #     return scale_a, paramkey_a
+            return scale_a, paramkey_a
+
+    def validate_shared_param_scale( self, scale_pos_a, paramkey_pos_a,
+                                    scale_neg_a, paramkey_neg_a ):
+        TOL = 1e-4
+        assert np.all(np.in1d(paramkey_pos_a,paramkey_neg_a)),\
+            'paramkey_neg_a must be a superset of paramkey_pos_a'
+        assert len(paramkey_neg_a) <= len(paramkey_pos_a)+1,\
+            'paramkey_neg_a must have at most one more parameter than paramkey_neg_a'
+
+        # shared_mask = np.in1d(paramkey_neg_a,paramkey_pos_a)
+        # paramkey_shared_a = paramkey_neg_a[shared_mask]
+        # scale_shared_a = scale_neg_a[shared_mask]
+
+        ind_pos_a = np.array([np.where(paramkey_neg_a==paramkey)[0][0] \
+                              for paramkey in paramkey_pos_a])
+        # scale_a[ind_pos_a] = scale_pos_a
+
+        assert np.all(np.log(scale_neg_a[ind_pos_a]/scale_pos_a)<TOL),\
+            'Shared param scales must match to within TOL.'
+
+        return ind_pos_a

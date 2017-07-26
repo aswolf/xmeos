@@ -36,8 +36,13 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
     _kind_opts = ['Vinet','BirchMurn3','BirchMurn4','GenFiniteStrain','Tait']
 
     def __init__( self, kind='Vinet',path_const='T', level_const=300 ):
+        self._pre_init()
+
         self._init_calculator(kind,path_const,level_const)
         self.expand_adj = False
+
+        self._post_init()
+
         pass
 
     def _init_calculator( self, kind, path_const, level_const ):
@@ -71,7 +76,7 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
                                       'CompressMod Calculator.')
 
         print(calc)
-        self._set_calculator( calc, kind='compress' )
+        self._add_calculator( calc, kind='compress' )
         pass
 
     @property
@@ -196,6 +201,10 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
                  expand_adj=None, supress_energy=False, supress_press=False ):
         assert path_const in self.path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + path_opts
+
+        self._init_params()
+
+
         self.path_const = path_const
         self.level_const = level_const
         self.supress_energy = supress_energy
@@ -214,54 +223,6 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
             self.expand_adj = True
             self.expand_adj_mod = expand_adj_mod
         pass
-
-    def validate_shared_param_scale( self, scale_pos_a, paramkey_pos_a,
-                                    scale_neg_a, paramkey_neg_a ):
-        TOL = 1e-4
-        assert np.all(np.in1d(paramkey_pos_a,paramkey_neg_a)),\
-            'paramkey_neg_a must be a superset of paramkey_pos_a'
-        assert len(paramkey_neg_a) <= len(paramkey_pos_a)+1,\
-            'paramkey_neg_a must have at most one more parameter than paramkey_neg_a'
-
-        # shared_mask = np.in1d(paramkey_neg_a,paramkey_pos_a)
-        # paramkey_shared_a = paramkey_neg_a[shared_mask]
-        # scale_shared_a = scale_neg_a[shared_mask]
-
-        ind_pos_a = np.array([np.where(paramkey_neg_a==paramkey)[0][0] \
-                              for paramkey in paramkey_pos_a])
-        # scale_a[ind_pos_a] = scale_pos_a
-
-        assert np.all(np.log(scale_neg_a[ind_pos_a]/scale_pos_a)<TOL),\
-            'Shared param scales must match to within TOL.'
-
-        return ind_pos_a
-
-    def get_param_scale( self, eos_d, apply_expand_adj=False , output_ind=False):
-        if not self.expand_adj :
-            return self.get_param_scale_sub( eos_d )
-        else:
-            scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
-            scale_a = np.append(scale_a,0.01)
-            paramkey_a = np.append(paramkey_a,'logPmin')
-
-            # paramkey_pos_a = np.append(paramkey_pos_a,1.0)
-
-            # scale_neg_a, paramkey_neg_a = self.expand_adj_mod.get_param_scale_sub( eos_d )
-
-            # ind_pos_a = self.validate_shared_param_scale(scale_pos_a,paramkey_pos_a,
-            #                                              scale_neg_a,paramkey_neg_a)
-
-            # # Since negative expansion EOS model params are a superset of those
-            # # required for the positive compression model, we can simply return the
-            # # scale and paramkey values from the negative expansion model
-            # scale_a = scale_neg_a
-            # paramkey_a = paramkey_neg_a
-
-            # if output_ind:
-            #     return scale_a, paramkey_a, ind_pos_a
-            # else:
-            #     return scale_a, paramkey_a
-            return scale_a, paramkey_a
 
     def get_ind_expand( self, V_a, eos_d ):
         V0 = core.get_params( ['V0'], eos_d )
@@ -285,7 +246,7 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
     # Required Methods #
     ####################
     @abstractmethod
-    def _init_param_names( self ):
+    def _init_params( self ):
         """Initialize list of calculator parameter names."""
         pass
 
@@ -370,6 +331,88 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
 #====================================================================
 # Implementations
 #====================================================================
+class _Vinet(CompressCalc):
+    def get_param_scale_sub( self, eos_d):
+        """Return scale values for each parameter"""
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+
+        paramkey_a = np.array(['V0','K0','KP0','E0'])
+        scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
+
+        return scale_a, paramkey_a
+
+    def _calc_press( self, V_a, eos_d ):
+        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1/3)
+
+        press_a = 3*K0*(1-x_a)*x_a**(-2)*np.exp(eta*(1-x_a))
+
+        return press_a
+
+    def _calc_energy( self, V_a, eos_d ):
+        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
+        # print V0
+        # print K0
+        # print KP0
+        # print E0
+        PV_ratio = core.CONSTS['PV_ratio']
+
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1/3)
+
+
+        energy_a = E0 + 9*K0*V0/PV_ratio/eta**2*\
+            (1 + (eta*(1-x_a)-1)*np.exp(eta*(1-x_a)))
+
+        return energy_a
+
+    def _calc_energy_perturb( self, V_a, eos_d ):
+        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+
+        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
+        PV_ratio = core.CONSTS['PV_ratio']
+
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x = vratio_a**(1/3)
+
+        scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
+
+        # NOTE: CHECK UNITS (PV_RATIO) here
+        dEdp_a = 1/PV_ratio*np.vstack\
+            ([-3*K0*(eta**2*x*(x-1) + 3*eta*(x-1) - 3*np.exp(eta*(x-1)) + 3)\
+              *np.exp(-eta*(x-1))/eta**2,
+              -9*V0*(eta*(x-1) - np.exp(eta*(x-1)) + 1)*np.exp(-eta*(x-1))/eta**2,
+              27*K0*V0*(2*eta*(x-1) + eta*(-x + (x-1)*(eta*(x-1) + 1) + 1)
+                        -2*np.exp(eta*(x-1)) + 2)*np.exp(-eta*(x-1))/(2*eta**3),
+              PV_ratio*np.ones(V_a.shape)])
+
+        Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
+        #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+
+        return Eperturb_a, scale_a, paramkey_a
+
+    def _init_params( self ):
+        """Initialize list of calculator parameter names."""
+
+        V0, K0, KP0 = 100, 150, 4
+        E0_scale = V0*KP0/core.CONSTS['PV_ratio']
+        self._param_names = ['V0','K0','KP0','E0']
+        self._param_units = ['ang^3','GPa','1','eV']
+        self._param_defaults = [V0,K0,KP0,0]
+        self._param_scales = [V0,K0,KP0,E0_scale]
+        pass
+
+    def _init_required_calculators( self ):
+        """Initialize list of other required calculators."""
+        self._required_calculators = None
+        pass
+#====================================================================
 class _BirchMurn3(CompressCalc):
     def _calc_press( self, V_a, eos_d ):
         V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
@@ -383,7 +426,7 @@ class _BirchMurn3(CompressCalc):
 
     def _calc_energy( self, V_a, eos_d ):
         V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio = core.CONSTS['PV_ratio']
 
         vratio_a = V_a/V0
 
@@ -516,82 +559,6 @@ class _GenFiniteStrain(CompressCalc):
     def _init_param_names( self ):
         """Initialize list of calculator parameter names."""
         self._param_names = ['V0','K0','KP0','KP20','E0','nexp']
-        pass
-
-    def _init_required_calculators( self ):
-        """Initialize list of other required calculators."""
-        self._required_calculators = None
-        pass
-#====================================================================
-class _Vinet(CompressCalc):
-    def get_param_scale_sub( self, eos_d):
-        """Return scale values for each parameter"""
-        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
-
-        paramkey_a = np.array(['V0','K0','KP0','E0'])
-        scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
-
-        return scale_a, paramkey_a
-
-    def _calc_press( self, V_a, eos_d ):
-        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
-
-        eta = 3/2*(KP0-1)
-        vratio_a = V_a/V0
-        x_a = vratio_a**(1/3)
-
-        press_a = 3*K0*(1-x_a)*x_a**(-2)*np.exp(eta*(1-x_a))
-
-        return press_a
-
-    def _calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
-        # print V0
-        # print K0
-        # print KP0
-        # print E0
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
-
-        eta = 3/2*(KP0-1)
-        vratio_a = V_a/V0
-        x_a = vratio_a**(1/3)
-
-
-        energy_a = E0 + 9*K0*V0/PV_ratio/eta**2*\
-            (1 + (eta*(1-x_a)-1)*np.exp(eta*(1-x_a)))
-
-        return energy_a
-
-    def _calc_energy_perturb( self, V_a, eos_d ):
-        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
-
-        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
-
-        eta = 3/2*(KP0-1)
-        vratio_a = V_a/V0
-        x = vratio_a**(1/3)
-
-        scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
-
-        # NOTE: CHECK UNITS (PV_RATIO) here
-        dEdp_a = 1/PV_ratio*np.vstack\
-            ([-3*K0*(eta**2*x*(x-1) + 3*eta*(x-1) - 3*np.exp(eta*(x-1)) + 3)\
-              *np.exp(-eta*(x-1))/eta**2,
-              -9*V0*(eta*(x-1) - np.exp(eta*(x-1)) + 1)*np.exp(-eta*(x-1))/eta**2,
-              27*K0*V0*(2*eta*(x-1) + eta*(-x + (x-1)*(eta*(x-1) + 1) + 1)
-                        -2*np.exp(eta*(x-1)) + 2)*np.exp(-eta*(x-1))/(2*eta**3),
-              PV_ratio*np.ones(V_a.shape)])
-
-        Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
-        #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
-
-        return Eperturb_a, scale_a, paramkey_a
-
-    def _init_param_names( self ):
-        """Initialize list of calculator parameter names."""
-        self._param_names = ['V0','K0','KP0','E0']
         pass
 
     def _init_required_calculators( self ):

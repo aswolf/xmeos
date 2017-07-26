@@ -8,7 +8,6 @@ from abc import ABCMeta, abstractmethod
 
 
 __all__ = ['EosMod','Calculator',
-           'init_consts', 'default_consts', 'set_consts', 'get_consts',
            'set_params', 'get_params', 'swap_params',
            'set_array_params', 'get_array_params',
            'set_modtypes', 'get_modtypes', 'set_args', 'fill_array']
@@ -28,19 +27,87 @@ class EosMod(with_metaclass(ABCMeta)):
     """
 
     def __init__( self ):
-        self._init_calculators()
+        self._pre_init()
+
+        ##########################
+        # Model-specific initialization
+        ##########################
+
+        self._post_init()
+        pass
+
+    def _pre_init( self ):
+        self._init_all_calculators()
+        pass
+
+    def _post_init( self ):
+        param_names, param_units, param_defaults, param_scales = \
+            self._get_calculator_params()
+        self._param_names = param_names
+        self._param_units = param_units
+        self._param_values = param_defaults
+        self._param_scales = param_scales
         pass
 
     ######################
     # Calculator methods #
     ######################
-    def _init_calculators( self ):
+    def _init_all_calculators( self ):
         self._compress_calculator = None
         self._thermal_calculator = None
         self._gamma_calculator = None
         self._heat_capacity_calculator = None
         self._thermal_exp_calculator = None
         pass
+
+    def _get_calculator_params( self ):
+        """
+        Get list of valid Eos calculators
+        """
+        param_names = []
+        param_units = []
+        param_defaults = []
+        param_scales = []
+
+        if self._compress_calculator:
+            param_names.extend(self._compress_calculator.param_names)
+            param_units.extend(self._compress_calculator.param_units)
+            param_defaults.extend(self._compress_calculator.param_defaults)
+            param_scales.extend(self._compress_calculator.param_scales)
+
+        if self._thermal_calculator:
+            param_names.extend(self._thermal_calculator.param_names)
+            param_units.extend(self._thermal_calculator.param_units)
+            param_defaults.extend(self._thermal_calculator.param_defaults)
+            param_scales.extend(self._thermal_calculator.param_scales)
+
+        if self._gamma_calculator:
+            param_names.extend(self._gamma_calculator.param_names)
+            param_units.extend(self._gamma_calculator.param_units)
+            param_defaults.extend(self._gamma_calculator.param_defaults)
+            param_scales.extend(self._gamma_calculator.param_scales)
+
+        if self._heat_capacity_calculator:
+            param_names.extend(self._heat_capacity_calculator.param_names)
+            param_units.extend(self._heat_capacity_calculator.param_units)
+            param_defaults.extend(self._heat_capacity_calculator.param_defaults)
+            param_scales.extend(self._heat_capacity_calculator.param_scales)
+
+        if self._thermal_exp_calculator:
+            param_names.extend(self._thermal_exp_calculator.param_names)
+            param_units.extend(self._thermal_exp_calculator.param_units)
+            param_defaults.extend(self._thermal_exp_calculator.param_defaults)
+            param_scales.extend(self._thermal_exp_calculator.param_scales)
+
+        u, indices = np.unique(np.array(param_names), return_index=True)
+        indices = np.sort(indices)
+
+        param_names = [param_names[ind] for ind in indices]
+        param_units = [param_units[ind] for ind in indices]
+        param_defaults = np.array([param_defaults[ind] for ind in indices])
+        param_scales = np.array([param_scales[ind] for ind in indices])
+
+        return param_names, param_units, param_defaults, param_scales
 
     def _get_calculators( self ):
         """
@@ -49,23 +116,23 @@ class EosMod(with_metaclass(ABCMeta)):
         calculators = {}
 
         if self._compress_calculator:
-            calculators.update(self._compress_calculator.param_names())
+            calculators.update(self._compress_calculator)
 
         if self._thermal_calculator:
-            calculators.update(self._thermal_calculator.param_names())
+            calculators.update(self._thermal_calculator)
 
         if self._gamma_calculator:
-            calculators.update(self._gamma_calculator.param_names())
+            calculators.update(self._gamma_calculator)
 
         if self._heat_capacity_calculator:
-            calculators.update(self._heat_capacity_calculator.param_names())
+            calculators.update(self._heat_capacity_calculator)
 
         if self._thermal_exp_calculator:
-            calculators.update(self._thermal_exp_calculator.param_names())
+            calculators.update(self._thermal_exp_calculator)
 
         return calculators
 
-    def _set_calculator( self, calc, kind='compress' ):
+    def _add_calculator( self, calc, kind='compress' ):
         """
         Store calculator instance in its correct place.
 
@@ -151,100 +218,60 @@ class EosMod(with_metaclass(ABCMeta)):
         return param_names
 
     def _validate_param_names( self, param_names ):
-        if type(param_names) == str:
-            param_names = [param_names]
+        """
+        Check that all param names are valid.
 
-        assert all( name in self._param_names for name in param_names ),\
-            'All provided param_names must be valid parameter names.'
+        If param_names is None, replace with full parameter name list.
+
+        """
+        if param_names is None:
+            param_names = self.param_names
+        else:
+            if type(param_names) == str:
+                param_names = [param_names]
+
+            assert all( name in self.param_names for name in param_names ),\
+                'All provided param_names must be valid parameter names.'
 
         return param_names
 
-    def get_param_names( self ):
+    @property
+    def param_names(self):
         """
-        Get array of parameter names.
+        List of parameter names.
+
+        Returns
+        -------
+        names : str list
+            list of parameter names
 
         """
         return self._param_names
 
-    def get_param_units( self, param_names=[], all_params=False ):
+    @property
+    def param_units(self, param_names=None):
         """
-        Get units for listed parameters.
+        Units for (selected) parameters.
 
         Parameters
         ----------
-        param_names : str array
-            list of parameter names
-        all_params : bool, default False
-            if true, returns units for all parameters
+        param_names : list-like, default None
+            if given, lists desired subset of parameters by name
 
         Returns
         -------
-        units : double array
+        units : array-like
             list of units for selected parameters
 
         """
-        if all_params:
-            param_names = self._get_param_names()
 
         param_names = self._validate_param_names( param_names )
-
-        units = []
-        for key in param_names:
-            unit = self._param_units[key]
-            units.append(unit)
+        units = [self._param_units[key] for key in param_names]
 
         return units
 
-    def get_param_values( self, param_names=[], all_params=False ):
-        """
-        Get values for listed parameters.
-
-        Parameters
-        ----------
-        param_names : str array
-            list of parameter names
-        all_params : bool, default False
-            if true, returns units for all parameters
-
-        Returns
-        -------
-        values : double array
-            list of values for selected parameters
-
-        """
-        if all_params:
-            param_names = self._get_param_names()
-
-        param_names = self._validate_param_names( param_names )
-
-        values = []
-        for key in param_names:
-            value = self._param_values[key]
-            values.append(value)
-
-        return values
-
-    def set_param_values( self, param_names=[], param_values=[]  ):
-        """
-        Set new values for listed parameters.
-
-        Parameters
-        ----------
-        param_names : str array
-            list of parameter names
-        param_values : double array
-            list of parameter values
-
-        """
-        assert len(param_names)==len(param_values), \
-            'param_names and param_values must have the same length'
-
-        for name, value in zip(param_names, param_values):
-            self._param_values(name,value)
-
-        pass
-
-    def get_param_scale( self, param_names=[], all_params=False ):
+    @property
+    def param_scales(self, param_names=None):
         """
         Get scale values for listed parameters.
 
@@ -261,21 +288,56 @@ class EosMod(with_metaclass(ABCMeta)):
             list of parameter scale values for selected parameters
 
         """
-        if all_params:
-            param_names = self._get_param_names()
 
         param_names = self._validate_param_names( param_names )
 
-        scales = []
-        for key in param_names:
-            scale = self._param_scales[key]
-            scales.append(scale)
-
+        scales = np.array([self._param_scales[key] for key in param_names])
         return scales
 
-    # def get_param_scale_sub( self, eos_d ):
-    #     raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
+    @property
+    def param_values(self, param_names=None):
+        """
+        Values for (selected) parameters.
 
+        Parameters
+        ----------
+        param_names : str array
+            list of parameter names
+
+        Returns
+        -------
+        values : double array
+            values of (selected) parameters
+
+        """
+        param_names = self._validate_param_names( param_names )
+        values = np.array([self._param_values[key] for key in param_names])
+
+        return values
+
+    @param_values.setter
+    def param_values(self, param_values, param_names=None):
+        """
+        Set values for (selected) parameters.
+
+        Parameters
+        ----------
+        param_values : double array
+            list of parameter values
+        param_names : list, default None
+            if given, lists desired subset of parameters by name
+
+        """
+
+        param_names = self._validate_param_names( param_names )
+
+        assert len(param_names)==len(param_values), \
+            'param_names and param_values must have the same length'
+
+        for name, value in zip(param_names, param_values):
+            self._param_values[name] = value
+
+        pass
 #====================================================================
 class Calculator(with_metaclass(ABCMeta)):
     """
@@ -283,9 +345,10 @@ class Calculator(with_metaclass(ABCMeta)):
 
     """
 
-    def __init__( self ):
-        self._param_names = None
+    def __init__(self):
+        self._init_params()
         self._required_calculators = None
+
         pass
 
     @property
@@ -295,6 +358,30 @@ class Calculator(with_metaclass(ABCMeta)):
 
         """
         return self._param_names
+
+    @property
+    def param_units(self):
+        """
+        List of parameter units for this Eos Calculator.
+
+        """
+        return self._param_units
+
+    @property
+    def param_defaults(self):
+        """
+        List of parameter default values for this Eos Calculator.
+
+        """
+        return self._param_defaults
+
+    @property
+    def param_scales(self):
+        """
+        List of parameter scale values for this Eos Calculator.
+
+        """
+        return self._param_scales
 
     @property
     def required_calculators(self):
@@ -309,47 +396,18 @@ class Calculator(with_metaclass(ABCMeta)):
 #====================================================================
 
 #====================================================================
-def init_consts( eos_d ):
-    eos_d['const_d'] = default_consts()
-    pass
-#====================================================================
-def default_consts():
-    const_d = {}
-    const_d['eVperHa'] = 27.211 # eV/Ha
-    const_d['JperHa'] = 4.35974434e-18 # J/Ha
-    const_d['JperCal'] = 4.184 # J/Cal
-    const_d['Nmol'] = 6.0221413e+23 # atoms/mol
-    const_d['kJ_molpereV'] = 96.49 # kJ/mol/eV
-    const_d['R'] = 8.314462 # J/K/mol
-    const_d['kboltz'] = 8.617332e-5 # eV/K
-    const_d['ang3percc'] = 1e24 # ang^3/cm^3
+CONSTS = {}
+CONSTS['eVperHa'] = 27.211 # eV/Ha
+CONSTS['JperHa'] = 4.35974434e-18 # J/Ha
+CONSTS['JperCal'] = 4.184 # J/Cal
+CONSTS['Nmol'] = 6.0221413e+23 # atoms/mol
+CONSTS['kJ_molpereV'] = 96.49 # kJ/mol/eV
+CONSTS['R'] = 8.314462 # J/K/mol
+CONSTS['kboltz'] = 8.617332e-5 # eV/K
+CONSTS['ang3percc'] = 1e24 # ang^3/cm^3
+CONSTS['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
+CONSTS['TS_ratio'] = CONSTS['R']/CONSTS['kboltz'] # (J/mol)/eV
 
-    const_d['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
-    const_d['TS_ratio'] = const_d['R']/const_d['kboltz'] # (J/mol)/eV
-
-    return const_d
-#====================================================================
-def set_consts( name_l, val_l, eos_d ):
-    if 'const_d' in eos_d.keys():
-        const_d = eos_d['const_d']
-    else:
-        init_consts( eos_d )
-
-    for name, val in zip( name_l, val_l ):
-        const_d[name] = val
-
-    pass
-#====================================================================
-def get_consts( name_l, eos_d ):
-    """
-    Retrieve list of desired consts stored in eos_d['const_d']
-    """
-    const_d = eos_d['const_d']
-    const_l = []
-    for name in name_l:
-        const_l.append( const_d[name] )
-
-    return tuple( const_l )
 #====================================================================
 def set_params( name_l, val_l, eos_d ):
     if 'param_d' in eos_d.keys():
