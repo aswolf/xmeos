@@ -1,8 +1,9 @@
 from __future__ import absolute_import, print_function, division
 from builtins import object
 import numpy as np
-from models import compress
-from models import core
+# from models import compress
+# from models import core
+import xmeos
 
 import pytest
 import matplotlib.pyplot as plt
@@ -37,11 +38,11 @@ class BaseTestCompressPath(object):
         param_key_a = ['V0','K0','KP0','E0']
         param_val_a = np.array([ V0, K0, KP0, E0 ])
 
-        core.set_consts( [], [], eos_d )
+        xmeos.models.set_consts( [], [], eos_d )
 
         self.load_compress_path_mod( eos_d )
 
-        core.set_params( param_key_a, param_val_a, eos_d )
+        xmeos.models.set_params( param_key_a, param_val_a, eos_d )
 
         return eos_d
 
@@ -151,7 +152,7 @@ class BaseTest4thOrdCompressPath(BaseTestCompressPath):
 
         # Add K''0 param
         KP20 = -1.1*eos_d['param_d']['KP0']/eos_d['param_d']['K0']
-        core.set_params( ['KP20'], [KP20], eos_d )
+        xmeos.models.set_params( ['KP20'], [KP20], eos_d )
 
         return eos_d
 #====================================================================
@@ -164,12 +165,12 @@ class BaseTest4thOrdCompressPath(BaseTestCompressPath):
 class TestVinetCompressPathMod(BaseTestCompressPath):
     def load_compress_path_mod(self, eos_d):
 
-        compress_path_mod = core.CompressMod(kind='Vinet',path_const='T',
-                                             level_const=300 )
+        compress_path_mod = xmeos.models.CompressMod(kind='Vinet',path_const='T',
+                                                 level_const=300 )
         # compress_path_mod = compress.Vinet(path_const='T')
         print('--------mod----------')
         print(compress_path_mod)
-        core.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
+        xmeos.models.set_modtypes( ['CompressPathMod'], [compress_path_mod], eos_d )
         pass
 
     # def test_energy_perturb_eval(self):

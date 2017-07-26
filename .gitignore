@@ -1,3 +1,9 @@
+*.cache
+*.egg-info
+*.egg
+*.EGG
+*.EGG-INFO
+
 #compiled python
 *.pyc
 __pycache__
