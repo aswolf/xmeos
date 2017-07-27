@@ -35,7 +35,7 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
     _path_opts = ['T','S']
     _kind_opts = ['Vinet','BirchMurn3','BirchMurn4','GenFiniteStrain','Tait']
 
-    def __init__( self, kind='Vinet',path_const='T', level_const=300 ):
+    def __init__(self, kind='Vinet', path_const='T', level_const=300):
         self._pre_init()
 
         self._init_calculator(kind,path_const,level_const)
@@ -45,7 +45,7 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
 
         pass
 
-    def _init_calculator( self, kind, path_const, level_const ):
+    def _init_calculator(self, kind, path_const, level_const):
         assert kind in self._kind_opts, kind + ' is not a valid ' + \
             'CompressMod Calculator. You must select one of: ' + self._kind_opts
 
@@ -57,25 +57,24 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
         self._level_const = level_const
 
         if   kind=='Vinet':
-            calc = _Vinet(path_const=path_const,
+            calc = _Vinet(self, path_const=path_const,
                           level_const=level_const)
         elif kind=='BirchMurn3':
-            calc = _BirchMurn3(path_const=path_const,
+            calc = _BirchMurn3(self, path_const=path_const,
                                level_const=level_const)
         elif kind=='BirchMurn4':
-            calc = _BirchMurn4(path_const=path_const,
+            calc = _BirchMurn4(self, path_const=path_const,
                                level_const=level_const)
         elif kind=='GenFiniteStrain':
-            calc = _GenFiniteStrain(path_const=path_const,
+            calc = _GenFiniteStrain(self, path_const=path_const,
                                     level_const=level_const)
         elif kind=='Tait':
-            calc = _Tait(path_const=path_const,
+            calc = _Tait(self, path_const=path_const,
                          level_const=level_const)
         else:
             raise NotImplementedError(kind+' is not a valid '+\
                                       'CompressMod Calculator.')
 
-        print(calc)
         self._add_calculator( calc, kind='compress' )
         pass
 
@@ -87,45 +86,45 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
     def level_const(self):
         return self._level_const
 
-    def press( self, V_a, eos_d, apply_expand_adj=True):
-        press_a = self.compress_calculator._calc_press(V_a, eos_d)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a, eos_d)
-            if (ind_exp.size>0):
-                press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
+    def press( self, V_a, apply_expand_adj=True):
+        press_a = self.compress_calculator._calc_press(V_a)
+        # if self.expand_adj and apply_expand_adj:
+        #     ind_exp = self.get_ind_expand(V_a, eos_d)
+        #     if (ind_exp.size>0):
+        #         press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
 
         return press_a
 
-    def energy( self, V_a, eos_d, apply_expand_adj=True ):
-        energy_a =  self.compress_calculator._calc_energy(V_a, eos_d)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a, eos_d)
-            if apply_expand_adj and (ind_exp.size>0):
-                energy_a[ind_exp] = self.expand_adj_mod._calc_energy( V_a[ind_exp], eos_d )
+    def energy( self, V_a, apply_expand_adj=True ):
+        energy_a =  self.compress_calculator._calc_energy(V_a)
+        # if self.expand_adj and apply_expand_adj:
+        #     ind_exp = self.get_ind_expand(V_a, eos_d)
+        #     if apply_expand_adj and (ind_exp.size>0):
+        #         energy_a[ind_exp] = self.expand_adj_mod._calc_energy( V_a[ind_exp], eos_d )
 
         return energy_a
 
-    def bulk_mod( self, V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_a =  self.compress_calculator._calc_bulk_mod(V_a, eos_d)
+    def bulk_mod( self, V_a, apply_expand_adj=True ):
+        bulk_mod_a =  self.compress_calculator._calc_bulk_mod(V_a)
         if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a, eos_d)
+            ind_exp = self.get_ind_expand(V_a)
             if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_a[ind_exp] = self.expand_adj_mod._calc_bulk_mod( V_a[ind_exp], eos_d )
+                bulk_mod_a[ind_exp] = self.expand_adj_mod._calc_bulk_mod(V_a[ind_exp])
 
         return bulk_mod_a
 
-    def bulk_mod_deriv(  self,V_a, eos_d, apply_expand_adj=True ):
-        bulk_mod_deriv_a =  self.compress_calculator._calc_bulk_mod_deriv(V_a, eos_d)
+    def bulk_mod_deriv(  self,V_a, apply_expand_adj=True ):
+        bulk_mod_deriv_a =  self.compress_calculator._calc_bulk_mod_deriv(V_a)
         if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a, eos_d)
+            ind_exp = self.get_ind_expand(V_a)
             if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_deriv_a[ind_exp] = self.expand_adj_mod_deriv._calc_bulk_mod_deriv( V_a[ind_exp], eos_d )
+                bulk_mod_deriv_a[ind_exp] = self.expand_adj_mod_deriv._calc_bulk_mod_deriv(V_a[ind_exp])
 
         return bulk_mod_deriv_a
 
-    def energy_perturb( self, V_a, eos_d, apply_expand_adj=True ):
+    def energy_perturb( self, V_a, apply_expand_adj=True ):
         # Eval positive press values
-        Eperturb_pos_a, scale_a, paramkey_a  = self.compress_calculator._calc_energy_perturb( V_a, eos_d )
+        Eperturb_pos_a, scale_a, paramkey_a  = self.compress_calculator._calc_energy_perturb(V_a)
 
         if (self.expand_adj==False) or (apply_expand_adj==False):
             return Eperturb_pos_a, scale_a, paramkey_a
@@ -133,25 +132,24 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
             Nparam_pos = Eperturb_pos_a.shape[0]
 
             scale_a, paramkey_a, ind_pos = \
-                self.get_param_scale( eos_d, apply_expand_adj=True,
-                                     output_ind=True )
+                self.get_param_scale(apply_expand_adj=True,
+                                     output_ind=True)
 
             Eperturb_a = np.zeros((paramkey_a.size, V_a.size))
             Eperturb_a[ind_pos,:] = Eperturb_pos_a
 
             # Overwrite negative pressure Expansion regions
-            ind_exp = self.get_ind_expand(V_a, eos_d)
+            ind_exp = self.get_ind_expand(V_a)
             if ind_exp.size>0:
                 Eperturb_adj_a = \
-                    self.expand_adj_mod._calc_energy_perturb( V_a[ind_exp],
-                                                            eos_d )[0]
+                    self.expand_adj_mod._calc_energy_perturb(V_a[ind_exp])[0]
                 Eperturb_a[:,ind_exp] = Eperturb_adj_a
 
             return Eperturb_a, scale_a, paramkey_a
 
     #   Standard methods must be overridden (as needed) by implimentation model
 
-    def get_param_scale_sub( self, eos_d):
+    def get_param_scale_sub(self):
         raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
 
     ####################
@@ -162,16 +160,16 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
     ####################
     # Optional Methods #
     ####################
-    def _calc_energy_perturb( self, V_a, eos_d ):
+    def _calc_energy_perturb(self, V_a):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
         fname = 'energy'
 
-        scale_a, paramkey_a = self.get_param_scale\
-            ( eos_d, apply_expand_adj=self.expand_adj )
+        scale_a, paramkey_a = self.get_param_scale(
+            apply_expand_adj=self.expand_adj)
         Eperturb_a = []
         for paramname in paramkey_a:
-            iEperturb_a = self.param_deriv( fname, paramname, V_a, eos_d)
+            iEperturb_a = self.param_deriv(fname, paramname, V_a)
             Eperturb_a.append(iEperturb_a)
 
         Eperturb_a = np.array(Eperturb_a)
@@ -197,13 +195,15 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
     supress_energy = False
     supress_press = False
 
-    def __init__( self, path_const='T', level_const=300, expand_adj_mod=None,
-                 expand_adj=None, supress_energy=False, supress_press=False ):
+    def __init__( self, eos_mod, path_const='T', level_const=300,
+                 expand_adj_mod=None, expand_adj=None,
+                 supress_energy=False, supress_press=False ):
         assert path_const in self.path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + path_opts
 
+        self._eos_mod = eos_mod
         self._init_params()
-
+        self._required_calculators = None
 
         self.path_const = path_const
         self.level_const = level_const
@@ -224,8 +224,8 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
             self.expand_adj_mod = expand_adj_mod
         pass
 
-    def get_ind_expand( self, V_a, eos_d ):
-        V0 = core.get_params( ['V0'], eos_d )
+    def get_ind_expand(self, V_a):
+        V0 = core.get_params(['V0'])
         ind_exp = np.where( V_a > V0 )[0]
         return ind_exp
 
@@ -239,7 +239,7 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
     # NEED to write infer volume function
     #   Standard methods must be overridden (as needed) by implimentation model
 
-    def get_param_scale_sub( self, eos_d):
+    def get_param_scale_sub(self):
         raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
 
     ####################
@@ -256,12 +256,12 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
         pass
 
     @abstractmethod
-    def _calc_press( self, V_a, eos_d ):
+    def _calc_press(self, V_a):
         """Returns Press variation along compression curve."""
         pass
 
     @abstractmethod
-    def _calc_energy( self, V_a, eos_d ):
+    def _calc_energy(self, V_a):
         """Returns Energy along compression curve."""
         pass
 
@@ -269,8 +269,8 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
     # Optional Methods #
     ####################
     # EOS property functions
-    def _calc_param_deriv( self, fname, paramname, V_a, eos_d, dxfrac=1e-6):
-        scale_a, paramkey_a = self.get_param_scale( eos_d, apply_expand_adj=True )
+    def _calc_param_deriv(self, fname, paramname, V_a, dxfrac=1e-6):
+        scale_a, paramkey_a = self.get_param_scale(apply_expand_adj=True )
         scale = scale_a[paramkey_a==paramname][0]
         # print 'scale: ' + np.str(scale)
 
@@ -279,13 +279,13 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
         try:
             fun = getattr(self, fname)
             # Note that self is implicitly included
-            val0_a = fun( V_a, eos_d)
+            val0_a = fun(V_a)
         except:
             assert False, 'That is not a valid function name ' + \
                 '(e.g. it should be press or energy)'
 
         try:
-            param = core.get_params( [paramname], eos_d )[0]
+            param = core.get_params([paramname])[0]
             dparam = scale*dxfrac
             # print 'param: ' + np.str(param)
             # print 'dparam: ' + np.str(dparam)
@@ -293,37 +293,37 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
             assert False, 'This is not a valid parameter name'
 
         # set param value in eos_d dict
-        core.set_params( [paramname,], [param+dparam,], eos_d )
+        core.set_params([paramname,], [param+dparam,])
 
         # Note that self is implicitly included
-        dval_a = fun(V_a, eos_d) - val0_a
+        dval_a = fun(V_a) - val0_a
 
         # reset param to original value
-        core.set_params( [paramname], [param], eos_d )
+        core.set_params([paramname], [param])
 
         deriv_a = dval_a/dxfrac
         return deriv_a
 
-    def _calc_energy_perturb( self, V_a, eos_d ):
+    def _calc_energy_perturb(self, V_a):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
         fname = 'energy'
-        scale_a, paramkey_a = self.get_param_scale\
-            ( eos_d, apply_expand_adj=self.expand_adj )
+        scale_a, paramkey_a = self.get_param_scale(
+            apply_expand_adj=self.expand_adj)
         Eperturb_a = []
         for paramname in paramkey_a:
-            iEperturb_a = self._calc_param_deriv( fname, paramname, V_a, eos_d)
+            iEperturb_a = self._calc_param_deriv(fname, paramname, V_a)
             Eperturb_a.append(iEperturb_a)
 
         Eperturb_a = np.array(Eperturb_a)
 
         return Eperturb_a, scale_a, paramkey_a
 
-    def _calc_bulk_mod( self, V_a, eos_d ):
+    def _calc_bulk_mod(self, V_a):
         """Returns Bulk Modulus variation along compression curve."""
         raise NotImplementedError("'bulk_mod' function not implimented for this model")
 
-    def _calc_bulk_mod_deriv( self, V_a, eos_d ):
+    def _calc_bulk_mod_deriv(self, V_a):
         """Returns Bulk Modulus Deriv (K') variation along compression curve."""
         raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
 #====================================================================
@@ -332,18 +332,19 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
 # Implementations
 #====================================================================
 class _Vinet(CompressCalc):
-    def get_param_scale_sub( self, eos_d):
+    def get_param_scale_sub(self):
         """Return scale values for each parameter"""
-        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0 = core.get_params(['V0','K0','KP0'])
+        PV_ratio, = core.get_consts(['PV_ratio'])
 
         paramkey_a = np.array(['V0','K0','KP0','E0'])
         scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
 
         return scale_a, paramkey_a
 
-    def _calc_press( self, V_a, eos_d ):
-        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+    def _calc_press(self, V_a):
+        V0, K0, KP0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0'])
 
         eta = 3/2*(KP0-1)
         vratio_a = V_a/V0
@@ -353,13 +354,10 @@ class _Vinet(CompressCalc):
 
         return press_a
 
-    def _calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
-        # print V0
-        # print K0
-        # print KP0
-        # print E0
-        PV_ratio = core.CONSTS['PV_ratio']
+    def _calc_energy(self, V_a):
+        V0, K0, KP0, E0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','E0'])
+        PV_ratio, = core.get_consts(['PV_ratio'])
 
         eta = 3/2*(KP0-1)
         vratio_a = V_a/V0
@@ -371,17 +369,17 @@ class _Vinet(CompressCalc):
 
         return energy_a
 
-    def _calc_energy_perturb( self, V_a, eos_d ):
+    def _calc_energy_perturb(self, V_a):
         """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
 
-        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
-        PV_ratio = core.CONSTS['PV_ratio']
+        V0, K0, KP0, E0 = core.get_params(['V0','K0','KP0','E0'])
+        PV_ratio, = core.get_consts(['PV_ratio'])
 
         eta = 3/2*(KP0-1)
         vratio_a = V_a/V0
         x = vratio_a**(1/3)
 
-        scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
+        scale_a, paramkey_a = self.get_param_scale_sub()
 
         # NOTE: CHECK UNITS (PV_RATIO) here
         dEdp_a = 1/PV_ratio*np.vstack\
@@ -397,7 +395,7 @@ class _Vinet(CompressCalc):
 
         return Eperturb_a, scale_a, paramkey_a
 
-    def _init_params( self ):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
 
         V0, K0, KP0 = 100, 150, 4
@@ -406,16 +404,17 @@ class _Vinet(CompressCalc):
         self._param_units = ['ang^3','GPa','1','eV']
         self._param_defaults = [V0,K0,KP0,0]
         self._param_scales = [V0,K0,KP0,E0_scale]
+
         pass
 
-    def _init_required_calculators( self ):
+    def _init_required_calculators(self):
         """Initialize list of other required calculators."""
         self._required_calculators = None
         pass
 #====================================================================
 class _BirchMurn3(CompressCalc):
-    def _calc_press( self, V_a, eos_d ):
-        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+    def _calc_press(self, V_a):
+        V0, K0, KP0 = self.eos_mod.get_param_values(param_names=['V0','K0','KP0'])
 
         vratio_a = V_a/V0
 
@@ -424,8 +423,9 @@ class _BirchMurn3(CompressCalc):
 
         return press_a
 
-    def _calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, E0 = core.get_params( ['V0','K0','KP0','E0'], eos_d )
+    def _calc_energy(self, V_a):
+        V0, K0, KP0, E0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','E0'])
         PV_ratio = core.CONSTS['PV_ratio']
 
         vratio_a = V_a/V0
@@ -437,36 +437,41 @@ class _BirchMurn3(CompressCalc):
 
         return energy_a
 
-    def _init_param_names( self ):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
+
+        V0, K0, KP0 = 100, 150, 4
+        E0_scale = V0*KP0/core.CONSTS['PV_ratio']
         self._param_names = ['V0','K0','KP0','E0']
+        self._param_units = ['ang^3','GPa','1','eV']
+        self._param_defaults = [V0,K0,KP0,0]
+        self._param_scales = [V0,K0,KP0,E0_scale]
         pass
 
-    def _init_required_calculators( self ):
+    def _init_required_calculators(self):
         """Initialize list of other required calculators."""
         self._required_calculators = None
         pass
 #====================================================================
 class _BirchMurn4(CompressCalc):
-    def get_param_scale_sub( self, eos_d):
+    def get_param_scale_sub(self):
         """Return scale values for each parameter"""
-        V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, KP20 = core.get_params(['V0','K0','KP0','KP20'])
+        PV_ratio = core.CONSTS['PV_ratio']
 
         paramkey_a = np.array(['V0','K0','KP0','KP20','E0'])
         scale_a = np.array([V0,K0,KP0,KP0/K0,K0*V0/PV_ratio])
 
         return scale_a, paramkey_a
 
-    def _calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20 ):
+    def _calc_strain_energy_coeffs(self, nexp, K0, KP0, KP20):
         a1 = 3/2*(KP0-nexp-2)
         a2 = 3/2*(K0*KP20 + KP0*(KP0-2*nexp-3)+3+4*nexp+11/9*nexp**2)
         return a1,a2
 
-    def _calc_press( self, V_a, eos_d ):
-        # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
-        # press_a = self.gen_finite_strain_mod.press( V_a, eos_d )
-        V0, K0, KP0, KP20 = core.get_params( ['V0','K0','KP0','KP20'], eos_d )
+    def _calc_press(self, V_a):
+        V0, K0, KP0, KP20 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','KP20'])
         nexp = +2
 
         vratio_a = V_a/V0
@@ -478,13 +483,12 @@ class _BirchMurn4(CompressCalc):
             fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
         return press_a
 
-    def _calc_energy( self, V_a, eos_d ):
-        # globals()['set_param']( ['nexp'], [self.nexp], eos_d )
-        # energy_a = self.gen_finite_strain_mod.energy( V_a, eos_d )
-        V0, K0, KP0, KP20, E0 = core.get_params( ['V0','K0','KP0','KP20','E0'], eos_d )
+    def _calc_energy(self, V_a):
+        V0, K0, KP0, KP20, E0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','KP20','E0'])
         nexp = +2
 
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+        PV_ratio = core.CONSTS['PV_ratio']
 
         vratio_a = V_a/V0
         fstrain_a = 1/nexp*(vratio_a**(-nexp/3) - 1)
@@ -497,12 +501,19 @@ class _BirchMurn4(CompressCalc):
 
         return energy_a
 
-    def _init_param_names( self ):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
+
+        V0, K0, KP0 = 100, 150, 4
+        KP20 = KP0/KP0
+        E0_scale = V0*KP0/core.CONSTS['PV_ratio']
         self._param_names = ['V0','K0','KP0','KP20','E0']
+        self._param_units = ['ang^3','GPa','1','GPa^-1','eV']
+        self._param_defaults = [V0,K0,KP0,KP20,0]
+        self._param_scales = [V0,K0,KP0,KP20,E0_scale]
         pass
 
-    def _init_required_calculators( self ):
+    def _init_required_calculators(self):
         """Initialize list of other required calculators."""
         self._required_calculators = None
         pass
@@ -529,8 +540,9 @@ class _GenFiniteStrain(CompressCalc):
                            -(50/3*nexp**3 + 70*nexp**2 + 90*nexp + 36))
                 return a1,a2,a3
 
-    def _calc_press( self, V_a, eos_d ):
-        V0, K0, KP0, KP20, nexp = core.get_params( ['V0','K0','KP0','KP20','nexp'], eos_d )
+    def _calc_press(self, V_a):
+        V0, K0, KP0, KP20, nexp = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','KP20','nexp'])
 
         vratio_a = V_a/V0
         fstrain_a = 1/nexp*(vratio_a**(-nexp/3) - 1)
@@ -541,9 +553,11 @@ class _GenFiniteStrain(CompressCalc):
             fstrain_a*(nexp*fstrain_a+1)**((nexp+3)/nexp)
         return press_a
 
-    def _calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, KP20, E0, nexp = core.get_params( ['V0','K0','KP0','KP20','E0','nexp'], eos_d )
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+    def _calc_energy(self, V_a):
+        V0, K0, KP0, KP20, E0, nexp = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','KP20','E0','nexp'])
+
+        PV_ratio = core.CONSTS['PV_ratio']
 
         vratio_a = V_a/V0
         fstrain_a = 1/nexp*(vratio_a**(-nexp/3) - 1)
@@ -556,45 +570,57 @@ class _GenFiniteStrain(CompressCalc):
 
         return energy_a
 
-    def _init_param_names( self ):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
+
+        V0, K0, KP0, nexp = 100, 150, 4, 2
+        KP20 = KP0/KP0
+        E0_scale = V0*KP0/core.CONSTS['PV_ratio']
         self._param_names = ['V0','K0','KP0','KP20','E0','nexp']
+        self._param_units = ['ang^3','GPa','1','GPa^-1','eV','1']
+        self._param_defaults = [V0,K0,KP0,KP20,0,nexp]
+        self._param_scales = [V0,K0,KP0,KP20,E0_scale,nexp]
         pass
 
-    def _init_required_calculators( self ):
+    def _init_required_calculators(self):
         """Initialize list of other required calculators."""
         self._required_calculators = None
         pass
 #====================================================================
 class _Tait(CompressCalc):
-    def __init__( self, setlogPmin=False,
-                 path_const='T', level_const=300, expand_adj_mod=None,
-                 expand_adj=None, supress_energy=False, supress_press=False ):
-        super(Tait, self).__init__( expand_adj=None )
-        self.setlogPmin = setlogPmin
-        pass
+    # def __init__( self, setlogPmin=False,
+    #              path_const='T', level_const=300, expand_adj_mod=None,
+    #              expand_adj=None, supress_energy=False, supress_press=False ):
+    #     super(Tait, self).__init__( expand_adj=None )
+    #     self.setlogPmin = setlogPmin
+    #     pass
     # def __init__( self, setlogPmin=False, expand_adj=False ):
     #     self.setlogPmin = setlogPmin
     #     self.expand_adj = expand_adj
     #     pass
 
-    def _get_eos_params(self, eos_d):
-        V0, K0, KP0 = core.get_params( ['V0','K0','KP0'], eos_d )
+    def _get_eos_params(self):
+        V0, K0, KP0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0'])
         if self.setlogPmin:
-            logPmin, = core.get_params( ['logPmin'], eos_d )
+            logPmin, = self.eos_mod.get_param_values(
+                param_names=['logPmin'])
             Pmin = np.exp(logPmin)
             # assert Pmin>0, 'Pmin must be positive.'
             KP20 = (KP0+1)*(KP0/K0 - 1/Pmin)
         else:
-            KP20, = core.get_params( ['KP20'], eos_d )
+            KP20, = self.eos_mod.get_param_values(
+                param_names=['KP20'])
 
         return V0,K0,KP0,KP20
 
-    def get_param_scale_sub( self, eos_d ):
+    def get_param_scale_sub(self):
         """Return scale values for each parameter"""
 
-        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+        V0, K0, KP0, KP20 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','KP20'])
+
+        PV_ratio = core.CONSTS['PV_ratio']
 
         if self.setlogPmin:
             # [V0,K0,KP0,E0]
@@ -615,8 +641,9 @@ class _Tait(CompressCalc):
 
         return a,b,c
 
-    def _calc_press( self, V_a, eos_d ):
-        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
+    def _calc_press(self, V_a):
+        V0, K0, KP0, KP20 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','KP20'])
         a,b,c = self._eos_to_abc_params(K0,KP0,KP20)
         vratio_a = V_a/V0
 
@@ -624,15 +651,16 @@ class _Tait(CompressCalc):
 
         return press_a
 
-    def _calc_energy( self, V_a, eos_d ):
-        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
-        E0, = core.get_params( ['E0'], eos_d )
+    def _calc_energy(self, V_a):
+        V0, K0, KP0, KP20, E0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0','KP20','E0'])
         a,b,c = self._eos_to_abc_params(K0,KP0,KP20)
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+
+        PV_ratio = core.CONSTS['PV_ratio']
 
         vratio_a = V_a/V0
 
-        press_a = self._calc_press( V_a, eos_d )
+        press_a = self._calc_press(V_a)
         eta_a = b*press_a + 1
         eta_pow_a = eta_a**(-c)
         #  NOTE: Need to simplify energy expression here
@@ -641,25 +669,26 @@ class _Tait(CompressCalc):
 
         return energy_a
 
-    def _calc_energy_perturb_deprecate( self, V_a, eos_d ):
+    def _calc_energy_perturb_deprecate(self, V_a):
         """
         Returns Energy pertubation basis functions resulting from
         fractional changes to EOS params.
 
         """
-        V0, K0, KP0, KP20 = self._get_eos_params(eos_d)
-        E0, = core.get_params( ['E0'], eos_d )
+        V0, K0, KP0, KP20 = self._get_eos_params()
+        E0, = core.get_params(['E0'])
 
         a,b,c = self._eos_to_abc_params(K0,KP0,KP20)
-        PV_ratio, = core.get_consts( ['PV_ratio'], eos_d )
+
+        PV_ratio = core.CONSTS['PV_ratio']
 
         vratio_a = V_a/V0
 
-        press_a = self._calc_press( V_a, eos_d )
+        press_a = self._calc_press(V_a)
         eta_a = b*press_a + 1
         eta_pow_a = eta_a**(-c)
 
-        scale_a, paramkey_a = self.get_param_scale_sub( eos_d )
+        scale_a, paramkey_a = self.get_param_scale_sub()
 
         # [V0,K0,KP0,KP20,E0]
         dEdp_a = np.ones((4, V_a.size))
@@ -703,12 +732,19 @@ class _Tait(CompressCalc):
 
         return Eperturb_a, scale_a, paramkey_a
 
-    def _init_param_names( self ):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
+
+        V0, K0, KP0 = 100, 150, 4
+        KP20 = KP0/KP0
+        E0_scale = V0*KP0/core.CONSTS['PV_ratio']
         self._param_names = ['V0','K0','KP0','KP20','E0']
+        self._param_units = ['ang^3','GPa','1','GPa^-1','eV']
+        self._param_defaults = [V0,K0,KP0,KP20,0]
+        self._param_scales = [V0,K0,KP0,KP20,E0_scale]
         pass
 
-    def _init_required_calculators( self ):
+    def _init_required_calculators(self):
         """Initialize list of other required calculators."""
         self._required_calculators = None
         pass

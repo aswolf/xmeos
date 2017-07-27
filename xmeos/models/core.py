@@ -102,8 +102,8 @@ class EosMod(with_metaclass(ABCMeta)):
         u, indices = np.unique(np.array(param_names), return_index=True)
         indices = np.sort(indices)
 
-        param_names = [param_names[ind] for ind in indices]
-        param_units = [param_units[ind] for ind in indices]
+        param_names = np.array([param_names[ind] for ind in indices])
+        param_units = np.array([param_units[ind] for ind in indices])
         param_defaults = np.array([param_defaults[ind] for ind in indices])
         param_scales = np.array([param_scales[ind] for ind in indices])
 
@@ -235,6 +235,10 @@ class EosMod(with_metaclass(ABCMeta)):
 
         return param_names
 
+    #####################
+    #  Need to store param names, units, scales, values together
+    #    - can be done with param_names=[], param_units={},
+    #                       param_scales={}, param_values={}
     @property
     def param_names(self):
         """
@@ -248,8 +252,7 @@ class EosMod(with_metaclass(ABCMeta)):
         """
         return self._param_names
 
-    @property
-    def param_units(self, param_names=None):
+    def get_param_units(self, param_names=None):
         """
         Units for (selected) parameters.
 
@@ -265,10 +268,31 @@ class EosMod(with_metaclass(ABCMeta)):
 
         """
 
-        param_names = self._validate_param_names( param_names )
-        units = [self._param_units[key] for key in param_names]
+        param_names = self._validate_param_names(param_names)
+        # units = self._param_units[(self._param_names.index(name)
+        #                            for name in param_names)]
+        units = self._param_units[np.in1d(self._param_names, param_names)]
 
         return units
+
+    @property
+    def param_units(self):
+        """
+        Units for (selected) parameters.
+
+        Parameters
+        ----------
+        param_names : list-like, default None
+            if given, lists desired subset of parameters by name
+
+        Returns
+        -------
+        units : array-like
+            list of units for selected parameters
+
+        """
+
+        return self.get_param_units()
 
     @property
     def param_scales(self, param_names=None):
@@ -291,11 +315,13 @@ class EosMod(with_metaclass(ABCMeta)):
 
         param_names = self._validate_param_names( param_names )
 
-        scales = np.array([self._param_scales[key] for key in param_names])
+        # scales = np.array(self._param_scales[(self._param_names.index(name)
+        #                                       for name in param_names)])
+        scales = self._param_scales[np.in1d(self._param_names, param_names)]
         return scales
 
-    @property
-    def param_values(self, param_names=None):
+
+    def get_param_values(self, param_names=None):
         """
         Values for (selected) parameters.
 
@@ -311,12 +337,12 @@ class EosMod(with_metaclass(ABCMeta)):
 
         """
         param_names = self._validate_param_names( param_names )
-        values = np.array([self._param_values[key] for key in param_names])
-
+        # values = self._param_values[(self._param_names.index(name)
+        #                              for name in param_names)]
+        values = self._param_values[np.in1d(self._param_names, param_names)]
         return values
 
-    @param_values.setter
-    def param_values(self, param_values, param_names=None):
+    def set_param_values(self, param_values, param_names=None):
         """
         Set values for (selected) parameters.
 
@@ -334,9 +360,46 @@ class EosMod(with_metaclass(ABCMeta)):
         assert len(param_names)==len(param_values), \
             'param_names and param_values must have the same length'
 
-        for name, value in zip(param_names, param_values):
-            self._param_values[name] = value
+        self._param_values[
+            np.in1d(self._param_names, param_names)] = param_values
+        # for ind, value in enumerate(param_values):
+        #     self._param_values[ind] = value
 
+        pass
+
+    @property
+    def param_values(self):
+        """
+        Values for (selected) parameters.
+
+        Parameters
+        ----------
+        param_names : str array
+            list of parameter names
+
+        Returns
+        -------
+        values : double array
+            values of (selected) parameters
+
+        """
+        return self.get_param_values()
+
+    @param_values.setter
+    def param_values(self, param_values):
+        """
+        Set values for (selected) parameters.
+
+        Parameters
+        ----------
+        param_values : double array
+            list of parameter values
+        param_names : list, default None
+            if given, lists desired subset of parameters by name
+
+        """
+
+        self.set_param_values(param_values)
         pass
 #====================================================================
 class Calculator(with_metaclass(ABCMeta)):
@@ -345,11 +408,20 @@ class Calculator(with_metaclass(ABCMeta)):
 
     """
 
-    def __init__(self):
+    def __init__(self, eos_mod):
+        self._eos_mod = eos_mod
         self._init_params()
         self._required_calculators = None
 
         pass
+
+    @property
+    def eos_mod(self):
+        """
+        Parent Eos Model.
+
+        """
+        return self._eos_mod
 
     @property
     def param_names(self):
@@ -407,6 +479,14 @@ CONSTS['kboltz'] = 8.617332e-5 # eV/K
 CONSTS['ang3percc'] = 1e24 # ang^3/cm^3
 CONSTS['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
 CONSTS['TS_ratio'] = CONSTS['R']/CONSTS['kboltz'] # (J/mol)/eV
+
+def get_consts( keys ):
+    # assert all((key in CONSTS for key in keys)), (
+    #     'That is not a valid CONST name. Valid names are '+str(CONSTS.keys()) )
+
+    return tuple(CONSTS[key] for key in keys)
+
+
 
 #====================================================================
 def set_params( name_l, val_l, eos_d ):
