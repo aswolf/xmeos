@@ -8,7 +8,6 @@ from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
 
-from .core import EosMod
 from . import core
 from future.utils import with_metaclass
 
@@ -17,7 +16,11 @@ from future.utils import with_metaclass
 #====================================================================
 # Base Classes
 #====================================================================
-class ThermalMod(with_metaclass(ABCMeta, EosMod)):
+class MieGruneisenMod(with_metaclass(ABCMeta, core.Eos)):
+class ThermalPressMod(with_metaclass(ABCMeta, core.Eos)):
+class ThermalEnergyMod(with_metaclass(ABCMeta, core.Eos)):
+#====================================================================
+class ThermalMod(with_metaclass(ABCMeta, Eos)):
     """
     Abstract Equation of State class to describe Thermal Behavior
 

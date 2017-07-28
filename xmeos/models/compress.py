@@ -10,17 +10,16 @@ import scipy.interpolate as interpolate
 # from .core import Calculator
 from . import core
 
-# from .core import EosMod
 # from .core import Calculator
 # from . import core
 
-__all__ = ['CompressMod','CompressCalc']
+__all__ = ['CompressEos','CompressCalc']
 
 #====================================================================
 # Models
 #====================================================================
 #====================================================================
-class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
+class CompressEos(with_metaclass(ABCMeta, core.Eos)):
     """
     EOS model for reference compression path.
 
@@ -175,6 +174,8 @@ class CompressMod(with_metaclass(ABCMeta, core.EosMod)):
         Eperturb_a = np.array(Eperturb_a)
 
         return Eperturb_a, scale_a, paramkey_a
+#====================================================================
+# class TempDependentCompressMod(with_metaclass(ABCMeta, core.Eos)):
 #====================================================================
 
 

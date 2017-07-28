@@ -7,7 +7,7 @@ import scipy as sp
 from abc import ABCMeta, abstractmethod
 
 
-__all__ = ['EosMod','Calculator',
+__all__ = ['Eos','Calculator',
            'set_params', 'get_params', 'swap_params',
            'set_array_params', 'get_array_params',
            'set_modtypes', 'get_modtypes', 'set_args', 'fill_array']
@@ -21,7 +21,7 @@ __all__ = ['EosMod','Calculator',
 #====================================================================
 # EOS Model Classes
 #====================================================================
-class EosMod(with_metaclass(ABCMeta)):
+class Eos(with_metaclass(ABCMeta)):
     """
     Abstract Equation of State Parent Base class
     """

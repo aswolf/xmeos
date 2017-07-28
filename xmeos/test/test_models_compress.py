@@ -26,10 +26,10 @@ slow = pytest.mark.skipif(
 #====================================================================
 # SEC:1 Abstract Test Classes
 #====================================================================
-class BaseTestCompressPath(object):
+class BaseTestCompressEos(object):
     @abstractmethod
-    def load_compress_path_mod(self, eos_d):
-        assert False, 'must implement load_compress_path_mod()'
+    def load_compress_eos(self, eos_d):
+        assert False, 'must implement load_compress_eos()'
 
     def init_params(self):
         # Set model parameter values
@@ -40,7 +40,7 @@ class BaseTestCompressPath(object):
         param_names = ['V0','K0','KP0','E0']
         param_values = np.array([ V0, K0, KP0, E0 ])
 
-        eos_mod = self.load_compress_path_mod()
+        eos_mod = self.load_compress_eos()
         eos_mod.set_param_values(param_values, param_names)
 
         return eos_mod
@@ -56,12 +56,6 @@ class BaseTestCompressPath(object):
         V0, = eos_mod.get_param_values(param_names='V0')
         Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
         dV = Vmod_a[1] - Vmod_a[0]
-
-        # print(eos_d)
-
-        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
-        # print eos_d['modtype_d']
-        # compress_path_mod = eos_d['modtype_d']['CompressPathMod']
 
         press_a = eos_mod.press(Vmod_a)
         energy_a = eos_mod.energy(Vmod_a)
@@ -95,13 +89,12 @@ class BaseTestCompressPath(object):
         dxfrac = 1e-8
 
         Nsamp = 10001
-        eos_d = self.init_params()
+        eos_mod = self.init_params()
 
         param_d = eos_d['param_d']
         Vmod_a = np.linspace(.7,1.3,Nsamp)*param_d['V0']
         dV = Vmod_a[1] - Vmod_a[0]
 
-        compress_path_mod = eos_d['modtype_d']['CompressPathMod']
         if compress_path_mod.expand_adj:
             scale_a, paramkey_a = \
                 compress_path_mod.get_param_scale( eos_d,apply_expand_adj=True )
@@ -145,10 +138,10 @@ class BaseTestCompressPath(object):
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
 #====================================================================
-class BaseTest4thOrdCompressPath(BaseTestCompressPath):
+class BaseTest4thOrdCompressEos(BaseTestCompressEos):
     def init_params(self):
         # Use parents init_params method
-        eos_mod = super(BaseTest4thOrdCompressPath,self).init_params()
+        eos_mod = super(BaseTest4thOrdCompressEos,self).init_params()
 
         V0,K0,KP0 = eos_mod.get_param_values(param_names=['V0','K0','KP0'])
         # Add K''0 param
@@ -161,11 +154,11 @@ class BaseTest4thOrdCompressPath(BaseTestCompressPath):
 #====================================================================
 # SEC:2 Implimented Test Clases
 #====================================================================
-# 2.1: CompressPathMod Tests
+# 2.1: CompressEos Tests
 #====================================================================
-class TestVinetCompressPathMod(BaseTestCompressPath):
-    def load_compress_path_mod(self):
-        eos_mod = models.CompressMod(
+class TestVinet(BaseTestCompressEos):
+    def load_compress_eos(self):
+        eos_mod = models.CompressEos(
             kind='Vinet', path_const='T', level_const=300)
         return eos_mod
 
@@ -173,22 +166,22 @@ class TestVinetCompressPathMod(BaseTestCompressPath):
     #     self.do_test_energy_perturb_eval()
     #     pass
 #====================================================================
-class TestBM3CompressPathMod(BaseTestCompressPath):
-    def load_compress_path_mod(self):
-        eos_mod = models.CompressMod(
+class TestBirchMurn3(BaseTestCompressEos):
+    def load_compress_eos(self):
+        eos_mod = models.CompressEos(
             kind='BirchMurn3', path_const='S', level_const=0)
         return eos_mod
 #====================================================================
-class TestBM4CompressPathMod(BaseTest4thOrdCompressPath):
-    def load_compress_path_mod(self):
-        eos_mod = models.CompressMod(
+class TestBirchMurn4(BaseTest4thOrdCompressEos):
+    def load_compress_eos(self):
+        eos_mod = models.CompressEos(
             kind='BirchMurn4', path_const='S', level_const=0)
         return eos_mod
 #====================================================================
-class TestGenFiniteStrainCompressPathMod(BaseTest4thOrdCompressPath):
+class TestGenFiniteStrain(BaseTest4thOrdCompressEos):
     def init_params(self):
         # Use parents init_params method
-        eos_mod = super(TestGenFiniteStrainCompressPathMod,self).init_params()
+        eos_mod = super(TestGenFiniteStrain,self).init_params()
 
         # Add nexp param
         nexp = +2.0
@@ -196,14 +189,14 @@ class TestGenFiniteStrainCompressPathMod(BaseTest4thOrdCompressPath):
 
         return eos_mod
 
-    def load_compress_path_mod(self):
-        eos_mod = models.CompressMod(
+    def load_compress_eos(self):
+        eos_mod = models.CompressEos(
             kind='GenFiniteStrain', path_const='S', level_const=0)
         return eos_mod
 #====================================================================
-class TestTaitCompressPathMod(BaseTest4thOrdCompressPath):
-    def load_compress_path_mod(self):
-        eos_mod = models.CompressMod(
+class TestTait(BaseTest4thOrdCompressEos):
+    def load_compress_eos(self):
+        eos_mod = models.CompressEos(
             kind='Tait', path_const='S', level_const=0)
         print(eos_mod)
         return eos_mod
@@ -212,7 +205,7 @@ class TestTaitCompressPathMod(BaseTest4thOrdCompressPath):
     #     self.do_test_energy_perturb_eval()
     #     pass
 #====================================================================
-# class TestCompareCompressPathMods(object):
+# class TestCompareCompressEos(object):
 #     def init_params(self):
 #         # Set model parameter values
 #         E0 = 0.0 # eV/atom
@@ -348,8 +341,8 @@ class TestTaitCompressPathMod(BaseTest4thOrdCompressPath):
 #
 #         pass
 #====================================================================
-# class TestExpandCompressPathMod(BaseTest4thOrdCompressPath):
-#     def load_compress_path_mod(self, eos_d):
+# class TestExpandCompressPathMod(BaseTest4thOrdCompressEos):
+#     def load_compress_eos(self, eos_d):
 #         compress_path_mod   = compress.Vinet(path_const='S',expand_adj_mod=compress.Tait())
 #         core.set_modtypes(['CompressPathMod'],[compress_path_mod], eos_d )
 #
