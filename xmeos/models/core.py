@@ -24,7 +24,7 @@ class Eos(with_metaclass(ABCMeta)):
     Abstract Equation of State Parent Base class
     """
 
-    def __init__( self ):
+    def __init__(self):
         self._pre_init()
 
         ##########################
@@ -34,30 +34,53 @@ class Eos(with_metaclass(ABCMeta)):
         self._post_init()
         pass
 
-    def _pre_init( self ):
-        self._init_all_calculators()
+    def _pre_init(self):
+        # self._init_all_calculators()
+        self._calculators = {}
         pass
 
-    def _post_init( self ):
+    def _post_init(self, model_state={}):
+
         param_names, param_units, param_defaults, param_scales = \
             self._get_calculator_params()
+
+        param_values = self._overwrite_param_values(param_names, param_defaults,
+                                                    model_state)
+
         self._param_names = param_names
         self._param_units = param_units
-        self._param_values = param_defaults
         self._param_scales = param_scales
+        self._param_values = param_values
+
         pass
+
+    def _overwrite_param_values(self, param_names, param_values, model_state):
+        if not model_state:
+            return param_values
+
+        if ('param_names' not in model_state) or (
+            set(model_state['param_names']) != set(param_names)):
+
+            raise LookupError('model_state must contain param_names matching '
+                              'calculator params: '+param_names)
+
+
+        if ('param_values' not in model_state) or (
+           len(model_state['param_values']) != len(model_state['param_names'])):
+            raise LookupError('model_state must provide param_values '
+                              'for each parameter.')
+
+        state_names = np.array(model_state['param_names'])
+        state_values = np.array(model_state['param_values'])
+
+        for ind, param_name in enumerate(param_names):
+            param_values[ind] = state_values[state_names==param_name]
+
+        return param_values
 
     ######################
     # Calculator methods #
     ######################
-    def _init_all_calculators( self ):
-        self._compress_calculator = None
-        self._thermal_calculator = None
-        self._gamma_calculator = None
-        self._heat_capacity_calculator = None
-        self._thermal_exp_calculator = None
-        pass
-
     def _get_calculator_params( self ):
         """
         Get list of valid Eos calculators
@@ -67,35 +90,11 @@ class Eos(with_metaclass(ABCMeta)):
         param_defaults = []
         param_scales = []
 
-        if self._compress_calculator:
-            param_names.extend(self._compress_calculator.param_names)
-            param_units.extend(self._compress_calculator.param_units)
-            param_defaults.extend(self._compress_calculator.param_defaults)
-            param_scales.extend(self._compress_calculator.param_scales)
-
-        if self._thermal_calculator:
-            param_names.extend(self._thermal_calculator.param_names)
-            param_units.extend(self._thermal_calculator.param_units)
-            param_defaults.extend(self._thermal_calculator.param_defaults)
-            param_scales.extend(self._thermal_calculator.param_scales)
-
-        if self._gamma_calculator:
-            param_names.extend(self._gamma_calculator.param_names)
-            param_units.extend(self._gamma_calculator.param_units)
-            param_defaults.extend(self._gamma_calculator.param_defaults)
-            param_scales.extend(self._gamma_calculator.param_scales)
-
-        if self._heat_capacity_calculator:
-            param_names.extend(self._heat_capacity_calculator.param_names)
-            param_units.extend(self._heat_capacity_calculator.param_units)
-            param_defaults.extend(self._heat_capacity_calculator.param_defaults)
-            param_scales.extend(self._heat_capacity_calculator.param_scales)
-
-        if self._thermal_exp_calculator:
-            param_names.extend(self._thermal_exp_calculator.param_names)
-            param_units.extend(self._thermal_exp_calculator.param_units)
-            param_defaults.extend(self._thermal_exp_calculator.param_defaults)
-            param_scales.extend(self._thermal_exp_calculator.param_scales)
+        for calc in self._calculators:
+            param_names.extend(self._calculators[calc].param_names)
+            param_units.extend(self._calculators[calc].param_units)
+            param_defaults.extend(self._calculators[calc].param_defaults)
+            param_scales.extend(self._calculators[calc].param_scales)
 
         u, indices = np.unique(np.array(param_names), return_index=True)
         indices = np.sort(indices)
@@ -107,28 +106,9 @@ class Eos(with_metaclass(ABCMeta)):
 
         return param_names, param_units, param_defaults, param_scales
 
-    def _get_calculators( self ):
-        """
-        Get list of valid Eos calculators
-        """
-        calculators = {}
-
-        if self._compress_calculator:
-            calculators.update(self._compress_calculator)
-
-        if self._thermal_calculator:
-            calculators.update(self._thermal_calculator)
-
-        if self._gamma_calculator:
-            calculators.update(self._gamma_calculator)
-
-        if self._heat_capacity_calculator:
-            calculators.update(self._heat_capacity_calculator)
-
-        if self._thermal_exp_calculator:
-            calculators.update(self._thermal_exp_calculator)
-
-        return calculators
+    @property
+    def calculators(self):
+        return self._calculators
 
     def _add_calculator( self, calc, kind='compress' ):
         """
@@ -145,60 +125,8 @@ class Eos(with_metaclass(ABCMeta)):
         assert isinstance(calc,Calculator), \
             'calc must be a valid Calculator object instance.'
 
-        if   kind=='compress':
-            self._compress_calculator = calc
-        elif kind=='thermal':
-            self._thermal_calculator = calc
-        elif kind=='gamma':
-            self._gamma_calculator = calc
-        elif kind=='heat_capacity':
-            self._heat_capacity_calculator = calc
-        elif kind=='thermal_exp':
-            self._thermal_exp_calculator = calc
-        else:
-            raise NotImplementedError(kind+' is not a supported '+\
-                                      'calculator kind.')
+        self._calculators[kind] = calc
         pass
-
-    @property
-    def compress_calculator( self ):
-        """
-        Calculator implimenting compression properties.
-
-        """
-        return self._compress_calculator
-
-    @property
-    def thermal_calculator( self ):
-        """
-        Calculator implimenting thermal properties (e.g. thermal press).
-
-        """
-        return self._thermal_calculator
-
-    @property
-    def gamma_calculator( self ):
-        """
-        Calculator implimenting (reference) Grüneisen gamma profile.
-
-        """
-        return self._gamma_calculator
-
-    @property
-    def heat_capacity_calculator( self ):
-        """
-        Calculator implimenting heat capacity/thermal energy model.
-
-        """
-        return self._heat_capacity_calculator
-
-    @property
-    def thermal_exp_calculator( self ):
-        """
-        Calculator implimenting thermal expansion properties.
-
-        """
-        return self._thermal_exp_calculator
 
     #####################
     # Parameter methods #
@@ -210,8 +138,11 @@ class Eos(with_metaclass(ABCMeta)):
         """
         param_names = {}
 
-        for calc in self._get_calculators():
-            param_names.update(calc.param_names())
+        # for calc in self._get_calculators():
+        #     param_names.update(calc.param_names())
+
+        for calc in self.calculators:
+            param_names.update(self.calculators[calc].param_names())
 
         return param_names
 
@@ -399,6 +330,14 @@ class Eos(with_metaclass(ABCMeta)):
 
         self.set_param_values(param_values)
         pass
+
+    @property
+    def model_state(self):
+        model_state = {
+            'param_names': self.param_names.tolist(),
+            'param_values':self.param_values.tolist(),
+        }
+        return model_state
 #====================================================================
 class Calculator(with_metaclass(ABCMeta)):
     """

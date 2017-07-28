@@ -1,4 +1,4 @@
-from __future__ import absolute_import, print_function, division
+from __future__ import absolute_import, print_function, division, with_statement
 from builtins import object
 import numpy as np
 # from models import compress
@@ -12,6 +12,12 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from abc import ABCMeta, abstractmethod
 import copy
+
+try:
+   import cPickle as pickle
+except:
+   import pickle
+
 #====================================================================
 # Define "slow" tests
 #  - indicated by @slow decorator
@@ -84,6 +90,22 @@ class BaseTestCompressEos(object):
         assert np.abs(Perr) < PTOL, '(Press error)/Prange, ' + np.str(Perr) + \
             ', must be less than PTOL'
 
+    def test_pickle(self):
+        eos_mod = self.init_params()
+
+        data_string = pickle.dumps(eos_mod)
+        eos_load_mod = pickle.loads(data_string)
+
+        # filenm = 'test/pkl/test_pickle.pkl'
+        # with open(filenm, 'w') as f:
+        #     pickle.dump(eos_mod, f)
+
+        # with open(filenm, 'r') as f:
+        #     eos_loaded = pickle.load(f)
+
+        assert repr(eos_mod)==repr(eos_load_mod), (
+            'Pickled and unpickled Eos Models are not equal.')
+
     def do_test_energy_perturb_eval(self):
         TOL = 1e-4
         dxfrac = 1e-8
@@ -149,6 +171,48 @@ class BaseTest4thOrdCompressEos(BaseTestCompressEos):
         eos_mod.set_param_values([KP20], param_names=['KP20'])
 
         return eos_mod
+#====================================================================
+# class TestPickle(object):
+#     def load_compress_eos(self):
+#         eos_mod = models.CompressEos(
+#             kind='Vinet', path_const='T', level_const=300)
+#         return eos_mod
+#
+#     def init_params(self):
+#         # Set model parameter values
+#         E0 = 0.0 # eV/atom
+#         V0 = 38.0 # 1e-5 m^3 / kg
+#         K0 = 25.0 # GPa
+#         KP0 = 9.0 # 1
+#         param_names = ['V0','K0','KP0','E0']
+#         param_values = np.array([ V0, K0, KP0, E0 ])
+#
+#         eos_mod = self.load_compress_eos()
+#         eos_mod.set_param_values(param_values, param_names)
+#
+#         return eos_mod
+#
+#     def test_pickle(self):
+#
+#         TOL = 1e-4
+#
+#         Nsamp = 10001
+#         eos_mod = self.init_params()
+#
+#         data_string = pickle.dumps(eos_mod)
+#         eos_load_mod = pickle.loads(data_string)
+#
+#         # filenm = 'test/pkl/test_pickle.pkl'
+#         # with open(filenm, 'w') as f:
+#         #     pickle.dump(eos_mod, f)
+#
+#         # with open(filenm, 'r') as f:
+#         #     eos_loaded = pickle.load(f)
+#
+#         assert repr(eos_mod)==repr(eos_load_mod), (
+#             'Pickled and unpickled Eos Models are not equal.')
+#
+        # assert False, 'Try to pickle object.'
 #====================================================================
 
 #====================================================================

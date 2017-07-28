@@ -7,11 +7,7 @@ from abc import ABCMeta, abstractmethod
 from scipy import integrate
 import scipy.interpolate as interpolate
 
-# from .core import Calculator
 from . import core
-
-# from .core import Calculator
-# from . import core
 
 __all__ = ['CompressEos','CompressCalc']
 
@@ -34,19 +30,31 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
     _path_opts = ['T','S']
     _kind_opts = ['Vinet','BirchMurn3','BirchMurn4','GenFiniteStrain','Tait']
 
-    def __init__(self, kind='Vinet', path_const='T', level_const=300):
+    def __init__(self, kind='Vinet', path_const='T', level_const=300,
+                 model_state={}):
         self._pre_init()
 
         self._init_calculator(kind,path_const,level_const)
-        self.expand_adj = False
 
-        self._post_init()
+        self._post_init(model_state=model_state)
 
         pass
 
+    def __repr__(self):
+        return ("CompressEos(kind={kind}, path_const={path_const}, "
+                "level_const={level_const}, model_state={model_state}, "
+                ")"
+                .format(kind=self._kind,
+                        path_const=repr(self.path_const),
+                        level_const=repr(self.level_const),
+                        model_state=self.model_state
+                        )
+                )
+        # np.array_repr(
+
     def _init_calculator(self, kind, path_const, level_const):
         assert kind in self._kind_opts, kind + ' is not a valid ' + \
-            'CompressMod Calculator. You must select one of: ' + self._kind_opts
+            'CompressEos Calculator. You must select one of: ' + self._kind_opts
 
         assert path_const in self._path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + self._path_opts
@@ -72,7 +80,7 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
                          level_const=level_const)
         else:
             raise NotImplementedError(kind+' is not a valid '+\
-                                      'CompressMod Calculator.')
+                                      'CompressEos Calculator.')
 
         self._add_calculator( calc, kind='compress' )
         pass
@@ -85,8 +93,8 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
     def level_const(self):
         return self._level_const
 
-    def press( self, V_a, apply_expand_adj=True):
-        press_a = self.compress_calculator._calc_press(V_a)
+    def press(self, V_a, apply_expand_adj=True):
+        press_a = self.calculators['compress']._calc_press(V_a)
         # if self.expand_adj and apply_expand_adj:
         #     ind_exp = self.get_ind_expand(V_a, eos_d)
         #     if (ind_exp.size>0):
@@ -95,7 +103,7 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
         return press_a
 
     def energy( self, V_a, apply_expand_adj=True ):
-        energy_a =  self.compress_calculator._calc_energy(V_a)
+        energy_a =  self.calculators['compress']._calc_energy(V_a)
         # if self.expand_adj and apply_expand_adj:
         #     ind_exp = self.get_ind_expand(V_a, eos_d)
         #     if apply_expand_adj and (ind_exp.size>0):
@@ -104,7 +112,7 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
         return energy_a
 
     def bulk_mod( self, V_a, apply_expand_adj=True ):
-        bulk_mod_a =  self.compress_calculator._calc_bulk_mod(V_a)
+        bulk_mod_a =  self.calculators['compress']._calc_bulk_mod(V_a)
         if self.expand_adj and apply_expand_adj:
             ind_exp = self.get_ind_expand(V_a)
             if apply_expand_adj and (ind_exp.size>0):
@@ -113,7 +121,7 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
         return bulk_mod_a
 
     def bulk_mod_deriv(  self,V_a, apply_expand_adj=True ):
-        bulk_mod_deriv_a =  self.compress_calculator._calc_bulk_mod_deriv(V_a)
+        bulk_mod_deriv_a =  self.calculators['compress']._calc_bulk_mod_deriv(V_a)
         if self.expand_adj and apply_expand_adj:
             ind_exp = self.get_ind_expand(V_a)
             if apply_expand_adj and (ind_exp.size>0):
@@ -123,7 +131,7 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
 
     def energy_perturb( self, V_a, apply_expand_adj=True ):
         # Eval positive press values
-        Eperturb_pos_a, scale_a, paramkey_a  = self.compress_calculator._calc_energy_perturb(V_a)
+        Eperturb_pos_a, scale_a, paramkey_a  = self.calculators['compress']._calc_energy_perturb(V_a)
 
         if (self.expand_adj==False) or (apply_expand_adj==False):
             return Eperturb_pos_a, scale_a, paramkey_a
@@ -400,7 +408,7 @@ class _Vinet(CompressCalc):
         """Initialize list of calculator parameter names."""
 
         V0, K0, KP0 = 100, 150, 4
-        E0_scale = V0*KP0/core.CONSTS['PV_ratio']
+        E0_scale = np.round(V0*KP0/core.CONSTS['PV_ratio'],decimals=2)
         self._param_names = ['V0','K0','KP0','E0']
         self._param_units = ['ang^3','GPa','1','eV']
         self._param_defaults = [V0,K0,KP0,0]
