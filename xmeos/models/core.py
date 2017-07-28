@@ -8,9 +8,7 @@ from abc import ABCMeta, abstractmethod
 
 
 __all__ = ['Eos','Calculator',
-           'set_params', 'get_params', 'swap_params',
-           'set_array_params', 'get_array_params',
-           'set_modtypes', 'get_modtypes', 'set_args', 'fill_array']
+           'set_array_params', 'get_array_params', 'fill_array']
 
 
 
@@ -489,45 +487,6 @@ def get_consts( keys ):
 
 
 #====================================================================
-def set_params( name_l, val_l, eos_d ):
-    if 'param_d' in eos_d.keys():
-        param_d = eos_d['param_d']
-    else:
-        param_d = {}
-        eos_d['param_d'] = param_d
-
-    for name, val in zip( name_l, val_l ):
-        param_d[name] = val
-
-    pass
-#====================================================================
-def get_params( name_l, eos_d ):
-    """
-    Retrieve list of desired params stored in eos_d['param_d']
-    """
-    param_d = eos_d['param_d']
-    param_l = []
-    for name in name_l:
-        param_l.append( param_d[name] )
-
-    return tuple( param_l )
-#====================================================================
-def swap_params( name_l, eos_d ):
-    """
-    Retrieve list of desired params stored in eos_d['param_d']
-    """
-
-    # Use shallow copy to avoid unneeded duplication
-    eos_swap_d = copy.copy( eos_d )
-    # Use deep copy on params to ensure swap without affecting original
-    param_swap_d = copy.deepcopy(eos_d['param_d'])
-
-    eos_swap_d['param_d'] = param_swap_d
-
-    set_params( name_l, eos_swap_d )
-
-    return eos_swap_d
-#====================================================================
 def set_array_params( basename, param_arr_a, eos_d ):
     name_l = []
 
@@ -574,49 +533,6 @@ def get_array_params( basename, eos_d ):
             param_arr[arrind] = val
 
         return param_arr
-#====================================================================
-def set_modtypes( name_l, val_l, eos_d ):
-    if 'modtype_d' in eos_d.keys():
-        modtype_d = eos_d['modtype_d']
-    else:
-        modtype_d = {}
-        eos_d['modtype_d'] = modtype_d
-
-    # Should we verify match?
-    for name, val in zip( name_l, val_l ):
-        modtype_d[name] = val
-        # No longer functional test
-        # if globals().has_key(name):
-        #     # modtype = globals()[name]
-        #     # modtype_d[name] = modtype()
-        #     modtype_d[name] = val
-        # else:
-        #     print name + " is not a valid modtype object"
-
-    pass
-#====================================================================
-def get_modtypes( name_l, eos_d ):
-    """
-    Retrieve list of desired model types stored in eos_d['modtype_d']
-    """
-    modtype_d = eos_d['modtype_d']
-    modtype_l = []
-    for name in name_l:
-        modtype_l.append( modtype_d[name] )
-
-    return tuple( modtype_l )
-#====================================================================
-def set_args( name_l, val_l, eos_d ):
-    if 'arg_d' in eos_d.keys():
-        arg_d = eos_d['arg_d']
-    else:
-        arg_d = {}
-        eos_d['arg_d'] = arg_d
-
-    for name, val in zip( name_l, val_l ):
-        arg_d[name] = val
-
-    pass
 #====================================================================
 def fill_array( var1, var2 ):
     """

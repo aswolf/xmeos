@@ -16,11 +16,11 @@ from future.utils import with_metaclass
 #====================================================================
 # Base Classes
 #====================================================================
-class MieGruneisenMod(with_metaclass(ABCMeta, core.Eos)):
-class ThermalPressMod(with_metaclass(ABCMeta, core.Eos)):
-class ThermalEnergyMod(with_metaclass(ABCMeta, core.Eos)):
+class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
+class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
+class CompressedThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
 #====================================================================
-class ThermalMod(with_metaclass(ABCMeta, Eos)):
+class ThermalEos(with_metaclass(ABCMeta, Eos)):
     """
     Abstract Equation of State class to describe Thermal Behavior
 
@@ -64,7 +64,7 @@ class ThermalMod(with_metaclass(ABCMeta, Eos)):
         """Returns thermally expanded volume."""
         raise NotImplementedError("'vol' function not implimented for this model")
 #====================================================================
-class ThermalPathMod(with_metaclass(ABCMeta, ThermalMod)):
+class ThermalPathEos(with_metaclass(ABCMeta, ThermalEos)):
     """
     Abstract Equation of State class for a reference Thermal Path
 
@@ -127,7 +127,7 @@ class ThermalPathMod(with_metaclass(ABCMeta, ThermalMod)):
 #====================================================================
 
 #====================================================================
-class GenRosenfeldTaranzona(with_metaclass(ABCMeta, ThermalPathMod)):
+class GenRosenfeldTaranzona(with_metaclass(ABCMeta, ThermalPathEos)):
     """
     Generalized Rosenfeld-Taranzona Equation of State Model (Rosenfeld1998)
     - Cv takes on general form of shifted power-law as in original
@@ -306,7 +306,7 @@ class GenRosenfeldTaranzona(with_metaclass(ABCMeta, ThermalPathMod)):
 #====================================================================
 
 #====================================================================
-class MieGrun(with_metaclass(ABCMeta, ThermalMod)):
+class MieGrun(with_metaclass(ABCMeta, ThermalEos)):
     """
     Mie-Gruneisen Equation of State Model
     (requires extension to define thermal energy model)
@@ -484,7 +484,7 @@ class MieGrunDebye(MieGrun):
 
 
 #====================================================================
-class RosenfeldTaranzonaCompress(with_metaclass(ABCMeta, ThermalMod)):
+class RosenfeldTaranzonaCompress(with_metaclass(ABCMeta, ThermalEos)):
     """
     Volume-dependent Rosenfeld-Taranzona Equation of State
       - must impliment particular volume-dependence

@@ -175,7 +175,7 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-# class TempDependentCompressMod(with_metaclass(ABCMeta, core.Eos)):
+# class HeatedCompressEos(with_metaclass(ABCMeta, core.Eos)):
 #====================================================================
 
 
