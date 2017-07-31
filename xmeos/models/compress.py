@@ -514,12 +514,13 @@ class _BirchMurn4(CompressCalc):
         """Initialize list of calculator parameter names."""
 
         V0, K0, KP0 = 100, 150, 4
-        KP20 = KP0/KP0
+        KP20 = -KP0/KP0
+        KP20_scale = np.abs(KP20)
         E0_scale = V0*KP0/core.CONSTS['PV_ratio']
         self._param_names = ['V0','K0','KP0','KP20','E0']
         self._param_units = ['ang^3','GPa','1','GPa^-1','eV']
         self._param_defaults = [V0,K0,KP0,KP20,0]
-        self._param_scales = [V0,K0,KP0,KP20,E0_scale]
+        self._param_scales = [V0,K0,KP0,KP20_scale,E0_scale]
         pass
 
     def _init_required_calculators(self):
@@ -583,12 +584,13 @@ class _GenFiniteStrain(CompressCalc):
         """Initialize list of calculator parameter names."""
 
         V0, K0, KP0, nexp = 100, 150, 4, 2
-        KP20 = KP0/KP0
+        KP20 = -KP0/KP0
+        KP20_scale = np.abs(KP20)
         E0_scale = V0*KP0/core.CONSTS['PV_ratio']
         self._param_names = ['V0','K0','KP0','KP20','E0','nexp']
         self._param_units = ['ang^3','GPa','1','GPa^-1','eV','1']
         self._param_defaults = [V0,K0,KP0,KP20,0,nexp]
-        self._param_scales = [V0,K0,KP0,KP20,E0_scale,nexp]
+        self._param_scales = [V0,K0,KP0,KP20_scale,E0_scale,nexp]
         pass
 
     def _init_required_calculators(self):
@@ -745,12 +747,13 @@ class _Tait(CompressCalc):
         """Initialize list of calculator parameter names."""
 
         V0, K0, KP0 = 100, 150, 4
-        KP20 = KP0/KP0
+        KP20 = -KP0/K0
         E0_scale = V0*KP0/core.CONSTS['PV_ratio']
+        KP20_scale = np.abs(KP20)
         self._param_names = ['V0','K0','KP0','KP20','E0']
         self._param_units = ['ang^3','GPa','1','GPa^-1','eV']
         self._param_defaults = [V0,K0,KP0,KP20,0]
-        self._param_scales = [V0,K0,KP0,KP20,E0_scale]
+        self._param_scales = [V0,K0,KP0,KP20_scale,E0_scale]
         pass
 
     def _init_required_calculators(self):

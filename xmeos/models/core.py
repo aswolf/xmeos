@@ -146,7 +146,7 @@ class Eos(with_metaclass(ABCMeta)):
 
         return param_names
 
-    def _validate_param_names( self, param_names ):
+    def _validate_param_names(self, param_names):
         """
         Check that all param names are valid.
 
@@ -156,7 +156,7 @@ class Eos(with_metaclass(ABCMeta)):
         if param_names is None:
             param_names = self.param_names
         else:
-            if type(param_names) == str:
+            if isinstance(param_names, str):
                 param_names = [param_names]
 
             assert all( name in self.param_names for name in param_names ),\
@@ -242,7 +242,7 @@ class Eos(with_metaclass(ABCMeta)):
 
         """
 
-        param_names = self._validate_param_names( param_names )
+        param_names = self._validate_param_names(param_names)
 
         # scales = np.array(self._param_scales[(self._param_names.index(name)
         #                                       for name in param_names)])
@@ -265,7 +265,7 @@ class Eos(with_metaclass(ABCMeta)):
             values of (selected) parameters
 
         """
-        param_names = self._validate_param_names( param_names )
+        param_names = self._validate_param_names(param_names)
         # values = self._param_values[(self._param_names.index(name)
         #                              for name in param_names)]
         values = self._param_values[np.in1d(self._param_names, param_names)]
@@ -284,7 +284,11 @@ class Eos(with_metaclass(ABCMeta)):
 
         """
 
-        param_names = self._validate_param_names( param_names )
+        param_names = self._validate_param_names(param_names)
+        try:
+            len(param_values)
+        except:
+            param_values = [param_values]
 
         assert len(param_names)==len(param_values), \
             'param_names and param_values must have the same length'
