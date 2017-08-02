@@ -1,8 +1,6 @@
 from __future__ import absolute_import, print_function, division, with_statement
 from builtins import object
 import numpy as np
-# from models import compress
-# from models import core
 import xmeos
 from xmeos import models
 from xmeos.models import core
@@ -12,6 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from abc import ABCMeta, abstractmethod
 import copy
+
+import test_models
 
 try:
    import cPickle as pickle
@@ -32,47 +32,13 @@ slow = pytest.mark.skipif(
 #====================================================================
 # SEC:1 Abstract Test Classes
 #====================================================================
-class BaseTestCompressEos(object):
-    @abstractmethod
-    def load_compress_eos(self, eos_d):
-        assert False, 'must implement load_compress_eos()'
-
-    def test_param_getset(self):
-        eos_mod = self.load_compress_eos()
-        param_names = eos_mod.param_names
-        param_values_orig = eos_mod.param_values
-
-        param_values = []
-        for name in param_names:
-            value, = eos_mod.get_param_values(param_names=name)
-            param_values.append(value)
-
-        param_values = np.array(param_values)
-
-        assert np.all(param_values==param_values_orig), \
-            'param values retrieved one at a time unequal.'
-
-        # Test scaling/unscaling parameters
-        FAC = 2
-        eos_mod.set_param_values(FAC*eos_mod.param_values)
-
-        for name, value in zip(eos_mod.param_names, eos_mod.param_values):
-            eos_mod.set_param_values(value/FAC, param_names=name)
-
-        param_values_set = eos_mod.param_values
-
-        assert np.all(param_values_set==param_values_orig), (
-            'Parameter set method not working. '
-            'Doubling and Halving should match original param. values.' )
-
-        pass
-
+class BaseTestCompressEos(test_models.BaseTestEos):
     def test_press(self):
 
-        TOL = 1e-4
+        TOL = 1e-3
 
         Nsamp = 10001
-        eos_mod = self.load_compress_eos()
+        eos_mod = self.load_eos()
 
         V0, = eos_mod.get_param_values(param_names='V0')
         Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
@@ -81,33 +47,11 @@ class BaseTestCompressEos(object):
         press_a = eos_mod.press(Vmod_a)
         energy_a = eos_mod.energy(Vmod_a)
 
-        press_num_a = -core.CONSTS['PV_ratio']*np.gradient(energy_a,dV)
+        abs_err, rel_err, range_err = self.numerical_deriv(
+            Vmod_a, energy_a, press_a, scale=-core.CONSTS['PV_ratio'])
 
-        Prange = np.max(press_a)-np.min(press_a)
-        press_diff_a = press_num_a-press_a
-        #Exclude 1st and last points to avoid numerical derivative errors
-        Perr =  np.max(np.abs(press_diff_a/Prange))
-
-        PTOL = 3*Prange/Nsamp
-
-        assert np.abs(Perr) < PTOL, '(Press error)/Prange, ' + np.str(Perr) + \
-            ', must be less than PTOL'
-
-    def test_pickle(self):
-        eos_mod = self.load_compress_eos()
-
-        data_string = pickle.dumps(eos_mod)
-        eos_load_mod = pickle.loads(data_string)
-
-        # filenm = 'test/pkl/test_pickle.pkl'
-        # with open(filenm, 'w') as f:
-        #     pickle.dump(eos_mod, f)
-
-        # with open(filenm, 'r') as f:
-        #     eos_loaded = pickle.load(f)
-
-        assert repr(eos_mod)==repr(eos_load_mod), (
-            'Pickled and unpickled Eos Models are not equal.')
+        assert range_err < TOL, 'range error in Press, ' + np.str(range_err) + \
+            ', must be less than TOL, ' + np.str(TOL)
 
     def do_test_energy_perturb_eval(self):
         TOL = 1e-4
@@ -164,7 +108,7 @@ class BaseTestCompressEos(object):
             'less than TOL.'
 #====================================================================
 # class TestPickle(object):
-#     def load_compress_eos(self):
+#     def load_eos(self):
 #         eos_mod = models.CompressEos(
 #             kind='Vinet', path_const='T', level_const=300)
 #         return eos_mod
@@ -178,7 +122,7 @@ class BaseTestCompressEos(object):
 #         param_names = ['V0','K0','KP0','E0']
 #         param_values = np.array([ V0, K0, KP0, E0 ])
 #
-#         eos_mod = self.load_compress_eos()
+#         eos_mod = self.load_eos()
 #         eos_mod.set_param_values(param_values, param_names)
 #
 #         return eos_mod
@@ -212,53 +156,35 @@ class BaseTestCompressEos(object):
 # 2.1: CompressEos Tests
 #====================================================================
 class TestVinet(BaseTestCompressEos):
-    def load_compress_eos(self):
+    def load_eos(self):
         eos_mod = models.CompressEos(
             kind='Vinet', path_const='T', level_const=300)
         return eos_mod
-
-    # def test_energy_perturb_eval(self):
-    #     self.do_test_energy_perturb_eval()
-    #     pass
 #====================================================================
 class TestBirchMurn3(BaseTestCompressEos):
-    def load_compress_eos(self):
+    def load_eos(self):
         eos_mod = models.CompressEos(
             kind='BirchMurn3', path_const='S', level_const=0)
         return eos_mod
 #====================================================================
 class TestBirchMurn4(BaseTestCompressEos):
-    def load_compress_eos(self):
+    def load_eos(self):
         eos_mod = models.CompressEos(
             kind='BirchMurn4', path_const='S', level_const=0)
         return eos_mod
 #====================================================================
 class TestGenFiniteStrain(BaseTestCompressEos):
-    def init_params(self):
-        # Use parents init_params method
-        eos_mod = super(TestGenFiniteStrain,self).init_params()
-
-        # Add nexp param
-        nexp = +2.0
-        eos_mod.set_param_values([nexp], param_names=['nexp'])
-
-        return eos_mod
-
-    def load_compress_eos(self):
+    def load_eos(self):
         eos_mod = models.CompressEos(
             kind='GenFiniteStrain', path_const='S', level_const=0)
         return eos_mod
 #====================================================================
 class TestTait(BaseTestCompressEos):
-    def load_compress_eos(self):
+    def load_eos(self):
         eos_mod = models.CompressEos(
             kind='Tait', path_const='S', level_const=0)
         print(eos_mod)
         return eos_mod
-
-    # def test_energy_perturb_eval(self):
-    #     self.do_test_energy_perturb_eval()
-    #     pass
 #====================================================================
 # class TestCompareCompressEos(object):
 #     def init_params(self):
@@ -397,7 +323,7 @@ class TestTait(BaseTestCompressEos):
 #         pass
 #====================================================================
 # class TestExpandCompressPathMod(BaseTestCompressEos):
-#     def load_compress_eos(self, eos_d):
+#     def load_eos(self, eos_d):
 #         compress_path_mod   = compress.Vinet(path_const='S',expand_adj_mod=compress.Tait())
 #         core.set_modtypes(['CompressPathMod'],[compress_path_mod], eos_d )
 #

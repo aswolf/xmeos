@@ -30,27 +30,32 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
     _path_opts = ['T','S']
     _kind_opts = ['Vinet','BirchMurn3','BirchMurn4','GenFiniteStrain','Tait']
 
-    def __init__(self, kind='Vinet', path_const='T', level_const=300,
+    def __init__(self, kind='Vinet', natom=1, path_const='T', level_const=300,
                  model_state={}):
-        self._pre_init()
+        self._pre_init(natom=natom)
 
-        self._init_calculator(kind,path_const,level_const)
+        self._init_calculator(kind, path_const, level_const)
 
         self._post_init(model_state=model_state)
 
         pass
 
+    @property
+    def path_opts(self):
+        return self._path_opts
+
     def __repr__(self):
-        return ("CompressEos(kind={kind}, path_const={path_const}, "
-                "level_const={level_const}, model_state={model_state}, "
+        return ("CompressEos(kind={kind}, natom={natom}, "
+                "path_const={path_const}, level_const={level_const}, "
+                "model_state={model_state}, "
                 ")"
                 .format(kind=self._kind,
+                        natom=repr(self.natom),
                         path_const=repr(self.path_const),
                         level_const=repr(self.level_const),
                         model_state=self.model_state
                         )
                 )
-        # np.array_repr(
 
     def _init_calculator(self, kind, path_const, level_const):
         assert kind in self._kind_opts, kind + ' is not a valid ' + \
@@ -200,7 +205,7 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
 
     """
 
-    path_opts = ['T','S']
+    _path_opts = ['T','S']
     supress_energy = False
     supress_press = False
 
@@ -232,6 +237,12 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
             self.expand_adj = True
             self.expand_adj_mod = expand_adj_mod
         pass
+
+    @property
+    def path_opts(self):
+        return self._path_opts
+
+
 
     def get_ind_expand(self, V_a):
         V0 = core.get_params(['V0'])

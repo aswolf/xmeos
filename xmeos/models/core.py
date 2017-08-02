@@ -24,8 +24,8 @@ class Eos(with_metaclass(ABCMeta)):
     Abstract Equation of State Parent Base class
     """
 
-    def __init__(self):
-        self._pre_init()
+    def __init__(self, natom=1):
+        self._pre_init(natom=natom)
 
         ##########################
         # Model-specific initialization
@@ -34,9 +34,10 @@ class Eos(with_metaclass(ABCMeta)):
         self._post_init()
         pass
 
-    def _pre_init(self):
+    def _pre_init(self, natom=1):
         # self._init_all_calculators()
         self._calculators = {}
+        self._natom=natom
         pass
 
     def _post_init(self, model_state={}):
@@ -169,6 +170,13 @@ class Eos(with_metaclass(ABCMeta)):
     #    - can be done with param_names=[], param_units={},
     #                       param_scales={}, param_values={}
     @property
+    def natom(self):
+        """
+        Number of atoms (per working formula unit).
+
+        """
+        return self._natom
+    @property
     def param_names(self):
         """
         List of parameter names.
@@ -250,7 +258,7 @@ class Eos(with_metaclass(ABCMeta)):
         return scales
 
 
-    def get_param_values(self, param_names=None):
+    def get_param_values(self, param_names=None, overrides=None):
         """
         Values for (selected) parameters.
 
@@ -269,6 +277,20 @@ class Eos(with_metaclass(ABCMeta)):
         # values = self._param_values[(self._param_names.index(name)
         #                              for name in param_names)]
         values = self._param_values[np.in1d(self._param_names, param_names)]
+
+        if overrides is not None:
+            if len(overrides)!=len(param_names):
+                raise LookupError('Overrides (if provided) must be a list '
+                                  'of values with length equal to param_names. '
+                                  'If no overrides are needed, use'
+                                  'default value of None. If some overrides '
+                                  'are needed, set elements equal to override '
+                                  'value as needed and set rest to None.')
+
+            for ind, override in enumerate(overrides):
+                if override is not None:
+                    values[ind] = override
+
         return values
 
     def set_param_values(self, param_values, param_names=None):

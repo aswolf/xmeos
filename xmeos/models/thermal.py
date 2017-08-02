@@ -11,6 +11,9 @@ from scipy import integrate
 import scipy.interpolate as interpolate
 
 from . import core
+from . import _debye
+
+__all__ = ['ThermalEnergyEos','ThermalEnergyCalc']
 
 #====================================================================
 # Base Classes
@@ -30,18 +33,35 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
     _path_opts = ['V','P']
     _kind_opts = ['Debye','Einstein','Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
 
-    def __init__(self, kind='Debye', level_const=None):
-        self._pre_init()
+    def __init__(self, kind='Debye', natom=1, level_const=100,
+                 model_state={}):
+        self._pre_init(natom=natom)
 
         self._init_calculator(kind, level_const)
 
-        self._post_init()
+        self._post_init(model_state=model_state)
+
         pass
+
+
+    def __repr__(self):
+        return ("ThermalEnergyEos(kind={kind}, natom={natom}, "
+                "level_const={level_const}, "
+                "model_state={model_state}, "
+                ")"
+                .format(kind=self._kind,
+                        natom=repr(self.natom),
+                        level_const=repr(self.level_const),
+                        model_state=self.model_state
+                        )
+                )
 
     def _init_calculator(self, kind, level_const):
         assert kind in self._kind_opts, kind + ' is not a valid ' + \
             'ThermalEnergyEos Calculator. You must select one of: ' + self._kind_opts
 
+        self._kind = kind
+        self._level_const = level_const
 
         _kind_opts = ['Debye','Einstein','Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
         if   kind=='Debye':
@@ -59,15 +79,14 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
                                       'ThermalEnergyEos Calculator.')
 
         path_const = calc.path_const
-        self._add_calculator( calc, kind='compress' )
-
-        self._kind = kind
+        self._add_calculator( calc, kind='thermal_energy' )
         self._path_const = path_const
-        self._level_const = level_const
-    _path_opts = ['V','P']
-
 
         pass
+
+    @property
+    def path_opts(self):
+        return self._path_opts
 
     @property
     def path_const(self):
@@ -77,108 +96,28 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
     def level_const(self):
         return self._level_const
 
-    def press( self, V_a, apply_expand_adj=True):
-        press_a = self.compress_calculator._calc_press(V_a)
-        # if self.expand_adj and apply_expand_adj:
-        #     ind_exp = self.get_ind_expand(V_a, eos_d)
-        #     if (ind_exp.size>0):
-        #         press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
-
-        return press_a
-
-    def energy( self, V_a, apply_expand_adj=True ):
-        energy_a =  self.compress_calculator._calc_energy(V_a)
-        # if self.expand_adj and apply_expand_adj:
-        #     ind_exp = self.get_ind_expand(V_a, eos_d)
-        #     if apply_expand_adj and (ind_exp.size>0):
-        #         energy_a[ind_exp] = self.expand_adj_mod._calc_energy( V_a[ind_exp], eos_d )
-
+    def energy(self, T_a):
+        calculator = self.calculators['thermal_energy']
+        energy_a =  calculator._calc_energy(T_a)
         return energy_a
 
-    def bulk_mod( self, V_a, apply_expand_adj=True ):
-        bulk_mod_a =  self.compress_calculator._calc_bulk_mod(V_a)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a)
-            if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_a[ind_exp] = self.expand_adj_mod._calc_bulk_mod(V_a[ind_exp])
-
-        return bulk_mod_a
-
-    def bulk_mod_deriv(  self,V_a, apply_expand_adj=True ):
-        bulk_mod_deriv_a =  self.compress_calculator._calc_bulk_mod_deriv(V_a)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a)
-            if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_deriv_a[ind_exp] = self.expand_adj_mod_deriv._calc_bulk_mod_deriv(V_a[ind_exp])
-
-        return bulk_mod_deriv_a
-
-    def energy_perturb( self, V_a, apply_expand_adj=True ):
-        # Eval positive press values
-        Eperturb_pos_a, scale_a, paramkey_a  = self.compress_calculator._calc_energy_perturb(V_a)
-
-        if (self.expand_adj==False) or (apply_expand_adj==False):
-            return Eperturb_pos_a, scale_a, paramkey_a
-        else:
-            Nparam_pos = Eperturb_pos_a.shape[0]
-
-            scale_a, paramkey_a, ind_pos = \
-                self.get_param_scale(apply_expand_adj=True,
-                                     output_ind=True)
-
-            Eperturb_a = np.zeros((paramkey_a.size, V_a.size))
-            Eperturb_a[ind_pos,:] = Eperturb_pos_a
-
-            # Overwrite negative pressure Expansion regions
-            ind_exp = self.get_ind_expand(V_a)
-            if ind_exp.size>0:
-                Eperturb_adj_a = \
-                    self.expand_adj_mod._calc_energy_perturb(V_a[ind_exp])[0]
-                Eperturb_a[:,ind_exp] = Eperturb_adj_a
-
-            return Eperturb_a, scale_a, paramkey_a
-
-    #   Standard methods must be overridden (as needed) by implimentation model
-
-    def get_param_scale_sub(self):
-        raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
-
-    ####################
-    # Required Methods #
-    ####################
-
-
-    ####################
-    # Optional Methods #
-    ####################
-    def _calc_energy_perturb(self, V_a):
-        """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
-
-        fname = 'energy'
-
-        scale_a, paramkey_a = self.get_param_scale(
-            apply_expand_adj=self.expand_adj)
-        Eperturb_a = []
-        for paramname in paramkey_a:
-            iEperturb_a = self.param_deriv(fname, paramname, V_a)
-            Eperturb_a.append(iEperturb_a)
-
-        Eperturb_a = np.array(Eperturb_a)
-
-        return Eperturb_a, scale_a, paramkey_a
+    def heat_capacity(self, T_a):
+        calculator = self.calculators['thermal_energy']
+        heat_capacity_a =  calculator._calc_heat_capacity(T_a)
+        return heat_capacity_a
+#====================================================================
+# class CompressedThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
 #====================================================================
 # class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
-
-# class CompressedThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
-
+#====================================================================
 
 
 #====================================================================
 # Calculators
 #====================================================================
-class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
+class ThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
     """
-    Abstract Equation of State class for a reference Compression Path
+    Abstract Equation of State class for a reference Thermal Energy Path
 
     Path can either be isothermal (T=const) or adiabatic (S=const)
 
@@ -186,13 +125,9 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
 
     """
 
-    path_opts = ['T','S']
-    supress_energy = False
-    supress_press = False
+    _path_opts = ['V','P']
 
-    def __init__( self, eos_mod, path_const='T', level_const=300,
-                 expand_adj_mod=None, expand_adj=None,
-                 supress_energy=False, supress_press=False ):
+    def __init__(self, eos_mod, path_const='P', level_const=0.0):
         assert path_const in self.path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + path_opts
 
@@ -202,68 +137,48 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         self.path_const = path_const
         self.level_const = level_const
-        self.supress_energy = supress_energy
-        self.supress_press = supress_press
-
-        # Use Expansion Adjustment for negative pressure region?
-        if expand_adj is None:
-            self.expand_adj = False
-        else:
-            self.expand_adj = expand_adj
-
-        if expand_adj_mod is None:
-            self.expand_adj = False
-            self.expand_adj_mod = None
-        else:
-            self.expand_adj = True
-            self.expand_adj_mod = expand_adj_mod
         pass
 
-    def get_ind_expand(self, V_a):
-        V0 = core.get_params(['V0'])
-        ind_exp = np.where( V_a > V0 )[0]
-        return ind_exp
+    @property
+    def path_opts(self):
+        return self._path_opts
 
-    def get_path_const( self ):
+    def get_path_const(self):
         return self.path_const
 
-    def get_level_const( self ):
+    def get_level_const(self):
         return self.level_const
-
-
-    # NEED to write infer volume function
-    #   Standard methods must be overridden (as needed) by implimentation model
-
-    def get_param_scale_sub(self):
-        raise NotImplementedError("'get_param_scale_sub' function not implimented for this model")
 
     ####################
     # Required Methods #
     ####################
     @abstractmethod
-    def _init_params( self ):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
         pass
 
     @abstractmethod
-    def _init_required_calculators( self ):
+    def _init_required_calculators(self):
         """Initialize list of other required calculators."""
         pass
 
     @abstractmethod
-    def _calc_press(self, V_a):
-        """Returns Press variation along compression curve."""
+    def _calc_heat_capacity(self, T_a):
+        """Returns heat capacity as a function of temperature."""
         pass
 
     @abstractmethod
-    def _calc_energy(self, V_a):
-        """Returns Energy along compression curve."""
+    def _calc_energy(self, T_a):
+        """Returns thermal energy as a function of temperature."""
         pass
 
     ####################
     # Optional Methods #
     ####################
-    # EOS property functions
+    def _calc_entropy(self, T_a):
+        raise NotImplemented('Entropy function not implemented for this calculator.')
+        pass
+
     def _calc_param_deriv(self, fname, paramname, V_a, dxfrac=1e-6):
         scale_a, paramkey_a = self.get_param_scale(apply_expand_adj=True )
         scale = scale_a[paramkey_a==paramname][0]
@@ -313,19 +228,154 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
         Eperturb_a = np.array(Eperturb_a)
 
         return Eperturb_a, scale_a, paramkey_a
+#====================================================================
+class CompressedThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
+    """
+    Abstract Equation of State class for a reference Thermal Energy Path
 
-    def _calc_bulk_mod(self, V_a):
-        """Returns Bulk Modulus variation along compression curve."""
-        raise NotImplementedError("'bulk_mod' function not implimented for this model")
+    Path can either be isothermal (T=const) or adiabatic (S=const)
 
-    def _calc_bulk_mod_deriv(self, V_a):
-        """Returns Bulk Modulus Deriv (K') variation along compression curve."""
-        raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
+    For this restricted path, thermodyn properties depend only on volume
+
+    """
+
+    def __init__(self, eos_mod):
+        self._eos_mod = eos_mod
+        self._init_params()
+        self._required_calculators = None
+        pass
+
+    ####################
+    # Required Methods #
+    ####################
+    @abstractmethod
+    def _init_params(self):
+        """Initialize list of calculator parameter names."""
+        pass
+
+    @abstractmethod
+    def _init_required_calculators(self):
+        """Initialize list of other required calculators."""
+        pass
+
+    @abstractmethod
+    def _calc_heat_capacity(self, V_a, T_a):
+        """Returns heat capacity as a function of temperature."""
+        pass
+
+    @abstractmethod
+    def _calc_energy(self, V_a, T_a):
+        """Returns thermal energy as a function of temperature."""
+        pass
 #====================================================================
 
+#====================================================================
+# Implementations
+#====================================================================
+class _Debye(ThermalEnergyCalc):
+    """
+    Implimentation copied from Burnman.
 
+    """
 
+    _path_opts=['V']
 
+    def __init__(self, eos_mod, level_const=100):
+        super(_Debye, self).__init__(eos_mod, path_const='V',
+                                     level_const=level_const)
 
+    def _init_required_calculators(self):
+        """Initialize list of other required calculators."""
 
+        self._required_calculators = None
+        pass
 
+    def _init_params(self, theta_param=None):
+        """Initialize list of calculator parameter names."""
+
+        natom = self.eos_mod.natom
+
+        theta0 = 1000
+        Cvmax = 3*natom*core.CONSTS['kboltz']
+
+        self._param_names = ['theta0', 'Cvmax']
+        self._param_units = ['K', 'eV/K']
+        self._param_defaults = [theta0, Cvmax]
+        self._param_scales = [theta0, Cvmax]
+        pass
+
+    def _calc_heat_capacity(self, T_a, theta0=None, Cvmax=None):
+        """Returns heat capacity as a function of temperature."""
+
+        theta0, Cvmax = self.eos_mod.get_param_values(
+            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+
+        x_values = theta0/np.array(T_a)
+        Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x_values)
+        return Cv_values
+
+    def _calc_energy(self, T_a, theta0=None, Cvmax=None):
+        """Returns heat capacity as a function of temperature."""
+
+        theta0, Cvmax = self.eos_mod.get_param_values(
+            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+
+        T_a = np.array(T_a)
+        x_values = theta0/T_a
+        energy = Cvmax*T_a*_debye.debye_energy_fun(x_values)
+        return energy
+#====================================================================
+# class _CompressedDebye(CompressedThermalEnergyCalc):
+#     """
+#     Implimentation copied from Burnman.
+#
+#     """
+#
+#     def __init__(self, eos_mod, path_const='P', level_const=0.0):
+#
+#     def _init_required_calculators(self):
+#         """Initialize list of other required calculators."""
+#
+#         self._eos_mod.
+#
+#         self._required_calculators = None
+#
+#         pass
+#     def _init_params(self, theta_param=None):
+#         """Initialize list of calculator parameter names."""
+#
+#         theta0, Cvmax = 100, 150
+#         E0_scale = np.round(V0*KP0/core.CONSTS['PV_ratio'],decimals=2)
+#         self._param_names = ['V0','K0','KP0','E0']
+#         self._param_units = ['ang^3','GPa','1','eV']
+#         self._param_defaults = [V0,K0,KP0,0]
+#         self._param_scales = [V0,K0,KP0,E0_scale]
+#
+#         pass
+#
+#     def _calc_heat_capacity(self, T_a, Theta=None, Cvmax=None):
+#         """Returns heat capacity as a function of temperature."""
+#
+#         if Theta is None:
+#             Theta, = self.eos_mod.get_param_values(param_names=['Theta'])
+#
+#         if Cvmax is None:
+#             Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+#
+#         x_values = Theta/np.array(T_a)
+#         Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x_values)
+#         return Cv_values
+#
+#     def _calc_energy(self, T_a, Theta=None, Cvmax=None):
+#         """Returns heat capacity as a function of temperature."""
+#
+#         if Theta is None:
+#             Theta, = self.eos_mod.get_param_values(param_names=['Theta'])
+#
+#         if Cvmax is None:
+#             Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+#
+#         x_values = Theta/np.array(T_a)
+#         Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x_values)
+#         return Cv_values
+#====================================================================
