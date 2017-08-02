@@ -14,6 +14,7 @@ from . import core
 from . import _debye
 
 __all__ = ['ThermalEnergyEos','ThermalEnergyCalc']
+# 'CompressedThermalEnergyEos','CompressedThermalEnergyCalc']
 
 #====================================================================
 # Base Classes
@@ -43,7 +44,6 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
 
         pass
 
-
     def __repr__(self):
         return ("ThermalEnergyEos(kind={kind}, natom={natom}, "
                 "level_const={level_const}, "
@@ -63,7 +63,6 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
         self._kind = kind
         self._level_const = level_const
 
-        _kind_opts = ['Debye','Einstein','Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
         if   kind=='Debye':
             calc = _Debye(self, level_const=level_const)
         elif kind=='Einstein':
@@ -112,6 +111,92 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
         return entropy_a
 #====================================================================
 # class CompressedThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
+#     _kind_thermal_opts = ['Debye','Einstein']
+#     _kind_gamma_opts = ['GammaPowLaw','GammaFiniteStrain']
+#     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
+#                            'GenFiniteStrain','Tait']
+#
+#     def __init__(self, kind_thermal='Debye', kind_compress='Vinet',
+#                  kind_gamma='GammaPowLaw', natom=1, model_state={}):
+#         self._pre_init(natom=natom)
+#
+#         self._init_calculator(kind_thermal=kind_thermal,
+#                               kind_compress=kind_compress)
+#
+#         self._post_init(model_state=model_state)
+#
+#         pass
+#
+#     def __repr__(self):
+#         return ("ThermalEnergyEos(kind={kind}, natom={natom}, "
+#                 "level_const={level_const}, "
+#                 "model_state={model_state}, "
+#                 ")"
+#                 .format(kind=self._kind,
+#                         natom=repr(self.natom),
+#                         level_const=repr(self.level_const),
+#                         model_state=self.model_state
+#                         )
+#                 )
+#
+#     def _init_calculator(self, kind_thermal=kind_thermal,
+#                          kind_compress=kind_compress):
+#         assert kind_thermal in self._kind_thermal_opts, (
+#             kind_thermal + ' is not a valid CompressedThermalEnergyEos ' +
+#             'thermal calculator. You must select one of: ' +
+#             self._kind_thermal_opts)
+#
+#         assert kind_compress in self._kind_compress_opts, (
+#             kind_compress + ' is not a valid CompressedThermalEnergyEos '+
+#             'compress Calculator. You must select one of: ' +
+#             self._kind_compress_opts)
+#
+#         self._kind_thermal = kind_thermal
+#         self._kind_compress = kind_compress
+#
+#         if   kind_thermal=='Debye':
+#             calc = _CompressedDebye(self)
+#         elif kind=='Einstein':
+#             calc = _CompressedEinstein(self)
+#         else:
+#             raise NotImplementedError(kind+' is not a valid '+\
+#                                       'ThermalEnergyEos Calculator.')
+#
+#         path_const = calc.path_const
+#         self._add_calculator( calc, kind='thermal_energy' )
+#         self._path_const = path_const
+#
+#         pass
+#
+#     @property
+#     def path_opts(self):
+#         return self._path_opts
+#
+#     @property
+#     def path_const(self):
+#         return self._path_const
+#
+#     @property
+#     def level_const(self):
+#         return self._level_const
+#
+#     def energy(self, T_a):
+#         calculator = self.calculators['thermal_energy']
+#         energy_a =  calculator._calc_energy(T_a)
+#         return energy_a
+#
+#     def heat_capacity(self, T_a):
+#         calculator = self.calculators['thermal_energy']
+#         heat_capacity_a =  calculator._calc_heat_capacity(T_a)
+#         return heat_capacity_a
+#
+#     def entropy(self, T_a):
+#         calculator = self.calculators['thermal_energy']
+#         entropy_a =  calculator._calc_entropy(T_a)
+#         return entropy_a
+#
+#
+#     pass
 #====================================================================
 # class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
 #====================================================================
@@ -140,19 +225,21 @@ class ThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
         self._init_params()
         self._required_calculators = None
 
-        self.path_const = path_const
-        self.level_const = level_const
+        self._path_const = path_const
+        self._level_const = level_const
         pass
 
     @property
     def path_opts(self):
         return self._path_opts
 
-    def get_path_const(self):
-        return self.path_const
+    @property
+    def path_const(self):
+        return self._path_const
 
-    def get_level_const(self):
-        return self.level_const
+    @property
+    def level_const(self):
+        return self._level_const
 
     ####################
     # Required Methods #
@@ -234,44 +321,44 @@ class ThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-class CompressedThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
-    """
-    Abstract Equation of State class for a reference Thermal Energy Path
-
-    Path can either be isothermal (T=const) or adiabatic (S=const)
-
-    For this restricted path, thermodyn properties depend only on volume
-
-    """
-
-    def __init__(self, eos_mod):
-        self._eos_mod = eos_mod
-        self._init_params()
-        self._required_calculators = None
-        pass
-
-    ####################
-    # Required Methods #
-    ####################
-    @abstractmethod
-    def _init_params(self):
-        """Initialize list of calculator parameter names."""
-        pass
-
-    @abstractmethod
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
-        pass
-
-    @abstractmethod
-    def _calc_heat_capacity(self, V_a, T_a):
-        """Returns heat capacity as a function of temperature."""
-        pass
-
-    @abstractmethod
-    def _calc_energy(self, V_a, T_a):
-        """Returns thermal energy as a function of temperature."""
-        pass
+# class CompressedThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
+#     """
+#     Abstract Equation of State class for a reference Thermal Energy Path
+#
+#     Path can either be isothermal (T=const) or adiabatic (S=const)
+#
+#     For this restricted path, thermodyn properties depend only on volume
+#
+#     """
+#
+#     def __init__(self, eos_mod):
+#         self._eos_mod = eos_mod
+#         self._init_params()
+#         self._required_calculators = None
+#         pass
+#
+#     ####################
+#     # Required Methods #
+#     ####################
+#     @abstractmethod
+#     def _init_params(self):
+#         """Initialize list of calculator parameter names."""
+#         pass
+#
+#     @abstractmethod
+#     def _init_required_calculators(self):
+#         """Initialize list of other required calculators."""
+#         pass
+#
+#     @abstractmethod
+#     def _calc_heat_capacity(self, V_a, T_a):
+#         """Returns heat capacity as a function of temperature."""
+#         pass
+#
+#     @abstractmethod
+#     def _calc_energy(self, V_a, T_a):
+#         """Returns thermal energy as a function of temperature."""
+#         pass
 #====================================================================
 
 #====================================================================
@@ -288,6 +375,7 @@ class _Debye(ThermalEnergyCalc):
     def __init__(self, eos_mod, level_const=100):
         super(_Debye, self).__init__(eos_mod, path_const='V',
                                      level_const=level_const)
+        pass
 
     def _init_required_calculators(self):
         """Initialize list of other required calculators."""

@@ -100,11 +100,6 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
 
     def press(self, V_a, apply_expand_adj=True):
         press_a = self.calculators['compress']._calc_press(V_a)
-        # if self.expand_adj and apply_expand_adj:
-        #     ind_exp = self.get_ind_expand(V_a, eos_d)
-        #     if (ind_exp.size>0):
-        #         press_a[ind_exp] = self.expand_adj_mod._calc_press( V_a[ind_exp], eos_d )
-
         return press_a
 
     def energy( self, V_a, apply_expand_adj=True ):
@@ -219,8 +214,8 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
         self._init_params()
         self._required_calculators = None
 
-        self.path_const = path_const
-        self.level_const = level_const
+        self._path_const = path_const
+        self._level_const = level_const
         self.supress_energy = supress_energy
         self.supress_press = supress_press
 
@@ -242,18 +237,18 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
     def path_opts(self):
         return self._path_opts
 
-
-
     def get_ind_expand(self, V_a):
         V0 = core.get_params(['V0'])
         ind_exp = np.where( V_a > V0 )[0]
         return ind_exp
 
-    def get_path_const( self ):
-        return self.path_const
+    @property
+    def path_const(self):
+        return self._path_const
 
-    def get_level_const( self ):
-        return self.level_const
+    @property
+    def level_const(self):
+        return self._level_const
 
 
     # NEED to write infer volume function
