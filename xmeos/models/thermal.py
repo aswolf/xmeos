@@ -105,6 +105,11 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
         calculator = self.calculators['thermal_energy']
         heat_capacity_a =  calculator._calc_heat_capacity(T_a)
         return heat_capacity_a
+
+    def entropy(self, T_a):
+        calculator = self.calculators['thermal_energy']
+        entropy_a =  calculator._calc_entropy(T_a)
+        return entropy_a
 #====================================================================
 # class CompressedThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
 #====================================================================
@@ -324,6 +329,17 @@ class _Debye(ThermalEnergyCalc):
         x_values = theta0/T_a
         energy = Cvmax*T_a*_debye.debye_energy_fun(x_values)
         return energy
+
+    def _calc_entropy(self, T_a, theta0=None, Cvmax=None):
+        """Returns heat capacity as a function of temperature."""
+
+        theta0, Cvmax = self.eos_mod.get_param_values(
+            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+
+        T_a = np.array(T_a)
+        x_values = theta0/T_a
+        entropy = Cvmax*_debye.debye_entropy_fun(x_values)
+        return entropy
 #====================================================================
 # class _CompressedDebye(CompressedThermalEnergyCalc):
 #     """

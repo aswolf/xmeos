@@ -2,7 +2,7 @@
 # Copyright (C) 2012 - 2015 by the BurnMan team, released under the GNU
 # GPL v2 or later.
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function, division
 import numpy as np
 
 # Try to import the jit from numba.  If it is
@@ -86,6 +86,15 @@ def debye_heat_capacity_fun(x_array):
     Cv_factor = 4.0*debye_energy_fun(x_array)-3.0*x_array/(np.exp(x_array)-1.0)
     Cv_factor[x_array<TOL] = 1.0 - SLOPE*x_array[x_array<TOL]**2
     return Cv_factor
+
+@jit
+def debye_entropy_fun(x_array):
+    TOL = 1e-4
+    SLOPE = 0.05
+
+    S_factor = 4/3*debye_energy_fun(x_array) - np.log(1-np.exp(-x_array))
+    # S_factor[x_array<TOL] = 1.0 - SLOPE*x_array[x_array<TOL]**2
+    return S_factor
 
 @jit
 def debye_energy_fun(x_array):

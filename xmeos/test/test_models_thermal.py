@@ -49,6 +49,24 @@ class BaseTestThermalEnergyEos(test_models.BaseTestEos):
 
         assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
             ', must be less than TOL, ' + np.str(TOL)
+
+    def test_entropy(self):
+        TOL = 1e-3
+
+        Nsamp = 10001
+        eos_mod = self.load_eos()
+
+        Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
+        dT = Tmod_a[1] - Tmod_a[0]
+
+        entropy_a = eos_mod.entropy(Tmod_a)
+        heat_capacity_a = eos_mod.heat_capacity(Tmod_a)
+
+        abs_err, rel_err, range_err = self.numerical_deriv(
+            Tmod_a, entropy_a, heat_capacity_a, scale=Tmod_a)
+
+        assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
+            ', must be less than TOL, ' + np.str(TOL)
 #====================================================================
 
 #====================================================================
