@@ -110,17 +110,25 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
         entropy_a =  calculator._calc_entropy(T_a)
         return entropy_a
 #====================================================================
-# class CompressedThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
-#     _kind_thermal_opts = ['Debye','Einstein']
+
+# class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
+# class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
+# class CompressPolyEos(with_metaclass(ABCMeta, core.Eos)):
+
+# class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
+#     _kind_opts = ['Debye','Einstein','RosenfeldTarazona']
 #     _kind_gamma_opts = ['GammaPowLaw','GammaFiniteStrain']
 #     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
 #                            'GenFiniteStrain','Tait']
 #
-#     def __init__(self, kind_thermal='Debye', kind_compress='Vinet',
-#                  kind_gamma='GammaPowLaw', natom=1, model_state={}):
+#     def __init__(self, kind='Debye', kind_gamma='GammaPowLaw',
+#                  kind_compress='Vinet',
+#                  compress_path_const='T', compress_level_const=300,
+#                  natom=1, model_state={}):
 #         self._pre_init(natom=natom)
 #
-#         self._init_calculator(kind_thermal=kind_thermal,
+#         self._init_calculator(kind, kind_thermal_energy=_kind_thermal_energy,
+#                               kind_gamma=kind_gamma,
 #                               kind_compress=kind_compress)
 #
 #         self._post_init(model_state=model_state)
@@ -133,6 +141,9 @@ class ThermalEnergyEos(with_metaclass(ABCMeta, core.Eos)):
 #                 "model_state={model_state}, "
 #                 ")"
 #                 .format(kind=self._kind,
+#                         kind_thermal_energy=self._kind_thermal_energy,
+#                         kind_gamma=self._kind_gamma,
+#                         kind_compress=self._kind_compress,
 #                         natom=repr(self.natom),
 #                         level_const=repr(self.level_const),
 #                         model_state=self.model_state
@@ -321,45 +332,6 @@ class ThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-# class CompressedThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
-#     """
-#     Abstract Equation of State class for a reference Thermal Energy Path
-#
-#     Path can either be isothermal (T=const) or adiabatic (S=const)
-#
-#     For this restricted path, thermodyn properties depend only on volume
-#
-#     """
-#
-#     def __init__(self, eos_mod):
-#         self._eos_mod = eos_mod
-#         self._init_params()
-#         self._required_calculators = None
-#         pass
-#
-#     ####################
-#     # Required Methods #
-#     ####################
-#     @abstractmethod
-#     def _init_params(self):
-#         """Initialize list of calculator parameter names."""
-#         pass
-#
-#     @abstractmethod
-#     def _init_required_calculators(self):
-#         """Initialize list of other required calculators."""
-#         pass
-#
-#     @abstractmethod
-#     def _calc_heat_capacity(self, V_a, T_a):
-#         """Returns heat capacity as a function of temperature."""
-#         pass
-#
-#     @abstractmethod
-#     def _calc_energy(self, V_a, T_a):
-#         """Returns thermal energy as a function of temperature."""
-#         pass
-#====================================================================
 
 #====================================================================
 # Implementations
@@ -428,58 +400,4 @@ class _Debye(ThermalEnergyCalc):
         x_values = theta0/T_a
         entropy = Cvmax*_debye.debye_entropy_fun(x_values)
         return entropy
-#====================================================================
-# class _CompressedDebye(CompressedThermalEnergyCalc):
-#     """
-#     Implimentation copied from Burnman.
-#
-#     """
-#
-#     def __init__(self, eos_mod, path_const='P', level_const=0.0):
-#
-#     def _init_required_calculators(self):
-#         """Initialize list of other required calculators."""
-#
-#         self._eos_mod.
-#
-#         self._required_calculators = None
-#
-#         pass
-#     def _init_params(self, theta_param=None):
-#         """Initialize list of calculator parameter names."""
-#
-#         theta0, Cvmax = 100, 150
-#         E0_scale = np.round(V0*KP0/core.CONSTS['PV_ratio'],decimals=2)
-#         self._param_names = ['V0','K0','KP0','E0']
-#         self._param_units = ['ang^3','GPa','1','eV']
-#         self._param_defaults = [V0,K0,KP0,0]
-#         self._param_scales = [V0,K0,KP0,E0_scale]
-#
-#         pass
-#
-#     def _calc_heat_capacity(self, T_a, Theta=None, Cvmax=None):
-#         """Returns heat capacity as a function of temperature."""
-#
-#         if Theta is None:
-#             Theta, = self.eos_mod.get_param_values(param_names=['Theta'])
-#
-#         if Cvmax is None:
-#             Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
-#
-#         x_values = Theta/np.array(T_a)
-#         Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x_values)
-#         return Cv_values
-#
-#     def _calc_energy(self, T_a, Theta=None, Cvmax=None):
-#         """Returns heat capacity as a function of temperature."""
-#
-#         if Theta is None:
-#             Theta, = self.eos_mod.get_param_values(param_names=['Theta'])
-#
-#         if Cvmax is None:
-#             Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
-#
-#         x_values = Theta/np.array(T_a)
-#         Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x_values)
-#         return Cv_values
 #====================================================================
