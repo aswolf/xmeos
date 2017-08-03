@@ -46,31 +46,41 @@ class BaseTestGammaEos(test_models.BaseTestEos):
             'range error in Press, ' + np.str(range_err) +
             ', must be less than TOL, ' + np.str(TOL))
 
-    # def test_gamma_deriv(self):
+    def test_gamma_deriv(self):
+        TOL = 1e-3
 
-    #     TOL = 1e-3
+        Nsamp = 10001
+        eos_mod = self.load_eos()
 
-    #     Nsamp = 10001
-    #     eos_mod = self.load_eos()
+        V0, gamma0 = eos_mod.get_param_values(param_names=['V0','gamma0'])
+        Vmod_a = np.linspace(.6,1.1,Nsamp)*V0
+        dV = Vmod_a[1] - Vmod_a[0]
 
-    #     V0, = eos_mod.get_param_values(param_names='V0')
-    #     Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
-    #     dV = Vmod_a[1] - Vmod_a[0]
+        gamma_a = eos_mod.gamma(Vmod_a)
+        gamma_deriv_a = eos_mod.gamma_deriv(Vmod_a)
 
-    #     press_a = eos_mod.press(Vmod_a)
-    #     energy_a = eos_mod.energy(Vmod_a)
+        abs_err, rel_err, range_err = self.numerical_deriv(
+            Vmod_a, gamma_a, gamma_deriv_a, scale=1)
 
-    #     abs_err, rel_err, range_err = self.numerical_deriv(
-    #         Vmod_a, energy_a, press_a, scale=-core.CONSTS['PV_ratio'])
-
-    #     assert range_err < TOL, 'range error in Press, ' + np.str(range_err) + \
-    #         ', must be less than TOL, ' + np.str(TOL)
+        assert abs_err/gamma0 < TOL, (
+            'range error in Press, ' + np.str(range_err) +
+            ', must be less than TOL, ' + np.str(TOL))
 #====================================================================
 
 #====================================================================
 class TestGammaPowLaw(BaseTestGammaEos):
     def load_eos(self):
         eos_mod = models.GammaEos(kind='GammaPowLaw')
+        return eos_mod
+#====================================================================
+class TestGammaShiftPowLaw(BaseTestGammaEos):
+    def load_eos(self):
+        eos_mod = models.GammaEos(kind='GammaShiftPowLaw')
+        return eos_mod
+#====================================================================
+class TestGammaFiniteStrain(BaseTestGammaEos):
+    def load_eos(self):
+        eos_mod = models.GammaEos(kind='GammaFiniteStrain')
         return eos_mod
 #====================================================================
 

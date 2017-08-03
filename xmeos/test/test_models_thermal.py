@@ -31,7 +31,7 @@ slow = pytest.mark.skipif(
 
 
 #====================================================================
-class BaseTestThermalEnergyEos(test_models.BaseTestEos):
+class BaseTestThermalEos(test_models.BaseTestEos):
     def test_heat_capacity(self):
         TOL = 1e-3
 
@@ -72,10 +72,16 @@ class BaseTestThermalEnergyEos(test_models.BaseTestEos):
 #====================================================================
 # SEC:2 Implimented Test Clases
 #====================================================================
-class TestDebye(BaseTestThermalEnergyEos):
+class TestDebye(BaseTestThermalEos):
     def load_eos(self):
-        eos_mod = models.ThermalEnergyEos(
+        eos_mod = models.ThermalEos(
             kind='Debye', level_const=100)
+        return eos_mod
+#====================================================================
+class TestEinstein(BaseTestThermalEos):
+    def load_eos(self):
+        eos_mod = models.ThermalEos(
+            kind='Einstein', level_const=100)
         return eos_mod
 #====================================================================
 

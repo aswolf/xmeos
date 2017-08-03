@@ -24,7 +24,7 @@ class GammaEos(with_metaclass(ABCMeta, core.Eos)):
 
     """
 
-    _kind_opts = ['GammaPowLaw','GammaFiniteStrain']
+    _kind_opts = ['GammaPowLaw','GammaShiftPowLaw','GammaFiniteStrain']
 
     def __init__(self, kind='GammaPowLaw', natom=1, level_const=0,
                  model_state={}):
@@ -54,6 +54,8 @@ class GammaEos(with_metaclass(ABCMeta, core.Eos)):
 
         if   kind=='GammaPowLaw':
             calc = _GammaPowLaw(self)
+        elif kind=='GammaShiftPowLaw':
+            calc = _GammaShiftPowLaw(self)
         elif kind=='GammaFiniteStrain':
             calc = _GammaFiniteStrain(self)
         else:
@@ -241,64 +243,140 @@ class _GammaPowLaw(GammaCalc):
 
         return T_a
 #====================================================================
-# class GammaFiniteStrain(GammaCalc):
-#     def _init_params(self):
-#         """Initialize list of calculator parameter names."""
-#
-#         self._param_names = ['gamma0', 'Cvmax']
-#         self._param_units = ['K', 'eV/K']
-#         self._param_defaults = [theta0, Cvmax]
-#         self._param_scales = [theta0, Cvmax]
-#         pass
-#         paramkey_a = [gammaRkey, gammapRkey, VRkey]
-#         return paramkey_a
-#
-#     def calc_strain_coefs( self, eos_d ):
-#         paramkey_a = self.get_paramkey( eos_d )
-#         gammaR, gammapR, VR = core.get_params(paramkey_a, eos_d)
-#
-#         a1 = 6*gammaR
-#         a2 = -12*gammaR +36*gammaR**2 -18*gammapR
-#         return a1, a2
-#
-#     def get_param_scale_sub( self, eos_d ):
-#         """Return scale values for each parameter"""
-#
-#         paramkey_a = self.get_paramkey( eos_d )
-#         gammaR, gammapR, VR = core.get_params( paramkey_a, eos_d )
-#
-#         gammaR_scl = 1.0
-#         gammapR_scl = 1.0
-#         VR_scl = VR
-#
-#         scale_a = np.array([gammaR_scl,gammapR_scl,VR_scl])
-#
-#         return scale_a, paramkey_a
-#
-#     def calc_fstrain( self, V_a, eos_d ):
-#         paramkey_a = self.get_paramkey( eos_d )
-#         gammaR, gammapR, VR = core.get_params(paramkey_a, eos_d)
-#
-#         fstr = 0.5*((VR/V_a)**(2./3)-1.0)
-#         # print (V_a)
-#         # if np.any(np.isnan(V_a)):
-#         return fstr
-#
-#     def gamma( self, V_a, eos_d ):
-#         a1, a2 = self.calc_strain_coefs( eos_d )
-#         fstr_a = self.calc_fstrain( V_a, eos_d )
-#
-#         gamma_a = (2*fstr_a+1)*(a1+a2*fstr_a)/(6*(1+a1*fstr_a+0.5*a2*fstr_a**2))
-#
-#         return gamma_a
-#
-#     def temp( self, V_a, TR, eos_d ):
-#         a1, a2 = self.calc_strain_coefs( eos_d )
-#         fstr_a = self.calc_fstrain( V_a, eos_d )
-#
-#         T_a = TR*np.sqrt(1 + a1*fstr_a + 0.5*a2*fstr_a**2)
-#
-#         return T_a
+class _GammaShiftPowLaw(GammaCalc):
+    """
+    Shifted Power Law description of Grüneisen Parameter (Al’tshuler, 1987)
+
+    """
+    _path_opts=['S']
+
+    def __init__(self, eos_mod, level_const=0):
+        super(_GammaShiftPowLaw, self).__init__(eos_mod, level_const=level_const)
+        pass
+
+    def _init_required_calculators(self):
+        """Initialize list of other required calculators."""
+
+        self._required_calculators = None
+        pass
+
+    def _init_params(self):
+        """Initialize list of calculator parameter names."""
+
+        V0 = 100
+        gamma0 = 1.5
+        gamma_inf = 2/3
+        beta = 1.4
+        T0 = 300
+
+        self._param_names = ['V0', 'gamma0', 'gamma_inf', 'beta', 'T0']
+        self._param_units = ['ang^3', '1', '1', '1', 'K']
+        self._param_defaults = [V0, gamma0, gamma_inf, beta, T0]
+        self._param_scales = [V0, gamma0, gamma_inf, beta, T0]
+        pass
+
+    def _calc_gamma(self, V_a):
+        V0, gamma0, gamma_inf, beta = self.eos_mod.get_param_values(
+            param_names=['V0','gamma0','gamma_inf','beta'])
+
+        gamma_a = gamma_inf + (gamma0-gamma_inf)*(V_a/V0)**beta
+        return gamma_a
+
+    def _calc_gamma_deriv(self, V_a):
+        gamma_inf, beta = self.eos_mod.get_param_values(
+            param_names=['gamma_inf','beta'])
+
+        gamma_a = self._calc_gamma(V_a)
+        gamma_deriv_a = beta/V_a*(gamma_a-gamma_inf)
+        return gamma_deriv_a
+
+    def _calc_temp(self, V_a, V0=None, T0=None):
+        V0, T0 = self.eos_mod.get_param_values(
+            param_names=['V0','T0'], overrides=[V0,T0])
+        gamma0, gamma_inf, beta = self.eos_mod.get_param_values(
+            param_names=['gamma0','gamma_inf','beta'])
+
+        gamma_a = self._calc_gamma(V_a)
+        x = V_a/V0
+        T_a = T0*x**(-gamma_inf)*np.exp((gamma0-gamma_inf)/beta*(1-x**beta))
+
+        return T_a
+#====================================================================
+class _GammaFiniteStrain(GammaCalc):
+    _path_opts=['S']
+
+    def __init__(self, eos_mod, level_const=0):
+        super(_GammaFiniteStrain, self).__init__(eos_mod, level_const=level_const)
+        pass
+
+    def _init_required_calculators(self):
+        """Initialize list of other required calculators."""
+
+        self._required_calculators = None
+        pass
+
+    def _init_params(self):
+        """Initialize list of calculator parameter names."""
+
+        V0 = 100
+        gamma0 = 1.0
+        gammap0 = 1.0
+        T0 = 300
+
+        self._param_names = ['V0', 'gamma0', 'gammap0', 'T0']
+        self._param_units = ['ang^3', '1', '1', 'K']
+        self._param_defaults = [V0, gamma0, gammap0, T0]
+        self._param_scales = [V0, gamma0, gammap0, T0]
+        pass
+
+    def _calc_strain_coefs(self):
+        V0, gamma0, gammap0 = self.eos_mod.get_param_values(
+            param_names=['V0','gamma0','gammap0'])
+
+        a1 = 6*gamma0
+        a2 = -12*gamma0 +36*gamma0**2 -18*gammap0
+        return a1, a2
+
+    def _calc_fstrain(self, V_a, deriv=False):
+        V0, = self.eos_mod.get_param_values(param_names=['V0'])
+
+        x = V_a/V0
+        if deriv:
+            return -1/(3*V0)*x**(-5/3)
+        else:
+            return 1/2*(x**(-2/3)-1)
+
+        pass
+
+    def _calc_gamma(self, V_a):
+        a1, a2 = self._calc_strain_coefs()
+        fstr_a = self._calc_fstrain(V_a)
+
+        gamma_a = (2*fstr_a+1)*(a1+a2*fstr_a)/(6*(1+a1*fstr_a+0.5*a2*fstr_a**2))
+
+        return gamma_a
+
+    def _calc_gamma_deriv(self, V_a):
+        a1, a2 = self._calc_strain_coefs()
+        fstr_a = self._calc_fstrain(V_a)
+        fstr_deriv = self._calc_fstrain(V_a, deriv=True)
+
+        gamma_a = self._calc_gamma(V_a)
+        gamma_deriv_a = gamma_a*fstr_deriv*(
+            2/(2*fstr_a+1)+a2/(a1+a2*fstr_a)
+            -(a1+a2*fstr_a)/(1+a1*fstr_a+.5*a2*fstr_a**2))
+
+        return gamma_deriv_a
+
+    def _calc_temp(self, V_a, V0=None, T0=None):
+        V0, T0 = self.eos_mod.get_param_values(
+            param_names=['V0','T0'], overrides=[V0,T0])
+
+        a1, a2 = self._calc_strain_coefs()
+        fstr_a = self._calc_fstrain(V_a)
+        T_a = T0*np.sqrt(1 + a1*fstr_a + 0.5*a2*fstr_a**2)
+
+        return T_a
 #====================================================================
 
 #
