@@ -111,7 +111,7 @@ class Eos(with_metaclass(ABCMeta)):
     def calculators(self):
         return self._calculators
 
-    def _add_calculator( self, calc, kind='compress' ):
+    def _add_calculator(self, calc, calc_type='compress'):
         """
         Store calculator instance in its correct place.
 
@@ -119,14 +119,14 @@ class Eos(with_metaclass(ABCMeta)):
         ----------
         calc : Calculator obj
             Instance of Calculator().
-        kind : {'compress','thermal','gamma','heat_capacity','thermal_exp'}
-            Kind of calculator object.
+        calc_type : {'compress','thermal','gamma','heat_capacity','thermal_exp'}
+            Type of calculator object.
 
         """
         assert isinstance(calc,Calculator), \
             'calc must be a valid Calculator object instance.'
 
-        self._calculators[kind] = calc
+        self._calculators[calc_type] = calc
         pass
 
     #####################
@@ -377,6 +377,12 @@ class Calculator(with_metaclass(ABCMeta)):
         self._required_calculators = None
 
         pass
+
+    @property
+    def name(self):
+        objname = self.__class__.__name__
+        # Remove leading underscore
+        return objname[1:]
 
     @property
     def eos_mod(self):

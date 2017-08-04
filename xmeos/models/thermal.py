@@ -34,54 +34,36 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
     _path_opts = ['V','P']
     _kind_opts = ['Debye','Einstein','Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
 
-    def __init__(self, kind='Debye', natom=1, level_const=100,
+    def __init__(self, kind='Debye', natom=1, level_const=None,
                  model_state={}):
+
         self._pre_init(natom=natom)
 
-        self._init_calculator(kind, level_const)
+        set_calculator(self, kind, self._kind_opts, level_const)
+        self._set_eos_path(level_const)
 
         self._post_init(model_state=model_state)
-
         pass
 
     def __repr__(self):
+        calc = self.calculators['thermal']
         return ("ThermalEos(kind={kind}, natom={natom}, "
                 "level_const={level_const}, "
                 "model_state={model_state}, "
                 ")"
-                .format(kind=self._kind,
+                .format(kind=repr(calc.name),
                         natom=repr(self.natom),
                         level_const=repr(self.level_const),
                         model_state=self.model_state
                         )
                 )
 
-    def _init_calculator(self, kind, level_const):
-        assert kind in self._kind_opts, kind + ' is not a valid ' + \
-            'ThermalEos Calculator. You must select one of: ' + self._kind_opts
-
-        self._kind = kind
+    def _set_eos_path(self, level_const):
+        calc = self.calculators['thermal']
+        self._path_const = calc.path_const
         self._level_const = level_const
-
-        if   kind=='Debye':
-            calc = _Debye(self, level_const=level_const)
-        elif kind=='Einstein':
-            calc = _Einstein(self, level_const=level_const)
-        elif kind=='Cp-Berman':
-            calc = _Cp_Berman(self, level_const=level_const)
-        elif kind=='Cp-Fei':
-            calc = _Cp_Fei(self, level_const=level_const)
-        elif kind=='Cp-Maier-Kelley':
-            calc = _Cp_Maier_Kelley(self, level_const=level_const)
-        else:
-            raise NotImplementedError(kind+' is not a valid '+\
-                                      'ThermalEos Calculator.')
-
-        path_const = calc.path_const
-        self._add_calculator( calc, kind='thermal_energy' )
-        self._path_const = path_const
-
         pass
+
 
     @property
     def path_opts(self):
@@ -96,120 +78,19 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
         return self._level_const
 
     def energy(self, T_a):
-        calculator = self.calculators['thermal_energy']
+        calculator = self.calculators['thermal']
         energy_a =  calculator._calc_energy(T_a)
         return energy_a
 
     def heat_capacity(self, T_a):
-        calculator = self.calculators['thermal_energy']
+        calculator = self.calculators['thermal']
         heat_capacity_a =  calculator._calc_heat_capacity(T_a)
         return heat_capacity_a
 
     def entropy(self, T_a):
-        calculator = self.calculators['thermal_energy']
+        calculator = self.calculators['thermal']
         entropy_a =  calculator._calc_entropy(T_a)
         return entropy_a
-#====================================================================
-
-# class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
-# class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
-# class CompressPolyEos(with_metaclass(ABCMeta, core.Eos)):
-
-# class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
-#     _kind_opts = ['Debye','Einstein','RosenfeldTarazona']
-#     _kind_gamma_opts = ['GammaPowLaw','GammaFiniteStrain']
-#     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
-#                            'GenFiniteStrain','Tait']
-#
-#     def __init__(self, kind='Debye', kind_gamma='GammaPowLaw',
-#                  kind_compress='Vinet',
-#                  compress_path_const='T', compress_level_const=300,
-#                  natom=1, model_state={}):
-#         self._pre_init(natom=natom)
-#
-#         self._init_calculator(kind, kind_thermal_energy=_kind_thermal_energy,
-#                               kind_gamma=kind_gamma,
-#                               kind_compress=kind_compress)
-#
-#         self._post_init(model_state=model_state)
-#
-#         pass
-#
-#     def __repr__(self):
-#         return ("ThermalEos(kind={kind}, natom={natom}, "
-#                 "level_const={level_const}, "
-#                 "model_state={model_state}, "
-#                 ")"
-#                 .format(kind=self._kind,
-#                         kind_thermal_energy=self._kind_thermal_energy,
-#                         kind_gamma=self._kind_gamma,
-#                         kind_compress=self._kind_compress,
-#                         natom=repr(self.natom),
-#                         level_const=repr(self.level_const),
-#                         model_state=self.model_state
-#                         )
-#                 )
-#
-#     def _init_calculator(self, kind_thermal=kind_thermal,
-#                          kind_compress=kind_compress):
-#         assert kind_thermal in self._kind_thermal_opts, (
-#             kind_thermal + ' is not a valid CompressedThermalEos ' +
-#             'thermal calculator. You must select one of: ' +
-#             self._kind_thermal_opts)
-#
-#         assert kind_compress in self._kind_compress_opts, (
-#             kind_compress + ' is not a valid CompressedThermalEos '+
-#             'compress Calculator. You must select one of: ' +
-#             self._kind_compress_opts)
-#
-#         self._kind_thermal = kind_thermal
-#         self._kind_compress = kind_compress
-#
-#         if   kind_thermal=='Debye':
-#             calc = _CompressedDebye(self)
-#         elif kind=='Einstein':
-#             calc = _CompressedEinstein(self)
-#         else:
-#             raise NotImplementedError(kind+' is not a valid '+\
-#                                       'ThermalEos Calculator.')
-#
-#         path_const = calc.path_const
-#         self._add_calculator( calc, kind='thermal_energy' )
-#         self._path_const = path_const
-#
-#         pass
-#
-#     @property
-#     def path_opts(self):
-#         return self._path_opts
-#
-#     @property
-#     def path_const(self):
-#         return self._path_const
-#
-#     @property
-#     def level_const(self):
-#         return self._level_const
-#
-#     def energy(self, T_a):
-#         calculator = self.calculators['thermal_energy']
-#         energy_a =  calculator._calc_energy(T_a)
-#         return energy_a
-#
-#     def heat_capacity(self, T_a):
-#         calculator = self.calculators['thermal_energy']
-#         heat_capacity_a =  calculator._calc_heat_capacity(T_a)
-#         return heat_capacity_a
-#
-#     def entropy(self, T_a):
-#         calculator = self.calculators['thermal_energy']
-#         entropy_a =  calculator._calc_entropy(T_a)
-#         return entropy_a
-#
-#
-#     pass
-#====================================================================
-# class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
 #====================================================================
 
 
@@ -228,9 +109,9 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
 
     _path_opts = ['V','P']
 
-    def __init__(self, eos_mod, path_const='P', level_const=0.0):
-        assert path_const in self.path_opts, path_const + ' is not a valid ' + \
-            'path const. You must select one of: ' + path_opts
+    def __init__(self, eos_mod, path_const=None, level_const=None):
+        # assert path_const in self.path_opts, path_const + ' is not a valid ' + \
+        #     'path const. You must select one of: ' + path_opts
 
         self._eos_mod = eos_mod
         self._init_params()
@@ -332,6 +213,28 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
+def set_calculator(eos_mod, kind, kind_opts, level_const):
+    assert kind in kind_opts, (
+        kind + ' is not a valid thermal calculator. '+
+        'You must select one of: ' +  kind_opts)
+
+    if   kind=='Debye':
+        calc = _Debye(eos_mod, level_const=level_const)
+    elif kind=='Einstein':
+        calc = _Einstein(eos_mod, level_const=level_const)
+    elif kind=='Cp-Berman':
+        calc = _Cp_Berman(eos_mod, level_const=level_const)
+    elif kind=='Cp-Fei':
+        calc = _Cp_Fei(eos_mod, level_const=level_const)
+    elif kind=='Cp-Maier-Kelley':
+        calc = _Cp_Maier_Kelley(eos_mod, level_const=level_const)
+    else:
+        raise NotImplementedError(kind+' is not a valid '+\
+                                  'Thermal Calculator.')
+
+    eos_mod._add_calculator(calc, calc_type='thermal')
+    pass
+#====================================================================
 
 #====================================================================
 # Implementations
@@ -344,7 +247,7 @@ class _Debye(ThermalCalc):
 
     _path_opts=['V']
 
-    def __init__(self, eos_mod, level_const=100):
+    def __init__(self, eos_mod, level_const=None):
         super(_Debye, self).__init__(eos_mod, path_const='V',
                                      level_const=level_const)
         pass
@@ -406,7 +309,7 @@ class _Einstein(ThermalCalc):
     _EPS = np.finfo(np.float).eps
     _path_opts=['V']
 
-    def __init__(self, eos_mod, level_const=100):
+    def __init__(self, eos_mod, level_const=None):
         super(_Einstein, self).__init__(eos_mod, path_const='V',
                                         level_const=level_const)
         pass

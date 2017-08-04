@@ -11,6 +11,7 @@ from . import core
 
 __all__ = ['GammaEos','GammaCalc']
 
+
 #====================================================================
 # Base Class
 #====================================================================
@@ -30,39 +31,28 @@ class GammaEos(with_metaclass(ABCMeta, core.Eos)):
                  model_state={}):
         self._pre_init(natom=natom)
 
-        self._init_calculator(kind, level_const)
+        set_calculator(self, kind, self._kind_opts, level_const)
 
+        self._set_eos_path(level_const)
         self._post_init(model_state=model_state)
 
         pass
 
     def __repr__(self):
+        calc = self.calculators['gamma']
         return ("GammaEos(kind={kind}, natom={natom}, "
                 "model_state={model_state}, "
                 ")"
-                .format(kind=self._kind,
+                .format(kind=repr(calc.name),
                         natom=repr(self.natom),
+                        level_const=repr(self.level_const),
                         model_state=self.model_state
                         )
                 )
 
-    def _init_calculator(self, kind, level_const):
-        assert kind in self._kind_opts, kind + ' is not a valid ' + \
-            'CompressEos Calculator. You must select one of: ' + self._kind_opts
-
-        self._kind = kind
-
-        if   kind=='GammaPowLaw':
-            calc = _GammaPowLaw(self)
-        elif kind=='GammaShiftPowLaw':
-            calc = _GammaShiftPowLaw(self)
-        elif kind=='GammaFiniteStrain':
-            calc = _GammaFiniteStrain(self)
-        else:
-            raise NotImplementedError(kind+' is not a valid '+
-                                      'GammaEos Calculator.')
-
-        self._add_calculator(calc, kind='gamma')
+    def _set_eos_path(self, level_const):
+        calc = self.calculators['gamma']
+        self._path_const = calc.path_const
         self._level_const = level_const
         pass
 
@@ -188,6 +178,29 @@ class GammaCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
+def set_calculator(eos_mod, kind, kind_opts, level_const):
+    assert kind in kind_opts, (
+        kind + ' is not a valid thermal calculator. '+
+        'You must select one of: ' +  kind_opts)
+
+    eos_mod._kind = kind
+
+    if   kind=='GammaPowLaw':
+        calc = _GammaPowLaw(eos_mod, level_const)
+    elif kind=='GammaShiftPowLaw':
+        calc = _GammaShiftPowLaw(eos_mod, level_const)
+    elif kind=='GammaFiniteStrain':
+        calc = _GammaFiniteStrain(eos_mod, level_const)
+    else:
+        raise NotImplementedError(kind+' is not a valid '+
+                                  'GammaEos Calculator.')
+
+    eos_mod._add_calculator(calc, calc_type='gamma')
+    pass
+#====================================================================
+
+
+
 # Implementations
 #====================================================================
 class _GammaPowLaw(GammaCalc):

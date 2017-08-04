@@ -32,24 +32,23 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
 
     def __init__(self, kind='Vinet', natom=1, path_const='T', level_const=300,
                  model_state={}):
+
         self._pre_init(natom=natom)
 
-        self._init_calculator(kind, path_const, level_const)
+        set_calculator(self, kind, self._kind_opts, path_const, level_const)
+        self._set_eos_path(path_const, level_const)
 
         self._post_init(model_state=model_state)
 
         pass
 
-    @property
-    def path_opts(self):
-        return self._path_opts
-
     def __repr__(self):
+        calc = self.calculators['compress']
         return ("CompressEos(kind={kind}, natom={natom}, "
                 "path_const={path_const}, level_const={level_const}, "
                 "model_state={model_state}, "
                 ")"
-                .format(kind=self._kind,
+                .format(kind=repr(calc.name),
                         natom=repr(self.natom),
                         path_const=repr(self.path_const),
                         level_const=repr(self.level_const),
@@ -57,38 +56,18 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
                         )
                 )
 
-    def _init_calculator(self, kind, path_const, level_const):
-        assert kind in self._kind_opts, kind + ' is not a valid ' + \
-            'CompressEos Calculator. You must select one of: ' + self._kind_opts
-
+    def _set_eos_path(self, path_const, level_const):
         assert path_const in self._path_opts, path_const + ' is not a valid ' + \
             'path const. You must select one of: ' + self._path_opts
 
-        self._kind = kind
+        # calc = self.calculators['thermal']
         self._path_const = path_const
         self._level_const = level_const
-
-        if   kind=='Vinet':
-            calc = _Vinet(self, path_const=path_const,
-                          level_const=level_const)
-        elif kind=='BirchMurn3':
-            calc = _BirchMurn3(self, path_const=path_const,
-                               level_const=level_const)
-        elif kind=='BirchMurn4':
-            calc = _BirchMurn4(self, path_const=path_const,
-                               level_const=level_const)
-        elif kind=='GenFiniteStrain':
-            calc = _GenFiniteStrain(self, path_const=path_const,
-                                    level_const=level_const)
-        elif kind=='Tait':
-            calc = _Tait(self, path_const=path_const,
-                         level_const=level_const)
-        else:
-            raise NotImplementedError(kind+' is not a valid '+\
-                                      'CompressEos Calculator.')
-
-        self._add_calculator( calc, kind='compress' )
         pass
+
+    @property
+    def path_opts(self):
+        return self._path_opts
 
     @property
     def path_const(self):
@@ -342,11 +321,41 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
         """Returns Bulk Modulus Deriv (K') variation along compression curve."""
         raise NotImplementedError("'bulk_mod_deriv' function not implimented for this model")
 #====================================================================
+def set_calculator(eos_mod, kind, kind_opts, path_const, level_const):
+    assert kind in kind_opts, (
+        kind + ' is not a valid thermal calculator. '+
+        'You must select one of: ' +  kind_opts)
+
+    if   kind=='Vinet':
+        calc = _Vinet(eos_mod, path_const=path_const,
+                      level_const=level_const)
+    elif kind=='BirchMurn3':
+        calc = _BirchMurn3(eos_mod, path_const=path_const,
+                           level_const=level_const)
+    elif kind=='BirchMurn4':
+        calc = _BirchMurn4(eos_mod, path_const=path_const,
+                           level_const=level_const)
+    elif kind=='GenFiniteStrain':
+        calc = _GenFiniteStrain(eos_mod, path_const=path_const,
+                                level_const=level_const)
+    elif kind=='Tait':
+        calc = _Tait(eos_mod, path_const=path_const,
+                     level_const=level_const)
+    else:
+        raise NotImplementedError(kind+' is not a valid '+\
+                                  'CompressEos Calculator.')
+
+    eos_mod._add_calculator(calc, calc_type='compress')
+    pass
+#====================================================================
+
 
 #====================================================================
 # Implementations
 #====================================================================
 class _Vinet(CompressCalc):
+    _name='Vinet'
+
     def get_param_scale_sub(self):
         """Return scale values for each parameter"""
         V0, K0, KP0 = core.get_params(['V0','K0','KP0'])
