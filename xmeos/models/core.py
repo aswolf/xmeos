@@ -86,11 +86,14 @@ class Eos(with_metaclass(ABCMeta)):
         """
         Get list of valid Eos calculators
         """
-        param_names = []
-        param_units = []
-        param_defaults = []
-        param_scales = []
 
+        # Initialize with ref parameters
+        param_names = self._param_ref_names
+        param_units = self._param_ref_units
+        param_defaults = self._param_ref_defaults
+        param_scales = self._param_ref_scales
+
+        # Add all calculator parameters
         for calc in self._calculators:
             param_names.extend(self._calculators[calc].param_names)
             param_units.extend(self._calculators[calc].param_units)
@@ -415,6 +418,43 @@ class Calculator(with_metaclass(ABCMeta)):
 
         """
         return self._param_defaults
+
+    def _validate_param_names(self, param_names):
+        """
+        Check that all param names are valid.
+
+        If param_names is None, replace with full parameter name list.
+
+        """
+        if param_names is None:
+            param_names = self.param_names
+        else:
+            if isinstance(param_names, str):
+                param_names = [param_names]
+
+            assert all( name in self.param_names for name in param_names ),\
+                'All provided param_names must be valid parameter names.'
+
+        return param_names
+
+    def get_param_defaults(self, param_names=None):
+        """
+        Values for (selected) parameters.
+
+        Parameters
+        ----------
+        param_names : str array
+            list of parameter names
+
+        Returns
+        -------
+        values : double array
+            values of (selected) parameters
+
+        """
+        param_names = self._validate_param_names(param_names)
+        defaults = self._param_defaults[np.in1d(self._param_names, param_names)]
+        return defaults
 
     @property
     def param_scales(self):

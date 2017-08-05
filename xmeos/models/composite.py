@@ -13,6 +13,94 @@ from . import thermal
 
 __all__ = []
 
+# class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
+# class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
+# class CompressPolyEos(with_metaclass(ABCMeta, core.Eos)):
+
+#====================================================================
+class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
+    _kind_thermal_opts = ['Debye','Einstein']
+    _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
+    _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
+                           'GenFiniteStrain','Tait']
+
+    def __init__(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
+                 kind_compress='Vinet',
+                 compress_path_const='T', compress_level_const=300,
+                 natom=1, model_state={}):
+        self._pre_init(natom=natom)
+
+        thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
+        gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
+        compress.set_calculator(self, kind_compress, self._kind_compress_opts,
+                                path_const=compress_path_const,
+                                level_const=compress_level_const)
+
+
+        self._post_init(model_state=model_state)
+
+        pass
+
+    def __repr__(self):
+        calc_thermal = self.calculators['thermal']
+        calc_compress = self.calculators['compress']
+        calc_gamma = self.calculators['gamma']
+
+        return ("ThermalEos(kind_thermal={kind_thermal}, '
+                'kind_gamma={kind_gamma}, '
+                'kind_compress={kind_compress}, '
+                'compress_path_const={compress_path_const}, '
+                'compress_level_const={compress_level_const}, '
+                'natom={natom}, "
+                "model_state={model_state}, "
+                ")"
+                .format(kind_thermal=repr(calc_thermal.name),
+                        kind_gamma=repr(calc_gamma.name),
+                        kind_compress=repr(calc_compress.name),
+                        kind_gamma=self._kind_gamma,
+                        compress_path_const=repr(calc_compress.path_const),
+                        compress_level_const=repr(calc_compress.level_const),
+                        natom=repr(self.natom),
+                        model_state=self.model_state
+                        )
+                )
+
+    def helmholtz_energy(self, V_a, T_a):
+        pass
+
+    def energy(self, V_a, T_a):
+        calculator = self.calculators['thermal']
+        energy_a =  calculator._calc_energy(T_a)
+        return energy_a
+
+    def press(self, V_a, T_a):
+        calculator = self.calculators['thermal']
+        energy_a =  calculator._calc_energy(T_a)
+        return energy_a
+
+    def bulk_mod(self, V_a, T_a):
+        calculator = self.calculators['thermal']
+        energy_a =  calculator._calc_energy(T_a)
+        return energy_a
+
+    def heat_capacity(self, V_a, T_a):
+        calculator = self.calculators['thermal']
+        heat_capacity_a =  calculator._calc_heat_capacity(T_a)
+        return heat_capacity_a
+
+    def entropy(self, V_a, T_a):
+        calculator = self.calculators['thermal']
+        entropy_a =  calculator._calc_entropy(T_a)
+        return entropy_a
+
+    def gamma(self, V_a):
+        pass
+
+#====================================================================
+# class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
+#====================================================================
+
+
 # class CompressedThermalEnergyCalc(with_metaclass(ABCMeta, core.Calculator)):
 #     """
 #     Abstract Equation of State class for a reference Thermal Energy Path
