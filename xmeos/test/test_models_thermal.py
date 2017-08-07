@@ -32,11 +32,23 @@ slow = pytest.mark.skipif(
 
 #====================================================================
 class BaseTestThermalEos(test_models.BaseTestEos):
-    def test_heat_capacity(self):
+    def test_heat_capacity_0K(self):
+        self.calc_test_heat_capacity(T0=0)
+
+    def test_heat_capacity_300K(self):
+        self.calc_test_heat_capacity(T0=300)
+
+    def test_entropy_0K(self):
+        self.calc_test_entropy(T0=0)
+
+    def test_entropy_300K(self):
+        self.calc_test_entropy(T0=300)
+
+    def calc_test_heat_capacity(self, T0=0):
         TOL = 1e-3
 
         Nsamp = 10001
-        eos_mod = self.load_eos()
+        eos_mod = self.load_eos(T0=T0)
 
         Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
         dT = Tmod_a[1] - Tmod_a[0]
@@ -50,11 +62,11 @@ class BaseTestThermalEos(test_models.BaseTestEos):
         assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
             ', must be less than TOL, ' + np.str(TOL)
 
-    def test_entropy(self):
+    def calc_test_entropy(self, T0=0):
         TOL = 1e-3
 
         Nsamp = 10001
-        eos_mod = self.load_eos()
+        eos_mod = self.load_eos(T0=T0)
 
         Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
         dT = Tmod_a[1] - Tmod_a[0]
@@ -73,15 +85,16 @@ class BaseTestThermalEos(test_models.BaseTestEos):
 # SEC:2 Implimented Test Clases
 #====================================================================
 class TestDebye(BaseTestThermalEos):
-    def load_eos(self):
-        eos_mod = models.ThermalEos(
-            kind='Debye', level_const=100)
+    def load_eos(self, T0=0):
+        # add T0
+        eos_mod = models.ThermalEos(kind='Debye')
+        eos_mod.set_param_values(param_names=['T0'],param_values=[T0])
         return eos_mod
 #====================================================================
 class TestEinstein(BaseTestThermalEos):
-    def load_eos(self):
-        eos_mod = models.ThermalEos(
-            kind='Einstein', level_const=100)
+    def load_eos(self, T0=0):
+        eos_mod = models.ThermalEos(kind='Einstein')
+        eos_mod.set_param_values(param_names=['T0'],param_values=[T0])
         return eos_mod
 #====================================================================
 

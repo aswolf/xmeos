@@ -19,6 +19,28 @@ __all__ = ['ThermalEos','ThermalCalc']
 #====================================================================
 # Base Classes
 #====================================================================
+def set_calculator(eos_mod, kind, kind_opts):
+    assert kind in kind_opts, (
+        kind + ' is not a valid thermal calculator. '+
+        'You must select one of: ' +  kind_opts)
+
+    if   kind=='Debye':
+        calc = _Debye(eos_mod)
+    elif kind=='Einstein':
+        calc = _Einstein(eos_mod)
+    elif kind=='Cp-Berman':
+        calc = _Cp_Berman(eos_mod)
+    elif kind=='Cp-Fei':
+        calc = _Cp_Fei(eos_mod)
+    elif kind=='Cp-Maier-Kelley':
+        calc = _Cp_Maier_Kelley(eos_mod)
+    else:
+        raise NotImplementedError(kind+' is not a valid '+\
+                                  'Thermal Calculator.')
+
+    eos_mod._add_calculator(calc, calc_type='thermal')
+    pass
+#====================================================================
 class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
     """
     EOS model for thermal energy heating path.
@@ -34,13 +56,12 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
     _path_opts = ['V','P']
     _kind_opts = ['Debye','Einstein','Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
 
-    def __init__(self, kind='Debye', natom=1, level_const=None,
-                 model_state={}):
+    def __init__(self, kind='Debye', natom=1, model_state={}):
 
         self._pre_init(natom=natom)
 
-        set_calculator(self, kind, self._kind_opts, level_const)
-        self._set_eos_path(level_const)
+        set_calculator(self, kind, self._kind_opts)
+        self._set_ref_state()
 
         self._post_init(model_state=model_state)
         pass
@@ -48,22 +69,43 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
     def __repr__(self):
         calc = self.calculators['thermal']
         return ("ThermalEos(kind={kind}, natom={natom}, "
-                "level_const={level_const}, "
                 "model_state={model_state}, "
                 ")"
                 .format(kind=repr(calc.name),
                         natom=repr(self.natom),
-                        level_const=repr(self.level_const),
                         model_state=self.model_state
                         )
                 )
 
-    def _set_eos_path(self, level_const):
+    def _set_ref_state(self):
         calc = self.calculators['thermal']
-        self._path_const = calc.path_const
-        self._level_const = level_const
-        pass
+        path_const = calc.path_const
 
+        # Add needed extra parameters (depending on path_const)
+        if path_const=='V':
+            param_ref_names = ['V0']
+            param_ref_units = ['ang^3']
+            param_ref_defaults = [100]
+            param_ref_scales = [100]
+
+        elif path_const=='P':
+            P0 = 0
+            param_ref_names = ['P0']
+            param_ref_units = ['GPa']
+            param_ref_defaults = [0.0]
+            param_ref_scales = [100]
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for ThermalEos.')
+
+
+        self._path_const = path_const
+        self._param_ref_names = param_ref_names
+        self._param_ref_units = param_ref_units
+        self._param_ref_defaults = param_ref_defaults
+        self._param_ref_scales = param_ref_scales
+        pass
 
     @property
     def path_opts(self):
@@ -72,10 +114,6 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
     @property
     def path_const(self):
         return self._path_const
-
-    @property
-    def level_const(self):
-        return self._level_const
 
     def energy(self, T_a):
         calculator = self.calculators['thermal']
@@ -93,7 +131,6 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
         return entropy_a
 #====================================================================
 
-
 #====================================================================
 # Calculators
 #====================================================================
@@ -109,7 +146,7 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
 
     _path_opts = ['V','P']
 
-    def __init__(self, eos_mod, path_const=None, level_const=None):
+    def __init__(self, eos_mod, path_const=None):
         # assert path_const in self.path_opts, path_const + ' is not a valid ' + \
         #     'path const. You must select one of: ' + path_opts
 
@@ -118,7 +155,6 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
         self._required_calculators = None
 
         self._path_const = path_const
-        self._level_const = level_const
         pass
 
     @property
@@ -129,21 +165,12 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
     def path_const(self):
         return self._path_const
 
-    @property
-    def level_const(self):
-        return self._level_const
-
     ####################
     # Required Methods #
     ####################
     @abstractmethod
     def _init_params(self):
         """Initialize list of calculator parameter names."""
-        pass
-
-    @abstractmethod
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
         pass
 
     @abstractmethod
@@ -213,28 +240,6 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-def set_calculator(eos_mod, kind, kind_opts, level_const):
-    assert kind in kind_opts, (
-        kind + ' is not a valid thermal calculator. '+
-        'You must select one of: ' +  kind_opts)
-
-    if   kind=='Debye':
-        calc = _Debye(eos_mod, level_const=level_const)
-    elif kind=='Einstein':
-        calc = _Einstein(eos_mod, level_const=level_const)
-    elif kind=='Cp-Berman':
-        calc = _Cp_Berman(eos_mod, level_const=level_const)
-    elif kind=='Cp-Fei':
-        calc = _Cp_Fei(eos_mod, level_const=level_const)
-    elif kind=='Cp-Maier-Kelley':
-        calc = _Cp_Maier_Kelley(eos_mod, level_const=level_const)
-    else:
-        raise NotImplementedError(kind+' is not a valid '+\
-                                  'Thermal Calculator.')
-
-    eos_mod._add_calculator(calc, calc_type='thermal')
-    pass
-#====================================================================
 
 #====================================================================
 # Implementations
@@ -247,29 +252,26 @@ class _Debye(ThermalCalc):
 
     _path_opts=['V']
 
-    def __init__(self, eos_mod, level_const=None):
-        super(_Debye, self).__init__(eos_mod, path_const='V',
-                                     level_const=level_const)
-        pass
-
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
-
-        self._required_calculators = None
+    def __init__(self, eos_mod):
+        super(_Debye, self).__init__(eos_mod, path_const='V')
         pass
 
     def _init_params(self, theta_param=None):
         """Initialize list of calculator parameter names."""
-
         natom = self.eos_mod.natom
-
+        T0 = 0
+        T0_scale = 300
         theta0 = 1000
         Cvmax = 3*natom*core.CONSTS['kboltz']
 
-        self._param_names = ['theta0', 'Cvmax']
-        self._param_units = ['K', 'eV/K']
-        self._param_defaults = [theta0, Cvmax]
-        self._param_scales = [theta0, Cvmax]
+        param_names = ['theta0', 'Cvmax', 'T0']
+        param_units = ['K', 'eV/K', 'K']
+        param_defaults = [theta0, Cvmax, T0]
+        param_scales = [theta0, Cvmax, T0_scale]
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales)
+
         pass
 
     def _calc_heat_capacity(self, T_a, theta0=None, Cvmax=None):
@@ -278,30 +280,47 @@ class _Debye(ThermalCalc):
         theta0, Cvmax = self.eos_mod.get_param_values(
             param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
 
-        x_values = theta0/np.array(T_a)
-        Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x_values)
+        x = theta0/np.array(T_a)
+        Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x)
         return Cv_values
 
-    def _calc_energy(self, T_a, theta0=None, Cvmax=None):
+    def _calc_energy(self, T_a, theta0=None, Cvmax=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax = self.eos_mod.get_param_values(
-            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
+            param_names=['theta0', 'Cvmax', 'T0'],
+            overrides=[theta0, Cvmax, T0])
 
         T_a = np.array(T_a)
-        x_values = theta0/T_a
-        energy = Cvmax*T_a*_debye.debye_energy_fun(x_values)
+        x = theta0/T_a
+        x0 = theta0/T0
+        try:
+            len(x0)
+        except:
+            x0 = np.array([x0])
+
+        energy = Cvmax*(T_a*_debye.debye_energy_fun(x)
+                        -T0*_debye.debye_energy_fun(x0))
         return energy
 
-    def _calc_entropy(self, T_a, theta0=None, Cvmax=None):
+    def _calc_entropy(self, T_a, theta0=None, Cvmax=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax = self.eos_mod.get_param_values(
-            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
+            param_names=['theta0', 'Cvmax', 'T0'],
+            overrides=[theta0, Cvmax, T0])
 
         T_a = np.array(T_a)
-        x_values = theta0/T_a
-        entropy = Cvmax*_debye.debye_entropy_fun(x_values)
+        x = theta0/T_a
+        x0 = theta0/T0
+        try:
+            len(x0)
+        except:
+            x0 = np.array([x0])
+
+        entropy = Cvmax*(_debye.debye_entropy_fun(x)
+                         -_debye.debye_entropy_fun(x0))
+
         return entropy
 #====================================================================
 class _Einstein(ThermalCalc):
@@ -309,15 +328,8 @@ class _Einstein(ThermalCalc):
     _EPS = np.finfo(np.float).eps
     _path_opts=['V']
 
-    def __init__(self, eos_mod, level_const=None):
-        super(_Einstein, self).__init__(eos_mod, path_const='V',
-                                        level_const=level_const)
-        pass
-
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
-
-        self._required_calculators = None
+    def __init__(self, eos_mod):
+        super(_Einstein, self).__init__(eos_mod, path_const='V')
         pass
 
     def _init_params(self, theta_param=None):
@@ -325,14 +337,37 @@ class _Einstein(ThermalCalc):
 
         natom = self.eos_mod.natom
 
+        T0 = 0
+        T0_scale = 300
         theta0 = 1000
         Cvmax = 3*natom*core.CONSTS['kboltz']
 
-        self._param_names = ['theta0', 'Cvmax']
-        self._param_units = ['K', 'eV/K']
-        self._param_defaults = [theta0, Cvmax]
-        self._param_scales = [theta0, Cvmax]
+        self._param_names = ['theta0', 'Cvmax', 'T0']
+        self._param_units = ['K', 'eV/K', 'K']
+        self._param_defaults = [theta0, Cvmax, T0]
+        self._param_scales = [theta0, Cvmax, T0_scale]
         pass
+
+    def _calc_energy_factor(self, x):
+        fac = 1/(np.exp(x)-1)
+        try:
+            fac[1/x < self._EPS] = 0
+        except TypeError:
+            if 1/x < self._EPS:
+                fac = 0
+
+        return fac
+
+    def _calc_flogf(self, x, Nosc):
+        f = Nosc*self._calc_energy_factor(x)
+        flogf = f*np.log(f)
+        try:
+            flogf[f==0] = 0.0
+        except TypeError:
+            if f==0:
+                flogf = 0
+
+        return flogf
 
     def _calc_heat_capacity(self, T_a, theta0=None, Cvmax=None):
         """Returns heat capacity as a function of temperature."""
@@ -348,31 +383,45 @@ class _Einstein(ThermalCalc):
 
         return Cv_a
 
-    def _calc_energy(self, T_a, theta0=None, Cvmax=None):
+    def _calc_energy(self, T_a, theta0=None, Cvmax=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax = self.eos_mod.get_param_values(
-            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
+            param_names=['theta0', 'Cvmax', 'T0'],
+            overrides=[theta0, Cvmax, T0])
 
         T_a = np.array(T_a)
         x = theta0/T_a
-        energy = Cvmax*theta0*(1/2 + 1/(np.exp(x)-1)) # with zero point energy
-        energy[1/x < self._EPS] = Cvmax*theta0*1/2
+        x0 = theta0/T0
+
+        energy = Cvmax*theta0*(
+            1/2 + self._calc_energy_factor(x)-self._calc_energy_factor(x0))
         return energy
 
-    def _calc_entropy(self, T_a, theta0=None, Cvmax=None):
+    def _calc_entropy(self, T_a, theta0=None, Cvmax=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax = self.eos_mod.get_param_values(
-            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
+            param_names=['theta0', 'Cvmax', 'T0'],
+            overrides=[theta0, Cvmax, T0])
 
         T_a = np.array(T_a)
         x = theta0/T_a
+        x0 = theta0/T0
         Nosc = Cvmax/core.CONSTS['kboltz']
-        Equanta = Nosc/(np.exp(x)-1)
+
+        Equanta = Nosc*self._calc_energy_factor(x)
+        Squanta = self._calc_flogf(x, Nosc)
+
+        Equanta0 = Nosc*self._calc_energy_factor(x0)
+        Squanta0 = self._calc_flogf(x0, Nosc)
 
         entropy = core.CONSTS['kboltz']*(
             (Nosc+Equanta)*np.log(Nosc+Equanta)
-            -Nosc*np.log(Nosc) -Equanta*np.log(Equanta) )
+            - (Nosc+Equanta0)*np.log(Nosc+Equanta0)
+            - (Squanta-Squanta0))
+
+        # NOTE that Nosc*log(Nosc) has been removed due to difference
+        # - Nosc*np.log(Nosc)
         return entropy
 #====================================================================

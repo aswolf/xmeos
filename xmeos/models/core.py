@@ -377,8 +377,13 @@ class Calculator(with_metaclass(ABCMeta)):
     def __init__(self, eos_mod):
         self._eos_mod = eos_mod
         self._init_params()
-        self._required_calculators = None
+        self._init_required_calculators()
 
+        pass
+
+    def _init_required_calculators(self):
+        """Initialize list of other required calculators."""
+        self._required_calculators = None
         pass
 
     @property

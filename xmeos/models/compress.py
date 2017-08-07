@@ -294,11 +294,6 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
         """Initialize list of calculator parameter names."""
         pass
 
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
-        self._required_calculators = None
-        pass
-
     @abstractmethod
     def _calc_press(self, V_a):
         """Returns Press variation along compression curve."""
