@@ -27,6 +27,13 @@ slow = pytest.mark.skipif(
 #====================================================================
 class BaseTestGammaEos(test_models.BaseTestEos):
     def test_gamma(self):
+        self.calc_test_gamma()
+
+    def test_gamma_T0(self):
+        T0 = 1500
+        self.calc_test_gamma(T0=T0)
+
+    def calc_test_gamma(self, T0=None):
         TOL = 1e-3
 
         Nsamp = 10001
@@ -36,7 +43,11 @@ class BaseTestGammaEos(test_models.BaseTestEos):
         Vmod_a = np.linspace(.6,1.1,Nsamp)*V0
         dV = Vmod_a[1] - Vmod_a[0]
 
-        temp_a = eos_mod.temp(Vmod_a)
+        if T0 is None:
+            temp_a = eos_mod.temp(Vmod_a)
+        else:
+            temp_a = eos_mod.temp(Vmod_a, T0=T0)
+
         gamma_a = eos_mod.gamma(Vmod_a)
 
         abs_err, rel_err, range_err = self.numerical_deriv(

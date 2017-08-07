@@ -14,7 +14,6 @@ __all__ = ['CompressEos','CompressCalc']
 #====================================================================
 # Models
 #====================================================================
-#====================================================================
 def set_calculator(eos_mod, kind, kind_opts, path_const):
     assert kind in kind_opts, (
         kind + ' is not a valid thermal calculator. '+

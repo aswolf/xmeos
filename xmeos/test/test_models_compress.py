@@ -116,48 +116,6 @@ class BaseTestCompressEos(test_models.BaseTestEos):
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
 #====================================================================
-# class TestPickle(object):
-#     def load_eos(self):
-#         eos_mod = models.CompressEos(
-#             kind='Vinet', path_const='T', level_const=300)
-#         return eos_mod
-#
-#     def init_params(self):
-#         # Set model parameter values
-#         E0 = 0.0 # eV/atom
-#         V0 = 38.0 # 1e-5 m^3 / kg
-#         K0 = 25.0 # GPa
-#         KP0 = 9.0 # 1
-#         param_names = ['V0','K0','KP0','E0']
-#         param_values = np.array([ V0, K0, KP0, E0 ])
-#
-#         eos_mod = self.load_eos()
-#         eos_mod.set_param_values(param_values, param_names)
-#
-#         return eos_mod
-#
-#     def test_pickle(self):
-#
-#         TOL = 1e-4
-#
-#         Nsamp = 10001
-#         eos_mod = self.init_params()
-#
-#         data_string = pickle.dumps(eos_mod)
-#         eos_load_mod = pickle.loads(data_string)
-#
-#         # filenm = 'test/pkl/test_pickle.pkl'
-#         # with open(filenm, 'w') as f:
-#         #     pickle.dump(eos_mod, f)
-#
-#         # with open(filenm, 'r') as f:
-#         #     eos_loaded = pickle.load(f)
-#
-#         assert repr(eos_mod)==repr(eos_load_mod), (
-#             'Pickled and unpickled Eos Models are not equal.')
-#
-        # assert False, 'Try to pickle object.'
-#====================================================================
 
 #====================================================================
 # SEC:2 Implimented Test Clases

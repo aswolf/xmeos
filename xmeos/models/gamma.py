@@ -15,6 +15,26 @@ __all__ = ['GammaEos','GammaCalc']
 #====================================================================
 # Base Class
 #====================================================================
+def set_calculator(eos_mod, kind, kind_opts):
+    assert kind in kind_opts, (
+        kind + ' is not a valid thermal calculator. '+
+        'You must select one of: ' +  kind_opts)
+
+    eos_mod._kind = kind
+
+    if   kind=='GammaPowLaw':
+        calc = _GammaPowLaw(eos_mod)
+    elif kind=='GammaShiftPowLaw':
+        calc = _GammaShiftPowLaw(eos_mod)
+    elif kind=='GammaFiniteStrain':
+        calc = _GammaFiniteStrain(eos_mod)
+    else:
+        raise NotImplementedError(kind+' is not a valid '+
+                                  'GammaEos Calculator.')
+
+    eos_mod._add_calculator(calc, calc_type='gamma')
+    pass
+#====================================================================
 class GammaEos(with_metaclass(ABCMeta, core.Eos)):
     """
     EOS model for compression dependence of Grüneisen parameter.
@@ -27,13 +47,11 @@ class GammaEos(with_metaclass(ABCMeta, core.Eos)):
 
     _kind_opts = ['GammaPowLaw','GammaShiftPowLaw','GammaFiniteStrain']
 
-    def __init__(self, kind='GammaPowLaw', natom=1, level_const=0,
-                 model_state={}):
+    def __init__(self, kind='GammaPowLaw', natom=1, model_state={}):
         self._pre_init(natom=natom)
 
-        set_calculator(self, kind, self._kind_opts, level_const)
-
-        self._set_eos_path(level_const)
+        set_calculator(self, kind, self._kind_opts)
+        self._set_ref_state()
         self._post_init(model_state=model_state)
 
         pass
@@ -45,20 +63,29 @@ class GammaEos(with_metaclass(ABCMeta, core.Eos)):
                 ")"
                 .format(kind=repr(calc.name),
                         natom=repr(self.natom),
-                        level_const=repr(self.level_const),
                         model_state=self.model_state
                         )
                 )
 
-    def _set_eos_path(self, level_const):
+    def _set_ref_state(self):
         calc = self.calculators['gamma']
-        self._path_const = calc.path_const
-        self._level_const = level_const
-        pass
+        path_const = calc.path_const
 
-    @property
-    def level_const(self):
-        return self._level_const
+        if path_const=='S':
+            param_ref_names = []
+            param_ref_units = []
+            param_ref_defaults = []
+            param_ref_scales = []
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for ThermalEos.')
+
+        self._path_const = calc.path_const
+        self._param_ref_names = param_ref_names
+        self._param_ref_units = param_ref_units
+        self._param_ref_defaults = param_ref_defaults
+        self._param_ref_scales = param_ref_scales
+        pass
 
     def gamma(self, V_a):
         gamma_a = self.calculators['gamma']._calc_gamma(V_a)
@@ -82,22 +109,16 @@ class GammaCalc(with_metaclass(ABCMeta, core.Calculator)):
 
     """
 
-    def __init__(self, eos_mod, level_const=None):
+    def __init__(self, eos_mod):
         self._eos_mod = eos_mod
         self._init_params()
-        self._required_calculators = None
 
         self._path_const = 'S'
-        self._level_const = level_const
         pass
 
     @property
     def path_const( self ):
         return self._path_const
-
-    @property
-    def level_const( self ):
-        return self._level_const
 
     ####################
     # Required Methods #
@@ -105,11 +126,6 @@ class GammaCalc(with_metaclass(ABCMeta, core.Calculator)):
     @abstractmethod
     def _init_params( self ):
         """Initialize list of calculator parameter names."""
-        pass
-
-    @abstractmethod
-    def _init_required_calculators( self ):
-        """Initialize list of other required calculators."""
         pass
 
     @abstractmethod
@@ -178,26 +194,6 @@ class GammaCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         return Eperturb_a, scale_a, paramkey_a
 #====================================================================
-def set_calculator(eos_mod, kind, kind_opts, level_const):
-    assert kind in kind_opts, (
-        kind + ' is not a valid thermal calculator. '+
-        'You must select one of: ' +  kind_opts)
-
-    eos_mod._kind = kind
-
-    if   kind=='GammaPowLaw':
-        calc = _GammaPowLaw(eos_mod, level_const)
-    elif kind=='GammaShiftPowLaw':
-        calc = _GammaShiftPowLaw(eos_mod, level_const)
-    elif kind=='GammaFiniteStrain':
-        calc = _GammaFiniteStrain(eos_mod, level_const)
-    else:
-        raise NotImplementedError(kind+' is not a valid '+
-                                  'GammaEos Calculator.')
-
-    eos_mod._add_calculator(calc, calc_type='gamma')
-    pass
-#====================================================================
 
 
 
@@ -206,14 +202,8 @@ def set_calculator(eos_mod, kind, kind_opts, level_const):
 class _GammaPowLaw(GammaCalc):
     _path_opts=['S']
 
-    def __init__(self, eos_mod, level_const=0):
-        super(_GammaPowLaw, self).__init__(eos_mod, level_const=level_const)
-        pass
-
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
-
-        self._required_calculators = None
+    def __init__(self, eos_mod):
+        super(_GammaPowLaw, self).__init__(eos_mod)
         pass
 
     def _init_params(self):
@@ -263,14 +253,8 @@ class _GammaShiftPowLaw(GammaCalc):
     """
     _path_opts=['S']
 
-    def __init__(self, eos_mod, level_const=0):
-        super(_GammaShiftPowLaw, self).__init__(eos_mod, level_const=level_const)
-        pass
-
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
-
-        self._required_calculators = None
+    def __init__(self, eos_mod):
+        super(_GammaShiftPowLaw, self).__init__(eos_mod)
         pass
 
     def _init_params(self):
@@ -318,14 +302,8 @@ class _GammaShiftPowLaw(GammaCalc):
 class _GammaFiniteStrain(GammaCalc):
     _path_opts=['S']
 
-    def __init__(self, eos_mod, level_const=0):
-        super(_GammaFiniteStrain, self).__init__(eos_mod, level_const=level_const)
-        pass
-
-    def _init_required_calculators(self):
-        """Initialize list of other required calculators."""
-
-        self._required_calculators = None
+    def __init__(self, eos_mod):
+        super(_GammaFiniteStrain, self).__init__(eos_mod)
         pass
 
     def _init_params(self):
