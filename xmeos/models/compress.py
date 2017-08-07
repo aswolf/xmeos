@@ -81,16 +81,16 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
 
         # Add needed extra parameters (depending on path_const)
         if path_const=='T':
-            V0, KP0 = calc.get_param_defaults(['V0','KP0'])
-            F0_scale = np.round(V0*KP0/core.CONSTS['PV_ratio'],decimals=2)
+            V0, K0 = calc.get_param_defaults(['V0','K0'])
+            F0_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
             param_ref_names = ['T0','F0']
             param_ref_units = ['K','eV']
             param_ref_defaults = [300, 0.0]
             param_ref_scales = [300, F0_scale]
 
         elif path_const=='S':
-            V0, KP0 = calc.get_param_defaults(['V0','KP0'])
-            E0_scale = np.round(V0*KP0/core.CONSTS['PV_ratio'],decimals=2)
+            V0, K0 = calc.get_param_defaults(['V0','K0'])
+            E0_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
             param_ref_names = ['T0','E0']
             param_ref_units = ['K','eV']
             param_ref_defaults = [300, 0.0]
@@ -543,7 +543,7 @@ class _BirchMurn4(CompressCalc):
         """Initialize list of calculator parameter names."""
 
         V0, K0, KP0 = 100, 150, 4
-        KP20 = -KP0/KP0
+        KP20 = -KP0/K0
         KP20_scale = np.abs(KP20)
         param_names = ['V0','K0','KP0','KP20']
         param_units = ['ang^3','GPa','1','GPa^-1']
@@ -612,7 +612,7 @@ class _GenFiniteStrain(CompressCalc):
 
         V0, K0, KP0, nexp = 100, 150, 4, 2
         nexp_scale = 1
-        KP20 = -KP0/KP0
+        KP20 = -KP0/K0
         KP20_scale = np.abs(KP20)
         param_names = ['V0','K0','KP0','KP20','nexp']
         param_units = ['ang^3','GPa','1','GPa^-1','1']
