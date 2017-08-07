@@ -437,6 +437,14 @@ class Calculator(with_metaclass(ABCMeta)):
 
         return param_names
 
+    def _set_params(self, param_names, param_units,
+                    param_defaults, param_scales):
+        self._param_names = np.array(param_names)
+        self._param_units = np.array(param_units)
+        self._param_defaults = np.array(param_defaults)
+        self._param_scales = np.array(param_scales)
+        pass
+
     def get_param_defaults(self, param_names=None):
         """
         Values for (selected) parameters.
@@ -453,7 +461,13 @@ class Calculator(with_metaclass(ABCMeta)):
 
         """
         param_names = self._validate_param_names(param_names)
-        defaults = self._param_defaults[np.in1d(self._param_names, param_names)]
+        # NOTE need to return defaults in order provided!!!
+        defaults = []
+        for name in param_names:
+            ind, = np.where(self._param_names==name)
+            defaults.append(self._param_defaults[ind])
+
+        defaults = np.array(defaults)
         return defaults
 
     @property

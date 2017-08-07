@@ -158,31 +158,27 @@ class BaseTestCompressEos(test_models.BaseTestEos):
 class TestVinet(BaseTestCompressEos):
     def load_eos(self):
         eos_mod = models.CompressEos(
-            kind='Vinet', path_const='T', level_const=300)
+            kind='Vinet', path_const='T')
         return eos_mod
 #====================================================================
 class TestBirchMurn3(BaseTestCompressEos):
     def load_eos(self):
-        eos_mod = models.CompressEos(
-            kind='BirchMurn3', path_const='S', level_const=0)
+        eos_mod = models.CompressEos(kind='BirchMurn3', path_const='S')
         return eos_mod
 #====================================================================
 class TestBirchMurn4(BaseTestCompressEos):
     def load_eos(self):
-        eos_mod = models.CompressEos(
-            kind='BirchMurn4', path_const='S', level_const=0)
+        eos_mod = models.CompressEos(kind='BirchMurn4', path_const='S')
         return eos_mod
 #====================================================================
 class TestGenFiniteStrain(BaseTestCompressEos):
     def load_eos(self):
-        eos_mod = models.CompressEos(
-            kind='GenFiniteStrain', path_const='S', level_const=0)
+        eos_mod = models.CompressEos(kind='GenFiniteStrain', path_const='S')
         return eos_mod
 #====================================================================
 class TestTait(BaseTestCompressEos):
     def load_eos(self):
-        eos_mod = models.CompressEos(
-            kind='Tait', path_const='S', level_const=0)
+        eos_mod = models.CompressEos(kind='Tait', path_const='S')
         print(eos_mod)
         return eos_mod
 #====================================================================
