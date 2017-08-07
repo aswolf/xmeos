@@ -33,12 +33,21 @@ slow = pytest.mark.skipif(
 # SEC:1 Abstract Test Classes
 #====================================================================
 class BaseTestCompressEos(test_models.BaseTestEos):
-    def test_press(self):
+    def test_press_S(self):
+        self.calc_test_press(path_const='S')
+
+    def test_press_T(self):
+        self.calc_test_press(path_const='T')
+
+    def test_press_0K(self):
+        self.calc_test_press(path_const='0K')
+
+    def calc_test_press(self, path_const='T'):
 
         TOL = 1e-3
 
         Nsamp = 10001
-        eos_mod = self.load_eos()
+        eos_mod = self.load_eos(path_const=path_const)
 
         V0, = eos_mod.get_param_values(param_names='V0')
         Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
@@ -156,30 +165,29 @@ class BaseTestCompressEos(test_models.BaseTestEos):
 # 2.1: CompressEos Tests
 #====================================================================
 class TestVinet(BaseTestCompressEos):
-    def load_eos(self):
+    def load_eos(self, path_const='T'):
         eos_mod = models.CompressEos(
-            kind='Vinet', path_const='T')
+            kind='Vinet', path_const=path_const)
         return eos_mod
 #====================================================================
 class TestBirchMurn3(BaseTestCompressEos):
-    def load_eos(self):
-        eos_mod = models.CompressEos(kind='BirchMurn3', path_const='S')
+    def load_eos(self, path_const='T'):
+        eos_mod = models.CompressEos(kind='BirchMurn3', path_const=path_const)
         return eos_mod
 #====================================================================
 class TestBirchMurn4(BaseTestCompressEos):
-    def load_eos(self):
-        eos_mod = models.CompressEos(kind='BirchMurn4', path_const='S')
+    def load_eos(self, path_const='T'):
+        eos_mod = models.CompressEos(kind='BirchMurn4', path_const=path_const)
         return eos_mod
 #====================================================================
 class TestGenFiniteStrain(BaseTestCompressEos):
-    def load_eos(self):
-        eos_mod = models.CompressEos(kind='GenFiniteStrain', path_const='S')
+    def load_eos(self, path_const='T'):
+        eos_mod = models.CompressEos(kind='GenFiniteStrain', path_const=path_const)
         return eos_mod
 #====================================================================
 class TestTait(BaseTestCompressEos):
-    def load_eos(self):
-        eos_mod = models.CompressEos(kind='Tait', path_const='S')
-        print(eos_mod)
+    def load_eos(self, path_const='T'):
+        eos_mod = models.CompressEos(kind='Tait', path_const=path_const)
         return eos_mod
 #====================================================================
 # class TestCompareCompressEos(object):
@@ -403,6 +411,3 @@ class TestTait(BaseTestCompressEos):
 #         self.do_test_energy_perturb_eval()
 #         pass
 #====================================================================
-
-
-

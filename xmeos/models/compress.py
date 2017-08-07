@@ -49,7 +49,7 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
 
     """
 
-    _path_opts = ['T','S']
+    _path_opts = ['T','S','0K']
     _kind_opts = ['Vinet','BirchMurn3','BirchMurn4','GenFiniteStrain','Tait']
 
     def __init__(self, kind='Vinet', natom=1, path_const='T', model_state={}):
@@ -89,16 +89,24 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
             param_ref_defaults = [300, 0.0]
             param_ref_scales = [300, F0_scale]
 
-        else: # path_const=='S'
+        elif path_const=='S':
             V0, KP0 = calc.get_param_defaults(['V0','KP0'])
-            T0_scale = 300
-            Cv_scale = 3*self.natom*core.CONSTS['kboltz']
             E0_scale = np.round(V0*KP0/core.CONSTS['PV_ratio'],decimals=2)
-            S0_scale = Cv_scale*T0_scale
-            param_ref_names = ['S0','E0']
-            param_ref_units = ['eV/K','eV']
-            param_ref_defaults = [0.0, 0.0]
-            param_ref_scales = [S0_scale, E0_scale]
+            param_ref_names = ['T0','E0']
+            param_ref_units = ['K','eV']
+            param_ref_defaults = [300, 0.0]
+            param_ref_scales = [300, E0_scale]
+        elif path_const=='0K':
+            param_ref_names = []
+            param_ref_units = []
+            param_ref_defaults = []
+            param_ref_scales = []
+            pass
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+
 
         self._path_const = path_const
         self._param_ref_names = param_ref_names
@@ -120,7 +128,17 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
         return press_a
 
     def energy( self, V_a, apply_expand_adj=True ):
-        energy_a =  self.calculators['compress']._calc_energy(V_a)
+        energy0 = 0.0
+        try:
+            energy0 = self.get_param_values(param_names=['F0'])
+        except:
+            pass
+        try:
+            energy0 = self.get_param_values(param_names=['E0'])
+        except:
+            pass
+
+        energy_a =  energy0 + self.calculators['compress']._calc_energy(V_a)
         # if self.expand_adj and apply_expand_adj:
         #     ind_exp = self.get_ind_expand(V_a, eos_d)
         #     if apply_expand_adj and (ind_exp.size>0):
@@ -217,7 +235,7 @@ class CompressCalc(with_metaclass(ABCMeta, core.Calculator)):
 
     """
 
-    _path_opts = ['T','S']
+    _path_opts = ['T','S','0K']
     supress_energy = False
     supress_press = False
 
