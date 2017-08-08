@@ -63,14 +63,14 @@ def _chebval(x, c):
     return c0 + c1 * x
 
 
-def debye_fn(x):
-    """
-    Evaluate the Debye function.  Takes the parameter
-    xi = Debye_T/T
-    """
-    sol = integrate.quad(
-        lambda xi: (xi * xi * xi) / (np.exp(xi) - 1.), 0.0, x)  # EQ B3
-    return 3. * sol[0] / pow(x, 3.)
+# def debye_fn(x):
+#     """
+#     Evaluate the Debye function.  Takes the parameter
+#     xi = Debye_T/T
+#     """
+#     sol = integrate.quad(
+#         lambda xi: (xi * xi * xi) / (np.exp(xi) - 1.), 0.0, x)  # EQ B3
+#     return 3. * sol[0] / pow(x, 3.)
 
 
 eps = np.finfo(np.float).eps
@@ -83,7 +83,8 @@ def debye_heat_capacity_fun(x_array):
     TOL = 1e-4
     SLOPE = 0.05
 
-    Cv_factor = 4.0*debye_energy_fun(x_array)-3.0*x_array/(np.exp(x_array)-1.0)
+    # Cv_factor = 4.0*debye_energy_fun(x_array)-3.0*x_array/(np.exp(x_array)-1.0)
+    Cv_factor = debye3_fun(x_array) - x_array*debye3_deriv_fun(x_array)
     Cv_factor[x_array<TOL] = 1.0 - SLOPE*x_array[x_array<TOL]**2
     return Cv_factor
 
@@ -92,23 +93,29 @@ def debye_entropy_fun(x_array):
     TOL = 1e-4
     SLOPE = 0.05
 
-    S_factor = 4/3*debye_energy_fun(x_array) - np.log(1-np.exp(-x_array))
+    # S_factor = 4/3*debye_energy_fun(x_array) - np.log(1-np.exp(-x_array))
+    S_factor = 4/3*debye3_fun(x_array) - np.log(1-np.exp(-x_array))
     # S_factor[x_array<TOL] = 1.0 - SLOPE*x_array[x_array<TOL]**2
+
     return S_factor
 
 @jit
 def debye_energy_fun(x_array):
-    TOL = 1e-10
-    SLOPE = 0.375
+    return _calc_debye3_fun(x_array)
 
-    values = np.zeros(len(x_array))
-    for ind, x in enumerate(x_array):
-        if x > TOL:
-            values[ind] = _calc_debye_energy_fun(x)
-        else:
-            values[ind] = 1.0 - x*SLOPE
-
-    return values
+# @jit
+# def debye_energy_fun(x_array):
+#     TOL = 1e-10
+#     SLOPE = 0.375
+#
+#     values = np.zeros(len(x_array))
+#     for ind, x in enumerate(x_array):
+#         if x > TOL:
+#             values[ind] = _calc_debye3_fun(x)
+#         else:
+#             values[ind] = 1.0 - x*SLOPE
+#
+#     return values
 
 @jit
 def _calc_debye_energy_fun(x):
@@ -149,60 +156,119 @@ def _calc_debye_energy_fun(x):
     else:
         return ((val_infinity / x) / x) / x
 
-
-
-
+@jit
+def debye3_deriv_fun(x_array):
+    """
+    Evaluate the Debye function using a Chebyshev series expansion coupled with
+    asymptotic solutions of the function.  Shamelessly adapted from the GSL implementation
+    of the same function (Itself adapted from Collected Algorithms from ACM).
+    Should give the same result as debye_fn(x) to near machine-precision.
+    """
+    return 3/x_array*(x_array/(np.exp(x_array)-1) - debye3_fun(x_array))
 
 @jit
-def thermal_energy(T, debye_T, n):
+def debye3_fun(x_array):
     """
-    calculate the thermal energy of a substance.  Takes the temperature,
-    the Debye temperature, and n, the number of atoms per molecule.
-    Returns thermal energy in J/mol
+    Evaluate the Debye function using a Chebyshev series expansion coupled with
+    asymptotic solutions of the function.  Shamelessly adapted from the GSL implementation
+    of the same function (Itself adapted from Collected Algorithms from ACM).
+    Should give the same result as debye_fn(x) to near machine-precision.
     """
-    if T <= eps:
-        return 0.
-    E_th = 3. * n * constants.gas_constant * T * debye_fn_cheb(debye_T / T)
-    return E_th
+    TOL = 1e-10
+    SLOPE = 0.375
 
+    values = np.zeros(len(x_array))
+    for ind, x in enumerate(x_array):
+        if x > TOL:
+            values[ind] = _calc_debye3_fun(x)
+        else:
+            values[ind] = 1.0 - x*SLOPE
 
-@jit
-def heat_capacity_v(T, debye_T, n):
-    """
-    Heat capacity at constant volume.  In J/K/mol
-    """
-    if T <= eps:
-        return 0.
-    x = debye_T / T
-    C_v = 3.0 * n * constants.gas_constant * \
-        (4.0 * debye_fn_cheb(x) - 3.0 * x / (np.exp(x) - 1.0))
-    return C_v
-
+    return values
 
 @jit
-def helmholtz_free_energy(T, debye_T, n):
-    """
-    Helmholtz free energy of lattice vibrations in the Debye model.
-    It is important to note that this does NOT include the zero
-    point energy of vibration for the lattice.  As long as you are
-    calculating relative differences in F, this should cancel anyways.
-    In Joules.
-    """
-    if T <= eps:
-        return 0.
-    x = debye_T / T
-    F = n * constants.gas_constant * T * \
-        (3.0 * np.log(1.0 - np.exp(-x)) - debye_fn_cheb(x))
-    return F
+def _calc_debye3_fun(x):
+    val_infinity = 19.4818182068004875
+    xcut = -log_eps
 
+    assert(x > 0.0)  # check for invalid x
 
-def entropy(T, debye_T, n):
-    """
-    Entropy due to lattice vibrations in the Debye model [J/K]
-    """
-    if T <= eps:
-        return 0.
-    x = debye_T / T
-    S = n * constants.gas_constant * \
-        (4. * debye_fn_cheb(x) - 3. * np.log(1.0 - np.exp(-x)))
-    return S
+    if x < 2.0 * np.sqrt(2.0) * sqrt_eps:
+        return 1.0 - 3.0 * x / 8.0 + x * x / 20.0
+    elif x <= 4.0:
+        t = x * x / 8.0 - 1.0
+        c = _chebval(t, chebyshev_representation)
+        return c - 0.375 * x
+    elif x < -(np.log(2.0) + log_eps):
+        nexp = int(np.floor(xcut / x))
+        ex = np.exp(-x)
+        xk = nexp * x
+        rk = nexp
+        sum = 0.0
+        for i in range(nexp, 0, -1):
+            xk_inv = 1.0 / xk
+            sum *= ex
+            sum += (((6.0 * xk_inv + 6.0) * xk_inv + 3.0) * xk_inv + 1.0) / rk
+            rk -= 1.0
+            xk -= x
+        return val_infinity / (x * x * x) - 3.0 * sum * ex
+    elif x < xcut:
+        x3 = x * x * x
+        sum = 6.0 + 6.0 * x + 3.0 * x * x + x3
+        return (val_infinity - 3.0 * sum * np.exp(-x)) / x3
+    else:
+        return ((val_infinity / x) / x) / x
+
+# @jit
+# def thermal_energy(T, debye_T, n):
+#     """
+#     calculate the thermal energy of a substance.  Takes the temperature,
+#     the Debye temperature, and n, the number of atoms per molecule.
+#     Returns thermal energy in J/mol
+#     """
+#     if T <= eps:
+#         return 0.
+#     E_th = 3. * n * constants.gas_constant * T * debye_fn_cheb(debye_T / T)
+#     return E_th
+#
+#
+# @jit
+# def heat_capacity_v(T, debye_T, n):
+#     """
+#     Heat capacity at constant volume.  In J/K/mol
+#     """
+#     if T <= eps:
+#         return 0.
+#     x = debye_T / T
+#     C_v = 3.0 * n * constants.gas_constant * \
+#         (4.0 * debye_fn_cheb(x) - 3.0 * x / (np.exp(x) - 1.0))
+#     return C_v
+#
+#
+# @jit
+# def helmholtz_free_energy(T, debye_T, n):
+#     """
+#     Helmholtz free energy of lattice vibrations in the Debye model.
+#     It is important to note that this does NOT include the zero
+#     point energy of vibration for the lattice.  As long as you are
+#     calculating relative differences in F, this should cancel anyways.
+#     In Joules.
+#     """
+#     if T <= eps:
+#         return 0.
+#     x = debye_T / T
+#     F = n * constants.gas_constant * T * \
+#         (3.0 * np.log(1.0 - np.exp(-x)) - debye_fn_cheb(x))
+#     return F
+#
+#
+# def entropy(T, debye_T, n):
+#     """
+#     Entropy due to lattice vibrations in the Debye model [J/K]
+#     """
+#     if T <= eps:
+#         return 0.
+#     x = debye_T / T
+#     S = n * constants.gas_constant * \
+#         (4. * debye_fn_cheb(x) - 3. * np.log(1.0 - np.exp(-x)))
+#     return S

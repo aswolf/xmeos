@@ -79,33 +79,33 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
         calc = self.calculators['compress']
         path_const = calc.path_const
 
+        V0, K0 = calc.get_param_defaults(['V0','K0'])
+        energy_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
+        T0 = 300
+
         # Add needed extra parameters (depending on path_const)
         if path_const=='T':
-            V0, K0 = calc.get_param_defaults(['V0','K0'])
-            F0_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
             param_ref_names = ['T0','F0']
             param_ref_units = ['K','eV']
-            param_ref_defaults = [300, 0.0]
-            param_ref_scales = [300, F0_scale]
+            param_ref_defaults = [T0, 0.0]
+            param_ref_scales = [T0, energy_scale]
 
         elif path_const=='S':
-            V0, K0 = calc.get_param_defaults(['V0','K0'])
-            E0_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
             param_ref_names = ['T0','E0']
             param_ref_units = ['K','eV']
-            param_ref_defaults = [300, 0.0]
-            param_ref_scales = [300, E0_scale]
+            param_ref_defaults = [T0, 0.0]
+            param_ref_scales = [T0, energy_scale]
+
         elif path_const=='0K':
             param_ref_names = []
             param_ref_units = []
             param_ref_defaults = []
             param_ref_scales = []
             pass
+
         else:
             raise NotImplementedError(
                 'path_const '+path_const+' is not valid for CompressEos.')
-
-
 
         self._path_const = path_const
         self._param_ref_names = param_ref_names

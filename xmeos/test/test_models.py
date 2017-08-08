@@ -28,7 +28,7 @@ slow = pytest.mark.skipif(
 
 class BaseTestEos(object):
     @abstractmethod
-    def load_eos(self, eos_d):
+    def load_eos(self):
         pass
 
     def test_param_getset(self):

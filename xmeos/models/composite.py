@@ -10,8 +10,9 @@ import scipy.interpolate as interpolate
 from . import core
 from . import compress
 from . import thermal
+from . import gamma
 
-__all__ = []
+__all__ = ['MieGruneisenEos']
 
 # class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 # class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
@@ -25,20 +26,18 @@ class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
                            'GenFiniteStrain','Tait']
 
     def __init__(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
-                 kind_compress='Vinet',
-                 compress_path_const='T', compress_level_const=300,
+                 kind_compress='Vinet', compress_path_const='T',
                  natom=1, model_state={}):
         self._pre_init(natom=natom)
 
-        thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
-        gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
         compress.set_calculator(self, kind_compress, self._kind_compress_opts,
-                                path_const=compress_path_const,
-                                level_const=compress_level_const)
+                                path_const=compress_path_const)
+        gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
+        thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
 
+        self._set_ref_state()
 
         self._post_init(model_state=model_state)
-
         pass
 
     def __repr__(self):
@@ -46,58 +45,129 @@ class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
         calc_compress = self.calculators['compress']
         calc_gamma = self.calculators['gamma']
 
-        return ("ThermalEos(kind_thermal={kind_thermal}, '
-                'kind_gamma={kind_gamma}, '
-                'kind_compress={kind_compress}, '
-                'compress_path_const={compress_path_const}, '
-                'compress_level_const={compress_level_const}, '
-                'natom={natom}, "
+        return ("ThermalEos(kind_thermal={kind_thermal}, "
+                "kind_gamma={kind_gamma}, "
+                "kind_compress={kind_compress}, "
+                "compress_path_const={compress_path_const}, "
+                "natom={natom}, "
                 "model_state={model_state}, "
                 ")"
                 .format(kind_thermal=repr(calc_thermal.name),
                         kind_gamma=repr(calc_gamma.name),
                         kind_compress=repr(calc_compress.name),
-                        kind_gamma=self._kind_gamma,
                         compress_path_const=repr(calc_compress.path_const),
-                        compress_level_const=repr(calc_compress.level_const),
                         natom=repr(self.natom),
                         model_state=self.model_state
                         )
                 )
 
-    def helmholtz_energy(self, V_a, T_a):
+    def _set_ref_state(self):
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        V0, K0 = compress_calc.get_param_defaults(['V0','K0'])
+        # redundant T0 declaration
+        T0_scale = 300
+        Cv_scale = 3*self.natom*core.CONSTS['kboltz']
+        S0_scale = Cv_scale*T0_scale
+        energy_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
+
+        if   compress_path_const=='T':
+            param_ref_names = ['T0', 'F0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [T0_scale, 0.0, S0_scale]
+            param_ref_scales = [T0_scale, energy_scale, S0_scale]
+
+        elif compress_path_const=='S':
+            param_ref_names = ['T0', 'E0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [300, 0.0, S0_scale]
+            param_ref_scales = [300, energy_scale, S0_scale]
+
+        elif compress_path_const=='0K':
+            param_ref_names = []
+            param_ref_units = []
+            param_ref_defaults = []
+            param_ref_scales = []
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        self._param_ref_names = param_ref_names
+        self._param_ref_units = param_ref_units
+        self._param_ref_defaults = param_ref_defaults
+        self._param_ref_scales = param_ref_scales
         pass
 
-    def energy(self, V_a, T_a):
-        calculator = self.calculators['thermal']
-        energy_a =  calculator._calc_energy(T_a)
-        return energy_a
+    def _calc_theta(self, V_a):
+        gamma_calc = self.calculators['gamma']
+        compress_calc = self.calculators['compress']
+
+        compress_path_const = compress_calc.path_const
+        if compress_path_const=='0K':
+            T0 = 0
+        else:
+            T0, = self.get_param_values(['T0'])
+
+        theta0, = self.get_param_values(['theta0'])
+        theta_a = gamma_calc._calc_temp(V_a, T0=theta0)
+        return theta_a
+
+    def thermal_energy(self, V_a, T_a):
+        gamma_calc = self.calculators['gamma']
+        thermal_calc = self.calculators['thermal']
+
+        gamma_a = gamma_calc._calc_gamma(V_a)
+        theta_a = self._calc_theta(V_a)
+        E_therm_a = thermal_calc._calc_energy(T_a, theta0=theta_a)
+        return E_therm_a
 
     def press(self, V_a, T_a):
-        calculator = self.calculators['thermal']
-        energy_a =  calculator._calc_energy(T_a)
-        return energy_a
+        gamma_calc = self.calculators['gamma']
+        compress_calc = self.calculators['compress']
 
-    def bulk_mod(self, V_a, T_a):
-        calculator = self.calculators['thermal']
-        energy_a =  calculator._calc_energy(T_a)
-        return energy_a
+        PV_ratio, = core.get_consts(['PV_ratio'])
+
+        P_ref_a = compress_calc._calc_press(V_a)
+        gamma_a = gamma_calc._calc_gamma(V_a)
+
+        E_therm_a = self.thermal_energy(V_a, T_a)
+        P_therm_a = PV_ratio*gamma_a/V_a*E_therm_a
+        press_a = P_ref_a + P_therm_a
+        return press_a
 
     def heat_capacity(self, V_a, T_a):
-        calculator = self.calculators['thermal']
-        heat_capacity_a =  calculator._calc_heat_capacity(T_a)
+        thermal_calc = self.calculators['thermal']
+        theta_a = self._calc_theta(V_a)
+
+        heat_capacity_a =  thermal_calc._calc_heat_capacity(T_a, theta0=theta_a)
         return heat_capacity_a
 
-    def entropy(self, V_a, T_a):
-        calculator = self.calculators['thermal']
-        entropy_a =  calculator._calc_entropy(T_a)
-        return entropy_a
+    # def entropy(self, V_a, T_a):
+    #     S0, = calc.get_param_defaults(['S0'])
+    #     thermal_calc = self.calculators['thermal']
+    #     entropy_a = thermal_calc.entropy(T_a)
+    #     return entropy_a
 
-    def gamma(self, V_a):
-        pass
+    # def helmholtz_energy(self, V_a, T_a):
+    #     pass
 
+    # def internal_energy(self, V_a, T_a):
+    #     calculator = self.calculators['thermal']
+    #     energy_a =  calculator._calc_energy(T_a)
+    #     return energy_a
+
+    # def gamma(self, V_a):
+    #     pass
+
+    # def adiabat_temp(self, Tpot, V_a):
+    #     pass
 #====================================================================
-# class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
+    # def bulk_mod(self, V_a, T_a):
+    #     calculator = self.calculators['thermal']
+    #     energy_a =  calculator._calc_energy(T_a)
+    #     return energy_a
 #====================================================================
 
 

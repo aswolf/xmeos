@@ -4,5 +4,6 @@ from .core import *
 from .compress import *
 from .thermal import *
 from .gamma import *
+from .composite import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]

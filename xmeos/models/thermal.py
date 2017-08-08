@@ -129,6 +129,12 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
         calculator = self.calculators['thermal']
         entropy_a =  calculator._calc_entropy(T_a)
         return entropy_a
+
+    def dEdV_T(self, T_a):
+        pass
+
+    def dEdV_S(self, T_a):
+        pass
 #====================================================================
 
 #====================================================================
@@ -183,12 +189,21 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
         """Returns thermal energy as a function of temperature."""
         pass
 
+    @abstractmethod
+    def _calc_entropy(self, T_a):
+        pass
+
+    @abstractmethod
+    def _calc_dEdV_T(self, T_a):
+        pass
+
+    @abstractmethod
+    def _calc_dEdV_S(self, T_a):
+        pass
+
     ####################
     # Optional Methods #
     ####################
-    def _calc_entropy(self, T_a):
-        raise NotImplemented('Entropy function not implemented for this calculator.')
-        pass
 
     def _calc_param_deriv(self, fname, paramname, V_a, dxfrac=1e-6):
         scale_a, paramkey_a = self.get_param_scale(apply_expand_adj=True )
@@ -299,8 +314,8 @@ class _Debye(ThermalCalc):
         except:
             x0 = np.array([x0])
 
-        energy = Cvmax*(T_a*_debye.debye_energy_fun(x)
-                        -T0*_debye.debye_energy_fun(x0))
+        energy = Cvmax*(T_a*_debye.debye3_fun(x)
+                        -T0*_debye.debye3_fun(x0))
         return energy
 
     def _calc_entropy(self, T_a, theta0=None, Cvmax=None, T0=None):
@@ -322,6 +337,22 @@ class _Debye(ThermalCalc):
                          -_debye.debye_entropy_fun(x0))
 
         return entropy
+
+    def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
+        Cvmax, = self.eos_mod.get_param_values(
+            param_names=['Cvmax'], overrides=[Cvmax])
+
+        x = theta_a/np.array(T_a)
+        dEdV_T = -Cvmax*gamma_a/V_a*theta_a*_debye.debye3_deriv_fun(x)
+        return dEdV_T
+
+    def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
+        Cvmax, = self.eos_mod.get_param_values(
+            param_names=['Cvmax'], overrides=[Cvmax])
+
+        x = theta_a/np.array(T_a)
+        dEdV_S = 1/x*self._calc_dEdV_T(V_a, T_a, theta_a, gamma_a, Cvmax=Cvmax)
+        return dEdV_S
 #====================================================================
 class _Einstein(ThermalCalc):
 
@@ -424,4 +455,30 @@ class _Einstein(ThermalCalc):
         # NOTE that Nosc*log(Nosc) has been removed due to difference
         # - Nosc*np.log(Nosc)
         return entropy
+
+    def _einstein_fun(self, x):
+        energy_fac = 1/2 + 1/(np.exp(x)-1)
+        return energy_fac
+
+    def _einstein_deriv_fun(self, x):
+        deriv_fac = -np.exp(x)/(np.exp(x)-1)**2
+        return deriv_fac
+
+    # FIX THESE!!!!
+    def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
+        Cvmax, = self.eos_mod.get_param_values(
+            param_names=['Cvmax'], overrides=[Cvmax])
+
+        x = theta_a/np.array(T_a)
+        dEdV_S = self._calc_dEdV_S(V_a, T_a, theta_a, gamma_a, Cvmax=Cvmax)
+        dEdV_T = dEdV_S - Cvmax*theta_a*gamma_a/V_a*x*self._einstein_deriv_fun(x)
+        return dEdV_T
+
+    def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
+        Cvmax, = self.eos_mod.get_param_values(
+            param_names=['Cvmax'], overrides=[Cvmax])
+
+        x = theta_a/np.array(T_a)
+        dEdV_S = -Cvmax*theta_a*gamma_a/V_a*self._einstein_fun(x)
+        return dEdV_S
 #====================================================================

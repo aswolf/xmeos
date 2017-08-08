@@ -1,14 +1,16 @@
 import numpy as np
-from models import thermal
-from models import core
-from models import compress
-from models import composite
+import xmeos
+from xmeos import models
+from xmeos.models import core
 
 import pytest
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from abc import ABCMeta, abstractmethod
 import copy
+
+import test_models
+
 #====================================================================
 # Define "slow" tests
 #  - indicated by @slow decorator
@@ -20,6 +22,17 @@ slow = pytest.mark.skipif(
 )
 
 
+#====================================================================
+class TestMieGruneisenEos(test_models.BaseTestEos):
+    def load_eos(self):
+        eos_mod = models.MieGruneisenEos(
+            kind_thermal='Debye', kind_gamma='GammaPowLaw',
+            kind_compress='Vinet', compress_path_const='T', natom=1)
+        return eos_mod
+
+    # def test_
+
+#====================================================================
 
 
 #====================================================================
