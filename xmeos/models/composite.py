@@ -102,32 +102,65 @@ class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
 
     def _calc_theta(self, V_a):
         gamma_calc = self.calculators['gamma']
-        compress_calc = self.calculators['compress']
-
-        compress_path_const = compress_calc.path_const
-        if compress_path_const=='0K':
-            T0 = 0
-        else:
-            T0, = self.get_param_values(['T0'])
 
         theta0, = self.get_param_values(['theta0'])
         theta_a = gamma_calc._calc_temp(V_a, T0=theta0)
         return theta_a
 
+    def ref_temp_path(self, V_a):
+        T0, theta0 = self.get_param_values(param_names=['T0','theta0'])
+
+        gamma_calc = self.calculators['gamma']
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        if   compress_path_const=='T':
+            Tref_path = T0
+            theta_ref = theta0
+
+        elif compress_path_const=='S':
+            Tref_path = gamma_calc._calc_temp(V_a)
+            theta_ref = self._calc_theta(V_a)
+
+        elif compress_path_const=='0K':
+            Tref_path = 0
+            theta_ref = theta0
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        Tref_path, V_a = core.fill_array(Tref_path, V_a)
+        Tref_path, theta_ref = core.fill_array(Tref_path, theta_ref)
+
+        return Tref_path, theta_ref
+
     def thermal_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
         thermal_calc = self.calculators['thermal']
-        theta_a = self._calc_theta(V_a)
 
-        E_therm_a = thermal_calc._calc_energy(T_a, theta=theta_a)
-        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_a)
+        Tref_path, theta_ref = self.ref_temp_path(V_a)
 
-        # dT = np.diff(T_a)[0]
-        # np.gradient(E_therm_a)/dT
-        # x = theta_a/T_a
-        # from IPython import embed;embed();import pdb;pdb.set_trace()
+        # theta_a = self._calc_theta(V_a)
+        # assert(np.abs(theta_a-theta_ref)<1e-3),'Doh!'
+
+        # E_therm_a = thermal_calc._calc_energy(T_a, theta=theta_a,
+        #                                       theta0=theta_ref, T0=Tref_path)
+        E_therm_a = thermal_calc._calc_energy(T_a, theta=theta_ref,
+                                              Tref=Tref_path)
         return E_therm_a
 
+    def heat_capacity(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        thermal_calc = self.calculators['thermal']
+        # theta_a = self._calc_theta(V_a)
+        Tref_path, theta_ref = self.ref_temp_path(V_a)
+
+        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_ref)
+        return heat_capacity_a
+
     def press(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
         gamma_calc = self.calculators['gamma']
         compress_calc = self.calculators['compress']
 
@@ -138,15 +171,57 @@ class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
 
         E_therm_a = self.thermal_energy(V_a, T_a)
         P_therm_a = PV_ratio*gamma_a/V_a*E_therm_a
+
         press_a = P_ref_a + P_therm_a
         return press_a
 
-    def heat_capacity(self, V_a, T_a):
+    def entropy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        S0, = self.get_param_values(param_names=['S0'])
         thermal_calc = self.calculators['thermal']
-        theta_a = self._calc_theta(V_a)
 
-        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_a)
-        return heat_capacity_a
+        Tref_path, theta_ref = self.ref_temp_path(V_a)
+
+        theta_a = self._calc_theta(V_a)
+        entropy_a = S0 + thermal_calc._calc_entropy(
+            T_a, theta=theta_a, theta_ref=theta_ref, Tref=Tref_path)
+        # entropy_a = S0 + thermal_calc._calc_entropy(
+        #     T_a, theta=theta_ref, theta_ref=theta_ref, Tref=Tref_path)
+
+        return entropy_a
+
+    def helmholtz_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        E_a = self.internal_energy(V_a, T_a)
+        S_a = self.entropy(V_a, T_a)
+        F_a = E_a - T_a*S_a
+
+        return F_a
+
+    def internal_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        T0, = self.get_param_values(param_names=['T0'])
+        Eth = self.thermal_energy(V_a, T_a)
+
+        if   compress_path_const=='T':
+            F0_ref = compress_calc._calc_energy(V_a)
+            S0_ref = self.entropy(V_a, T0)
+            E0_ref = F0_ref + T0*S0_ref
+
+        elif (compress_path_const=='S')|(compress_path_const=='0K'):
+            E0_ref = compress_calc._calc_energy(V_a)
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        E_a = E0_ref + Eth
+
+        return E_a
 #====================================================================
     # def entropy(self, V_a, T_a):
     #     S0, = calc.get_param_defaults(['S0'])

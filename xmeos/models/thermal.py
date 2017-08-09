@@ -292,50 +292,66 @@ class _Debye(ThermalCalc):
     def _calc_heat_capacity(self, T_a, theta=None):
         """Returns heat capacity as a function of temperature."""
 
+        T_a = core.fill_array(T_a)
         Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
 
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
 
-        x = theta/np.array(T_a)
+        x = theta/T_a
         Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x)
         return Cv_values
 
-    def _calc_energy(self, T_a, theta=None, T0=None):
+    def _calc_energy(self, T_a, theta=None, Tref=None):
         """Returns heat capacity as a function of temperature."""
 
+        T_a = core.fill_array(T_a)
         Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
-        T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
+        # T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
 
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
+        if Tref is None:
+            Tref, = self.eos_mod.get_param_values(param_names=['T0'])
 
-        T_a = np.array(T_a)
         x = core.fill_array(theta/T_a)
-        x0 = core.fill_array(theta/T0)
+        # x0 = core.fill_array(theta0/T0)
+        xref = core.fill_array(theta/Tref)
 
         energy = Cvmax*(T_a*_debye.debye3_fun(x)
-                        -T0*_debye.debye3_fun(x0))
+                        -Tref*_debye.debye3_fun(xref))
+        # energy = Cvmax*T_a*(_debye.debye3_fun(x)
+        #                     -_debye.debye3_fun(x0))
 
         # energy = Cvmax*T_a*_debye.debye3_fun(x)
 
         return energy
 
-    def _calc_entropy(self, T_a, theta=None, T0=None):
+    def _calc_entropy(self, T_a, Tref=None, theta=None, theta_ref=None):
         """Returns heat capacity as a function of temperature."""
 
+        T_a = core.fill_array(T_a)
         Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
-        T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
 
+        if Tref is None:
+            Tref, = self.eos_mod.get_param_values(param_names=['T0'])
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
+        if theta_ref is None:
+            theta_ref, = self.eos_mod.get_param_values(param_names=['theta0'])
 
-        T_a = np.array(T_a)
+        # if theta is None:
+        #     theta, = self.eos_mod.get_param_values(param_names=['theta0'])
+        # if T0 is None:
+        #     T0, = self.eos_mod.get_param_values(param_names=['T0'])
+
         x = core.fill_array(theta/T_a)
-        x0 = core.fill_array(theta/T0)
+        # x0 = core.fill_array(theta0/T0)
+        # xref = core.fill_array(theta/Tref)
+        xref = core.fill_array(theta_ref/Tref)
 
-        entropy = Cvmax*(_debye.debye_entropy_fun(x)
-                         -_debye.debye_entropy_fun(x0))
+        entropy = Cvmax*(+_debye.debye_entropy_fun(x)
+                         -_debye.debye_entropy_fun(xref))
 
         return entropy
 
