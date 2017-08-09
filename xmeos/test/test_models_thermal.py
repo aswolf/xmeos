@@ -71,6 +71,8 @@ class BaseTestThermalEos(test_models.BaseTestEos):
         Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
         dT = Tmod_a[1] - Tmod_a[0]
 
+        assert eos_mod.entropy(T0)==0, 'Entropy must be zero at T0.'
+
         entropy_a = eos_mod.entropy(Tmod_a)
         heat_capacity_a = eos_mod.heat_capacity(Tmod_a)
 

@@ -311,12 +311,8 @@ class _Debye(ThermalCalc):
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
 
         T_a = np.array(T_a)
-        x = theta/T_a
-        x0 = theta/T0
-        try:
-            len(x0)
-        except:
-            x0 = np.array([x0])
+        x = core.fill_array(theta/T_a)
+        x0 = core.fill_array(theta/T0)
 
         energy = Cvmax*(T_a*_debye.debye3_fun(x)
                         -T0*_debye.debye3_fun(x0))
@@ -335,12 +331,8 @@ class _Debye(ThermalCalc):
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
 
         T_a = np.array(T_a)
-        x = theta/T_a
-        x0 = theta/T0
-        try:
-            len(x0)
-        except:
-            x0 = np.array([x0])
+        x = core.fill_array(theta/T_a)
+        x0 = core.fill_array(theta/T0)
 
         entropy = Cvmax*(_debye.debye_entropy_fun(x)
                          -_debye.debye_entropy_fun(x0))

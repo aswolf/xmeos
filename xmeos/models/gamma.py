@@ -95,8 +95,8 @@ class GammaEos(with_metaclass(ABCMeta, core.Eos)):
         gamma_deriv_a = self.calculators['gamma']._calc_gamma_deriv(V_a)
         return gamma_deriv_a
 
-    def temp(self, V_a, V0=None, T0=None):
-        temp_a = self.calculators['gamma']._calc_temp(V_a, V0=V0, T0=T0)
+    def temp(self, V_a, T0=None):
+        temp_a = self.calculators['gamma']._calc_temp(V_a, T0=T0)
         return temp_a
 #====================================================================
 class GammaCalc(with_metaclass(ABCMeta, core.Calculator)):
@@ -137,8 +137,13 @@ class GammaCalc(with_metaclass(ABCMeta, core.Calculator)):
         pass
 
     @abstractmethod
-    def _calc_temp(self, V_a, V0=None, T0=None):
+    def _calc_temp(self, V_a, T0=None):
         pass
+
+    def _calc_theta(self, V_a):
+        theta0 = self.eos_mod.get_param_values(param_names=['theta0'])
+        theta = self._calc_temp(V_a, T0=theta0)
+        return theta
 
     ####################
     # Optional Methods #
@@ -235,9 +240,8 @@ class _GammaPowLaw(GammaCalc):
         gamma_deriv_a = q*gamma_a/V_a
         return gamma_deriv_a
 
-    def _calc_temp(self, V_a, V0=None, T0=None):
-        V0, T0 = self.eos_mod.get_param_values(
-            param_names=['V0','T0'], overrides=[V0,T0])
+    def _calc_temp(self, V_a, T0=None):
+        T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
         gamma0, q = self.eos_mod.get_param_values(
             param_names=['gamma0','q'])
 
@@ -287,11 +291,10 @@ class _GammaShiftPowLaw(GammaCalc):
         gamma_deriv_a = beta/V_a*(gamma_a-gamma_inf)
         return gamma_deriv_a
 
-    def _calc_temp(self, V_a, V0=None, T0=None):
-        V0, T0 = self.eos_mod.get_param_values(
-            param_names=['V0','T0'], overrides=[V0,T0])
-        gamma0, gamma_inf, beta = self.eos_mod.get_param_values(
-            param_names=['gamma0','gamma_inf','beta'])
+    def _calc_temp(self, V_a, T0=None):
+        T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
+        V0, gamma0, gamma_inf, beta = self.eos_mod.get_param_values(
+            param_names=['V0','gamma0','gamma_inf','beta'])
 
         gamma_a = self._calc_gamma(V_a)
         x = V_a/V0
@@ -359,9 +362,9 @@ class _GammaFiniteStrain(GammaCalc):
 
         return gamma_deriv_a
 
-    def _calc_temp(self, V_a, V0=None, T0=None):
-        V0, T0 = self.eos_mod.get_param_values(
-            param_names=['V0','T0'], overrides=[V0,T0])
+    def _calc_temp(self, V_a, T0=None):
+        T0, = self.eos_mod.get_param_values(param_names=['T0'],
+                                            overrides=[T0])
 
         a1, a2 = self._calc_strain_coefs()
         fstr_a = self._calc_fstrain(V_a)

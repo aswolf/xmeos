@@ -573,38 +573,81 @@ def get_array_params( basename, eos_d ):
 
         return param_arr
 #====================================================================
-def fill_array( var1, var2 ):
+# def fill_array( var1, var2 ):
+#     """
+#     fix fill_array such that it returns two numpy arrays of equal size
+#
+#     use numpy.full_like
+#
+#     """
+#     var1_a = np.asarray( var1 )
+#     var2_a = np.asarray( var2 )
+#
+#     if var1_a.shape==():
+#         var1_a = np.asarray( [var1] )
+#     if var2_a.shape==():
+#         var2_a = np.asarray( [var2] )
+#
+#     # Begin try/except block to handle all cases for filling an array
+#     while True:
+#         try:
+#             assert var1_a.shape == var2_a.shape
+#             break
+#         except: pass
+#         try:
+#             var1_a = np.full_like( var2_a, var1_a )
+#             break
+#         except: pass
+#         try:
+#             var2_a = np.full_like( var1_a, var2_a )
+#             break
+#         except: pass
+#
+#         # If none of the cases properly handle it, throw error
+#         assert False, 'var1 and var2 must both be equal shape or size=1'
+#
+#     return var1_a, var2_a
+#====================================================================
+def fill_array(*arg):
     """
     fix fill_array such that it returns two numpy arrays of equal size
 
     use numpy.full_like
 
     """
-    var1_a = np.asarray( var1 )
-    var2_a = np.asarray( var2 )
+    Narg = len(arg)
 
-    if var1_a.shape==():
-        var1_a = np.asarray( [var1] )
-    if var2_a.shape==():
-        var2_a = np.asarray( [var2] )
+    array_list = []
+    for var in arg:
+        var_a = np.asarray(var)
+        if var_a.shape==():
+            var_a = np.asarray([var_a])
 
-    # Begin try/except block to handle all cases for filling an array
-    while True:
-        try:
-            assert var1_a.shape == var2_a.shape
-            break
-        except: pass
-        try:
-            var1_a = np.full_like( var2_a, var1_a )
-            break
-        except: pass
-        try:
-            var2_a = np.full_like( var1_a, var2_a )
-            break
-        except: pass
+        array_list.append(var_a)
 
-        # If none of the cases properly handle it, throw error
-        assert False, 'var1 and var2 must both be equal shape or size=1'
+    assert len(array_list)<=2, 'fill_array can only accept one or 2 arrays'
+
+    if len(array_list)==1:
+        return array_list[0]
+    else:
+        var1_a, var2_a = array_list[0], array_list[1]
+        # Begin try/except block to handle all cases for filling an array
+        while True:
+            try:
+                assert var1_a.shape == var2_a.shape
+                break
+            except: pass
+            try:
+                var1_a = np.full_like( var2_a, var1_a )
+                break
+            except: pass
+            try:
+                var2_a = np.full_like( var1_a, var2_a )
+                break
+            except: pass
+
+            # If none of the cases properly handle it, throw error
+            assert False, 'var1 and var2 must both be equal shape or size=1'
 
     return var1_a, var2_a
 #====================================================================
