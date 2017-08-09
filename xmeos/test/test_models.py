@@ -46,6 +46,15 @@ class BaseTestEos(object):
         assert np.all(param_values==param_values_orig), \
             'param values retrieved one at a time unequal.'
 
+        ind_all = np.arange(len(param_names))
+        ind_reorder = np.random.permutation(ind_all)
+        eos_mod.set_param_values(param_values[ind_reorder],
+                                 param_names=param_names[ind_reorder])
+        param_values_reorder = eos_mod.get_param_values()[ind_reorder]
+
+        assert np.all(param_values[ind_reorder]==param_values_reorder), \
+            'param value setter fails upon reordering param_names.'
+
         # Test scaling/unscaling parameters
         FAC = 2
         eos_mod.set_param_values(FAC*eos_mod.param_values)

@@ -179,6 +179,29 @@ class Eos(with_metaclass(ABCMeta)):
 
         """
         return self._natom
+
+    def _get_element_index(self, param_names):
+        sorter = np.argsort(self._param_names)
+        ind_params = sorter[np.searchsorted(self._param_names, param_names,
+                                            sorter=sorter)]
+        return ind_params
+
+    def _override_params(self, values, overrides):
+        if overrides is not None:
+            if len(overrides)!=len(values):
+                raise LookupError('Overrides (if provided) must be a list '
+                                  'of values with length equal to param_names. '
+                                  'If no overrides are needed, use'
+                                  'default value of None. If some overrides '
+                                  'are needed, set elements equal to override '
+                                  'value as needed and set rest to None.')
+
+            for ind, override in enumerate(overrides):
+                if override is not None:
+                    values[ind] = override
+
+        return values
+
     @property
     def param_names(self):
         """
@@ -209,9 +232,9 @@ class Eos(with_metaclass(ABCMeta)):
         """
 
         param_names = self._validate_param_names(param_names)
-        # units = self._param_units[(self._param_names.index(name)
-        #                            for name in param_names)]
-        units = self._param_units[np.in1d(self._param_names, param_names)]
+        ind_params = self._get_element_index(param_names)
+
+        units = self._param_units[ind_params]
 
         return units
 
@@ -234,8 +257,7 @@ class Eos(with_metaclass(ABCMeta)):
 
         return self.get_param_units()
 
-    @property
-    def param_scales(self, param_names=None):
+    def get_param_scales(self, param_names=None):
         """
         Get scale values for listed parameters.
 
@@ -254,12 +276,11 @@ class Eos(with_metaclass(ABCMeta)):
         """
 
         param_names = self._validate_param_names(param_names)
+        ind_params = self._get_element_index(param_names)
 
-        # scales = np.array(self._param_scales[(self._param_names.index(name)
-        #                                       for name in param_names)])
-        scales = self._param_scales[np.in1d(self._param_names, param_names)]
+        scales = self._param_scales[ind_params]
+
         return scales
-
 
     def get_param_values(self, param_names=None, overrides=None):
         """
@@ -276,23 +297,11 @@ class Eos(with_metaclass(ABCMeta)):
             values of (selected) parameters
 
         """
+
         param_names = self._validate_param_names(param_names)
-        # values = self._param_values[(self._param_names.index(name)
-        #                              for name in param_names)]
-        values = self._param_values[np.in1d(self._param_names, param_names)]
-
-        if overrides is not None:
-            if len(overrides)!=len(param_names):
-                raise LookupError('Overrides (if provided) must be a list '
-                                  'of values with length equal to param_names. '
-                                  'If no overrides are needed, use'
-                                  'default value of None. If some overrides '
-                                  'are needed, set elements equal to override '
-                                  'value as needed and set rest to None.')
-
-            for ind, override in enumerate(overrides):
-                if override is not None:
-                    values[ind] = override
+        ind_params = self._get_element_index(param_names)
+        values = self._param_values[ind_params]
+        values = self._override_params(values, overrides)
 
         return values
 
@@ -318,8 +327,8 @@ class Eos(with_metaclass(ABCMeta)):
         assert len(param_names)==len(param_values), \
             'param_names and param_values must have the same length'
 
-        self._param_values[
-            np.in1d(self._param_names, param_names)] = param_values
+        ind_params = self._get_element_index(param_names)
+        self._param_values[ind_params] = param_values
         # for ind, value in enumerate(param_values):
         #     self._param_values[ind] = value
 

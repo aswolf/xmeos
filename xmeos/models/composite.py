@@ -115,12 +115,16 @@ class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
         return theta_a
 
     def thermal_energy(self, V_a, T_a):
-        gamma_calc = self.calculators['gamma']
         thermal_calc = self.calculators['thermal']
-
-        gamma_a = gamma_calc._calc_gamma(V_a)
         theta_a = self._calc_theta(V_a)
-        E_therm_a = thermal_calc._calc_energy(T_a, theta0=theta_a)
+
+        E_therm_a = thermal_calc._calc_energy(T_a, theta=theta_a)
+        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_a)
+
+        # dT = np.diff(T_a)[0]
+        # np.gradient(E_therm_a)/dT
+        # x = theta_a/T_a
+        # from IPython import embed;embed();import pdb;pdb.set_trace()
         return E_therm_a
 
     def press(self, V_a, T_a):
@@ -141,9 +145,9 @@ class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
         thermal_calc = self.calculators['thermal']
         theta_a = self._calc_theta(V_a)
 
-        heat_capacity_a =  thermal_calc._calc_heat_capacity(T_a, theta0=theta_a)
+        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_a)
         return heat_capacity_a
-
+#====================================================================
     # def entropy(self, V_a, T_a):
     #     S0, = calc.get_param_defaults(['S0'])
     #     thermal_calc = self.calculators['thermal']

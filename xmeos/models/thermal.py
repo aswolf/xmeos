@@ -179,15 +179,15 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
         """Initialize list of calculator parameter names."""
         pass
 
-    @abstractmethod
-    def _calc_heat_capacity(self, T_a):
-        """Returns heat capacity as a function of temperature."""
-        pass
+    # @abstractmethod
+    # def _calc_heat_capacity(self, T_a):
+    #     """Returns heat capacity as a function of temperature."""
+    #     pass
 
-    @abstractmethod
-    def _calc_energy(self, T_a):
-        """Returns thermal energy as a function of temperature."""
-        pass
+    # @abstractmethod
+    # def _calc_energy(self, T_a):
+    #     """Returns thermal energy as a function of temperature."""
+    #     pass
 
     @abstractmethod
     def _calc_entropy(self, T_a):
@@ -289,26 +289,30 @@ class _Debye(ThermalCalc):
 
         pass
 
-    def _calc_heat_capacity(self, T_a, theta0=None, Cvmax=None):
+    def _calc_heat_capacity(self, T_a, theta=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax = self.eos_mod.get_param_values(
-            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
 
-        x = theta0/np.array(T_a)
+        if theta is None:
+            theta, = self.eos_mod.get_param_values(param_names=['theta0'])
+
+        x = theta/np.array(T_a)
         Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x)
         return Cv_values
 
-    def _calc_energy(self, T_a, theta0=None, Cvmax=None, T0=None):
+    def _calc_energy(self, T_a, theta=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
-            param_names=['theta0', 'Cvmax', 'T0'],
-            overrides=[theta0, Cvmax, T0])
+        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
+
+        if theta is None:
+            theta, = self.eos_mod.get_param_values(param_names=['theta0'])
 
         T_a = np.array(T_a)
-        x = theta0/T_a
-        x0 = theta0/T0
+        x = theta/T_a
+        x0 = theta/T0
         try:
             len(x0)
         except:
@@ -316,18 +320,23 @@ class _Debye(ThermalCalc):
 
         energy = Cvmax*(T_a*_debye.debye3_fun(x)
                         -T0*_debye.debye3_fun(x0))
+
+        # energy = Cvmax*T_a*_debye.debye3_fun(x)
+
         return energy
 
-    def _calc_entropy(self, T_a, theta0=None, Cvmax=None, T0=None):
+    def _calc_entropy(self, T_a, theta=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
-            param_names=['theta0', 'Cvmax', 'T0'],
-            overrides=[theta0, Cvmax, T0])
+        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
+
+        if theta is None:
+            theta, = self.eos_mod.get_param_values(param_names=['theta0'])
 
         T_a = np.array(T_a)
-        x = theta0/T_a
-        x0 = theta0/T0
+        x = theta/T_a
+        x0 = theta/T0
         try:
             len(x0)
         except:
@@ -338,20 +347,18 @@ class _Debye(ThermalCalc):
 
         return entropy
 
-    def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
-        Cvmax, = self.eos_mod.get_param_values(
-            param_names=['Cvmax'], overrides=[Cvmax])
+    def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a):
+        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
 
         x = theta_a/np.array(T_a)
         dEdV_T = -Cvmax*gamma_a/V_a*theta_a*_debye.debye3_deriv_fun(x)
         return dEdV_T
 
-    def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
-        Cvmax, = self.eos_mod.get_param_values(
-            param_names=['Cvmax'], overrides=[Cvmax])
+    def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a):
+        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
 
         x = theta_a/np.array(T_a)
-        dEdV_S = 1/x*self._calc_dEdV_T(V_a, T_a, theta_a, gamma_a, Cvmax=Cvmax)
+        dEdV_S = 1/x*self._calc_dEdV_T(V_a, T_a, theta_a, gamma_a)
         return dEdV_S
 #====================================================================
 class _Einstein(ThermalCalc):
@@ -400,44 +407,51 @@ class _Einstein(ThermalCalc):
 
         return flogf
 
-    def _calc_heat_capacity(self, T_a, theta0=None, Cvmax=None):
+    def _calc_heat_capacity(self, T_a, theta=None):
         """Returns heat capacity as a function of temperature."""
 
         theta0, Cvmax = self.eos_mod.get_param_values(
-            param_names=['theta0','Cvmax'], overrides=[theta0, Cvmax])
+            param_names=['theta0','Cvmax'])
+
+        if theta is None:
+            theta = theta0
 
         T_a = np.array(T_a)
 
-        x = theta0/T_a
+        x = theta/T_a
         Cv_a = Cvmax*x**2*np.exp(x)/(np.exp(x)-1)**2
         Cv_a[1/x < self._EPS] = 0
 
         return Cv_a
 
-    def _calc_energy(self, T_a, theta0=None, Cvmax=None, T0=None):
+    def _calc_energy(self, T_a, theta=None):
         """Returns heat capacity as a function of temperature."""
 
         theta0, Cvmax, T0 = self.eos_mod.get_param_values(
-            param_names=['theta0', 'Cvmax', 'T0'],
-            overrides=[theta0, Cvmax, T0])
+            param_names=['theta0', 'Cvmax', 'T0'])
+
+        if theta is None:
+            theta = theta0
 
         T_a = np.array(T_a)
-        x = theta0/T_a
+        x = theta/T_a
         x0 = theta0/T0
 
         energy = Cvmax*theta0*(
             1/2 + self._calc_energy_factor(x)-self._calc_energy_factor(x0))
         return energy
 
-    def _calc_entropy(self, T_a, theta0=None, Cvmax=None, T0=None):
+    def _calc_entropy(self, T_a, theta=None):
         """Returns heat capacity as a function of temperature."""
 
         theta0, Cvmax, T0 = self.eos_mod.get_param_values(
-            param_names=['theta0', 'Cvmax', 'T0'],
-            overrides=[theta0, Cvmax, T0])
+            param_names=['theta0', 'Cvmax', 'T0'])
+
+        if theta is None:
+            theta = theta0
 
         T_a = np.array(T_a)
-        x = theta0/T_a
+        x = theta/T_a
         x0 = theta0/T0
         Nosc = Cvmax/core.CONSTS['kboltz']
 

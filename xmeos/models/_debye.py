@@ -85,7 +85,8 @@ def debye_heat_capacity_fun(x_array):
 
     # Cv_factor = 4.0*debye_energy_fun(x_array)-3.0*x_array/(np.exp(x_array)-1.0)
     Cv_factor = debye3_fun(x_array) - x_array*debye3_deriv_fun(x_array)
-    Cv_factor[x_array<TOL] = 1.0 - SLOPE*x_array[x_array<TOL]**2
+
+    # Cv_factor[x_array<TOL] = 1.0 - SLOPE*x_array[x_array<TOL]**2
     return Cv_factor
 
 @jit
@@ -101,7 +102,7 @@ def debye_entropy_fun(x_array):
 
 @jit
 def debye_energy_fun(x_array):
-    return _calc_debye3_fun(x_array)
+    return debye3_fun(x_array)
 
 # @jit
 # def debye_energy_fun(x_array):

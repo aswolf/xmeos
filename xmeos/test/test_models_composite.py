@@ -21,13 +21,50 @@ slow = pytest.mark.skipif(
     reason="need --runslow option to run"
 )
 
-
+# Debye, GammaPowLaw, Vinet_T
+# Debye, GammaPowLaw, Vinet_S
+# Debye, GammaPowLaw, Vinet_0K
+# Einstein, GammaFiniteStrain, BirchMurn3_T
+# Einstein, GammaFiniteStrain, BirchMurn3_S
+# Einstein, GammaFiniteStrain, BirchMurn3_0K
 #====================================================================
 class TestMieGruneisenEos(test_models.BaseTestEos):
-    def load_eos(self):
+    def test_heat_capacity(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
+                           kind_compress='Vinet', compress_path_const='T',
+                           natom=1):
+
+        TOL = 1e-3
+        Nsamp = 10001
+
+        eos_mod = self.load_eos(kind_thermal=kind_thermal,
+                                kind_gamma=kind_gamma,
+                                kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                natom=natom)
+
+        Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
+
+        V0, = eos_mod.get_param_values(param_names=['V0'])
+        # Vmod_a = V0*(0.6+.5*np.random.rand(Nsamp))
+        Vmod = V0*0.9
+
+        thermal_energy_a = eos_mod.thermal_energy(Vmod, Tmod_a)
+        heat_capacity_a = eos_mod.heat_capacity(Vmod, Tmod_a)
+
+        abs_err, rel_err, range_err = self.numerical_deriv(
+            Tmod_a, thermal_energy_a, heat_capacity_a, scale=1)
+
+        Cvmax, = eos_mod.get_param_values(param_names=['Cvmax'])
+        assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
+            ', must be less than TOL, ' + np.str(TOL)
+
+    def load_eos(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
+            kind_compress='Vinet', compress_path_const='T', natom=1):
+
         eos_mod = models.MieGruneisenEos(
-            kind_thermal='Debye', kind_gamma='GammaPowLaw',
-            kind_compress='Vinet', compress_path_const='T', natom=1)
+            kind_thermal=kind_thermal, kind_gamma=kind_gamma,
+            kind_compress=kind_compress,
+            compress_path_const=compress_path_const, natom=natom)
         return eos_mod
 
     # def test_
