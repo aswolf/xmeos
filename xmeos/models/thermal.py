@@ -305,10 +305,8 @@ class _Debye(ThermalCalc):
     def _calc_energy(self, T_a, theta=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        # _calc_entropy(self, T_a, theta=None, T0=None, theta0=None)
         T_a = core.fill_array(T_a)
         Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
-        # T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
 
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
@@ -421,50 +419,54 @@ class _Einstein(ThermalCalc):
 
         return Cv_a
 
-    def _calc_energy(self, T_a, theta=None):
+    def _calc_energy(self, T_a, theta=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
-            param_names=['theta0', 'Cvmax', 'T0'])
+        T_a = core.fill_array(T_a)
+        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
 
         if theta is None:
-            theta = theta0
+            theta, = self.eos_mod.get_param_values(param_names=['theta0'])
+        if T0 is None:
+            T0, = self.eos_mod.get_param_values(param_names=['T0'])
 
-        T_a = np.array(T_a)
-        x = theta/T_a
-        x0 = theta0/T0
+        x = core.fill_array(theta/T_a)
+        xref = core.fill_array(theta/T0)
 
-        energy = Cvmax*theta0*(
-            1/2 + self._calc_energy_factor(x)-self._calc_energy_factor(x0))
+        # NOTE: Cannot include zero-pt energy since we are using energy diff
+        energy = Cvmax*theta*(
+            self._calc_energy_factor(x)-self._calc_energy_factor(xref))
         return energy
 
-    def _calc_entropy(self, T_a, theta=None):
+    def _calc_entropy(self, T_a, theta=None, T0=None, theta0=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax, T0 = self.eos_mod.get_param_values(
-            param_names=['theta0', 'Cvmax', 'T0'])
+        T_a = core.fill_array(T_a)
+        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
 
+        if T0 is None:
+            T0, = self.eos_mod.get_param_values(param_names=['T0'])
         if theta is None:
-            theta = theta0
+            theta, = self.eos_mod.get_param_values(param_names=['theta0'])
+        if theta0 is None:
+            theta0, = self.eos_mod.get_param_values(param_names=['theta0'])
 
-        T_a = np.array(T_a)
-        x = theta/T_a
-        x0 = theta0/T0
+        x = core.fill_array(theta/T_a)
+        xref = core.fill_array(theta0/T0)
+
         Nosc = Cvmax/core.CONSTS['kboltz']
 
         Equanta = Nosc*self._calc_energy_factor(x)
         Squanta = self._calc_flogf(x, Nosc)
 
-        Equanta0 = Nosc*self._calc_energy_factor(x0)
-        Squanta0 = self._calc_flogf(x0, Nosc)
+        Equanta0 = Nosc*self._calc_energy_factor(xref)
+        Squanta0 = self._calc_flogf(xref, Nosc)
 
         entropy = core.CONSTS['kboltz']*(
             (Nosc+Equanta)*np.log(Nosc+Equanta)
             - (Nosc+Equanta0)*np.log(Nosc+Equanta0)
             - (Squanta-Squanta0))
 
-        # NOTE that Nosc*log(Nosc) has been removed due to difference
-        # - Nosc*np.log(Nosc)
         return entropy
 
     def _einstein_fun(self, x):

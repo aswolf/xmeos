@@ -39,15 +39,21 @@ class TestMieGruneisenEos(test_models.BaseTestEos):
         return eos_mod
 
     def test_heat_capacity_T(self):
-        self._calc_test_heat_capacity(compress_path_const='T')
+        self._calc_test_heat_capacity(compress_path_const='T',
+                                      kind_thermal='Debye')
+        self._calc_test_heat_capacity(compress_path_const='T',
+                                      kind_thermal='Einstein')
 
     def test_heat_capacity_S(self):
-        self._calc_test_heat_capacity(compress_path_const='S')
+        self._calc_test_heat_capacity(compress_path_const='S',
+                                      kind_thermal='Debye')
+        self._calc_test_heat_capacity(compress_path_const='S',
+                                      kind_thermal='Einstein')
 
     def _calc_test_heat_capacity(self, kind_thermal='Debye',
                                  kind_gamma='GammaPowLaw',
-                                 kind_compress='Vinet', compress_path_const='T',
-                                 natom=1):
+                                 kind_compress='Vinet',
+                                 compress_path_const='T', natom=1):
 
         TOL = 1e-3
         Nsamp = 10001
@@ -74,17 +80,13 @@ class TestMieGruneisenEos(test_models.BaseTestEos):
         assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
             ', must be less than TOL, ' + np.str(TOL)
 
-    def test_press_T(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
-                     kind_compress='Vinet', natom=1):
-        self._calc_test_press(kind_thermal=kind_thermal, kind_gamma=kind_gamma,
-                              kind_compress=kind_compress,
-                              compress_path_const='T', natom=natom)
+    def test_press_T(self):
+        self._calc_test_press(compress_path_const='T', kind_thermal='Debye')
+        self._calc_test_press(compress_path_const='T', kind_thermal='Einstein')
 
-    def test_press_S(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
-                     kind_compress='Vinet', natom=1):
-        self._calc_test_press(kind_thermal=kind_thermal, kind_gamma=kind_gamma,
-                              kind_compress=kind_compress,
-                              compress_path_const='S', natom=natom)
+    def test_press_S(self):
+        self._calc_test_press(compress_path_const='S', kind_thermal='Debye')
+        self._calc_test_press(compress_path_const='S', kind_thermal='Einstein')
 
     def _calc_test_press(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
                          kind_compress='Vinet', compress_path_const='T',
@@ -123,39 +125,13 @@ class TestMieGruneisenEos(test_models.BaseTestEos):
         assert range_err < TOL, 'range error in Press, ' + np.str(range_err) + \
             ', must be less than TOL, ' + np.str(TOL)
 
-    def test_thermal_energy_T(self):
-        self._calc_test_thermal_energy(compress_path_const='T')
-
-    def test_thermal_energy_S(self):
-        self._calc_test_thermal_energy(compress_path_const='S')
-
     def test_thermal_press_T(self):
-        self._calc_test_thermal_press(compress_path_const='T')
+        self._calc_test_thermal_press(compress_path_const='T', kind_thermal='Debye')
+        self._calc_test_thermal_press(compress_path_const='T', kind_thermal='Einstein')
 
     def test_thermal_press_S(self):
-        self._calc_test_thermal_press(compress_path_const='S')
-
-    def _calc_test_thermal_energy(self, kind_thermal='Debye',
-                                  kind_gamma='GammaPowLaw', kind_compress='Vinet',
-                                  compress_path_const='S', natom=1):
-
-        TOL = 1e-3
-
-        Nsamp = 10001
-        eos_mod = self.load_eos(kind_thermal=kind_thermal,
-                                kind_gamma=kind_gamma,
-                                kind_compress=kind_compress,
-                                compress_path_const=compress_path_const,
-                                natom=natom)
-
-        V0, T0 = eos_mod.get_param_values(param_names=['V0','T0'])
-        Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
-        dV = Vmod_a[1] - Vmod_a[0]
-
-        Tref_path, theta_ref = eos_mod.ref_temp_path(Vmod_a)
-        E_therm = eos_mod.thermal_energy(Vmod_a, Tref_path)
-
-        assert np.all(np.abs(E_therm) < TOL), 'Thermal energy should be zero'
+        self._calc_test_thermal_press(compress_path_const='S', kind_thermal='Debye')
+        self._calc_test_thermal_press(compress_path_const='S', kind_thermal='Einstein')
 
     def _calc_test_thermal_press(self, kind_thermal='Debye',
                                  kind_gamma='GammaPowLaw', kind_compress='Vinet',
@@ -179,11 +155,43 @@ class TestMieGruneisenEos(test_models.BaseTestEos):
 
         assert np.all(np.abs(P_therm) < TOL), 'Thermal press should be zero'
 
+    def test_thermal_energy_T(self):
+        self._calc_test_thermal_energy(compress_path_const='T', kind_thermal='Debye')
+        self._calc_test_thermal_energy(compress_path_const='T', kind_thermal='Einstein')
+
+    def test_thermal_energy_S(self):
+        self._calc_test_thermal_energy(compress_path_const='S', kind_thermal='Debye')
+        self._calc_test_thermal_energy(compress_path_const='S', kind_thermal='Einstein')
+
+    def _calc_test_thermal_energy(self, kind_thermal='Debye',
+                                  kind_gamma='GammaPowLaw', kind_compress='Vinet',
+                                  compress_path_const='S', natom=1):
+
+        TOL = 1e-3
+
+        Nsamp = 10001
+        eos_mod = self.load_eos(kind_thermal=kind_thermal,
+                                kind_gamma=kind_gamma,
+                                kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                natom=natom)
+
+        V0, T0 = eos_mod.get_param_values(param_names=['V0','T0'])
+        Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
+        dV = Vmod_a[1] - Vmod_a[0]
+
+        Tref_path, theta_ref = eos_mod.ref_temp_path(Vmod_a)
+        E_therm = eos_mod.thermal_energy(Vmod_a, Tref_path)
+
+        assert np.all(np.abs(E_therm) < TOL), 'Thermal energy should be zero'
+
     def test_ref_entropy_path_S(self):
-        self._calc_test_ref_entropy_path(compress_path_const='S')
+        self._calc_test_ref_entropy_path(compress_path_const='S', kind_thermal='Debye')
+        self._calc_test_ref_entropy_path(compress_path_const='S', kind_thermal='Einstein')
 
     def test_ref_entropy_path_T(self):
-        self._calc_test_ref_entropy_path(compress_path_const='T')
+        self._calc_test_ref_entropy_path(compress_path_const='T', kind_thermal='Debye')
+        self._calc_test_ref_entropy_path(compress_path_const='T', kind_thermal='Einstein')
 
     def _calc_test_ref_entropy_path(self, kind_thermal='Debye',
                                     kind_gamma='GammaPowLaw',
@@ -207,6 +215,38 @@ class TestMieGruneisenEos(test_models.BaseTestEos):
         Sref_path = eos_mod.entropy(Vmod_a, Tref_path)
 
         assert np.all(np.abs(Sref_path-S0) < TOL), 'Thermal energy should be zero'
+
+    def test_ref_temp_path_T(self):
+        self._calc_test_ref_temp_path(compress_path_const='T', kind_thermal='Debye')
+        self._calc_test_ref_temp_path(compress_path_const='T', kind_thermal='Einstein')
+
+    def test_ref_temp_path_S(self):
+        self._calc_test_ref_temp_path(compress_path_const='S', kind_thermal='Debye')
+        self._calc_test_ref_temp_path(compress_path_const='S', kind_thermal='Einstein')
+
+    def _calc_test_ref_temp_path(self, kind_thermal='Debye',
+                                 kind_gamma='GammaPowLaw', kind_compress='Vinet',
+                                 compress_path_const='T', natom=1):
+        TOL = 1e-3
+
+        Nsamp = 10001
+        eos_mod = self.load_eos(kind_thermal=kind_thermal,
+                                kind_gamma=kind_gamma,
+                                kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                natom=natom)
+
+        V0, T0 = eos_mod.get_param_values(param_names=['V0','T0'])
+        Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
+
+        Tref_path, theta_ref = eos_mod.ref_temp_path(Vmod_a)
+
+        if compress_path_const=='T':
+            assert np.all(Tref_path==T0), 'Thermal path should be constant'
+        if compress_path_const=='S':
+            gamma_calc = eos_mod.calculators['gamma']
+            Tpath_a = gamma_calc._calc_temp(Vmod_a, T0=T0)
+            assert np.all(Tref_path==Tpath_a), 'Thermal path should be along gamma-derived path'
 #====================================================================
 
 
