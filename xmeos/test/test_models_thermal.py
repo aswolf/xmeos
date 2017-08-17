@@ -38,11 +38,17 @@ class BaseTestThermalEos(test_models.BaseTestEos):
     def test_heat_capacity_300K(self):
         self.calc_test_heat_capacity(T0=300)
 
+    def test_heat_capacity_3000K(self):
+        self.calc_test_heat_capacity(T0=3000)
+
     def test_entropy_0K(self):
         self.calc_test_entropy(T0=0)
 
     def test_entropy_300K(self):
         self.calc_test_entropy(T0=300)
+
+    def test_entropy_3000K(self):
+        self.calc_test_entropy(T0=3000)
 
     def calc_test_heat_capacity(self, T0=0):
         TOL = 1e-3
@@ -52,6 +58,8 @@ class BaseTestThermalEos(test_models.BaseTestEos):
 
         Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
         dT = Tmod_a[1] - Tmod_a[0]
+
+        assert eos_mod.energy(T0)==0, 'Energy must be zero at T0.'
 
         energy_a = eos_mod.energy(Tmod_a)
         heat_capacity_a = eos_mod.heat_capacity(Tmod_a)
@@ -100,6 +108,19 @@ class TestEinstein(BaseTestThermalEos):
         eos_mod = models.ThermalEos(kind='Einstein', natom=natom)
         eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
         return eos_mod
+#====================================================================
+class TestGenRosenfeldTarazona(BaseTestThermalEos):
+    def load_eos(self, T0=0):
+        natom=10
+        eos_mod = models.ThermalEos(kind='GenRosenfeldTarazona', natom=natom)
+        eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
+        return eos_mod
+
+    def test_heat_capacity_0K(self):
+        pass
+
+    def test_entropy_0K(self):
+        pass
 #====================================================================
 
 # 2.2: ThermalPathMod Tests

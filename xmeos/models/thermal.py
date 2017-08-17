@@ -28,6 +28,8 @@ def set_calculator(eos_mod, kind, kind_opts):
         calc = _Debye(eos_mod)
     elif kind=='Einstein':
         calc = _Einstein(eos_mod)
+    elif kind=='GenRosenfeldTarazona':
+        calc = _GenRosenfeldTarazona(eos_mod)
     elif kind=='Cp-Berman':
         calc = _Cp_Berman(eos_mod)
     elif kind=='Cp-Fei':
@@ -54,7 +56,8 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
     """
 
     _path_opts = ['V','P']
-    _kind_opts = ['Debye','Einstein','Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
+    _kind_opts = ['Debye','Einstein','GenRosenfeldTarazona',
+                  'Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
 
     def __init__(self, kind='Debye', natom=1, model_state={}):
 
@@ -171,6 +174,10 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
     def path_const(self):
         return self._path_const
 
+    @property
+    def ndof(self):
+        return self._ndof
+
     ####################
     # Required Methods #
     ####################
@@ -186,8 +193,9 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
 
     def _get_Cv_limit(self):
         Cvlimfac, = self.eos_mod.get_param_values(param_names=['Cvlimfac'])
+        ndof = self.ndof
         natom = self.eos_mod.natom
-        Cvlim = Cvlimfac*3*natom*core.CONSTS['kboltz']
+        Cvlim = Cvlimfac*3*ndof/2*natom*core.CONSTS['kboltz']
         return Cvlim
 
     # @abstractmethod
@@ -272,6 +280,7 @@ class _Debye(ThermalCalc):
     """
 
     _path_opts=['V']
+    _ndof = 6
 
     def __init__(self, eos_mod):
         super(_Debye, self).__init__(eos_mod, path_const='V')
@@ -362,6 +371,7 @@ class _Debye(ThermalCalc):
 #====================================================================
 class _Einstein(ThermalCalc):
 
+    _ndof = 6
     _EPS = np.finfo(np.float).eps
     _path_opts=['V']
 
@@ -507,6 +517,7 @@ class _Einstein(ThermalCalc):
 #====================================================================
 class _GenRosenfeldTarazona(ThermalCalc):
 
+    _ndof = 3
     _EPS = np.finfo(np.float).eps
     _path_opts=['V']
 
@@ -516,23 +527,94 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
     def _init_params(self):
         """Initialize list of calculator parameter names."""
-        # natom = self.eos_mod.natom
-        # Cvmax = 3*natom*core.CONSTS['kboltz']
 
         T0 = 3000
+        T0_scl = T0*0.1
         mexp = 3/5
-        acoef = -55
-        bcoef = +5
+        bcoef = -5
         Cvlimfac = 1
+        Cvlimfac_scl = 0.03
+        coef_scl = np.abs(bcoef)
 
-        param_names = ['acoef', 'bcoef', 'mexp', 'Cvlimfac', 'T0']
-        param_units = ['eV', 'eV', '1', '1', 'K']
-        param_defaults = [acoef, bcoef, mexp, Cvlimfac, T0]
-        param_scales = [acoef, np.abs(bcoef), mexp, Cvlimfac, T0]
+        # acoef = -20
+
+        param_names = ['bcoef', 'mexp', 'Cvlimfac', 'T0']
+        param_units = ['eV', '1', '1', 'K']
+        param_defaults = [bcoef, mexp, Cvlimfac, T0]
+        param_scales = [coef_scl, mexp, Cvlimfac_scl, T0_scl]
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)
 
-        pass
+    def _calc_heat_capacity(self, T_a, bcoef=None):
+        """Returns heat capacity as a function of temperature."""
 
+        T_a = core.fill_array(T_a)
+        Cvlim = self._get_Cv_limit()
+
+        if bcoef is None:
+            bcoef, = self.eos_mod.get_param_values(param_names=['bcoef'])
+
+        dtherm_dev = self._calc_therm_dev_deriv(T_a)
+        Cv_pot = bcoef*dtherm_dev
+        Cv_kin = Cvlim
+        Cv_values = Cv_pot + Cv_kin
+
+        return Cv_values
+
+    def _calc_therm_dev(self, T_a):
+        T_a = core.fill_array(T_a)
+        T0, mexp = self.eos_mod.get_param_values(param_names=['T0','mexp'])
+        therm_dev_a = (T_a/T0)**mexp - 1
+        return therm_dev_a
+
+    def _calc_therm_dev_deriv(self, T_a):
+        T_a = core.fill_array(T_a)
+        T0, mexp = self.eos_mod.get_param_values(param_names=['T0','mexp'])
+        dtherm_dev_a = (mexp/T0)*(T_a/T0)**(mexp-1)
+        return dtherm_dev_a
+
+    def _calc_energy(self, T_a, bcoef=None, Tref=None):
+        """Returns heat capacity as a function of temperature."""
+
+        T_a = core.fill_array(T_a)
+        Cvlim = self._get_Cv_limit()
+
+        if bcoef is None:
+            bcoef, = self.eos_mod.get_param_values(param_names=['bcoef'])
+        if Tref is None:
+            Tref, = self.eos_mod.get_param_values(param_names=['T0'])
+
+        therm_dev = self._calc_therm_dev(T_a)
+        energy_pot = bcoef*therm_dev
+        energy_kin = Cvlim*(T_a-Tref)
+        energy = energy_pot + energy_kin
+
+        return energy
+
+    def _calc_entropy(self, T_a, bcoef=None, Tref=None):
+        """Returns heat capacity as a function of temperature."""
+
+        Cvlim = self._get_Cv_limit()
+
+        if bcoef is None:
+            bcoef, = self.eos_mod.get_param_values(param_names=['bcoef'])
+        if Tref is None:
+            Tref, = self.eos_mod.get_param_values(param_names=['T0'])
+
+        T_a, Tref = core.fill_array(T_a, Tref)
+
+        mexp, = self.eos_mod.get_param_values(param_names=['mexp'])
+        entropy_pot = bcoef/(mexp-1)*(self._calc_therm_dev_deriv(T_a)
+                                      - self._calc_therm_dev_deriv(Tref))
+        entropy_kin = Cvlim*np.log(T_a/Tref)
+        entropy = entropy_pot + entropy_kin
+
+        return entropy
+
+    def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a):
+        return dEdV_T
+
+    def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a):
+        return dEdV_S
 #====================================================================

@@ -522,9 +522,6 @@ def get_consts( keys ):
     #     'That is not a valid CONST name. Valid names are '+str(CONSTS.keys()) )
 
     return tuple(CONSTS[key] for key in keys)
-
-
-
 #====================================================================
 def set_array_params( basename, param_arr_a, eos_d ):
     name_l = []
@@ -572,41 +569,6 @@ def get_array_params( basename, eos_d ):
             param_arr[arrind] = val
 
         return param_arr
-#====================================================================
-# def fill_array( var1, var2 ):
-#     """
-#     fix fill_array such that it returns two numpy arrays of equal size
-#
-#     use numpy.full_like
-#
-#     """
-#     var1_a = np.asarray( var1 )
-#     var2_a = np.asarray( var2 )
-#
-#     if var1_a.shape==():
-#         var1_a = np.asarray( [var1] )
-#     if var2_a.shape==():
-#         var2_a = np.asarray( [var2] )
-#
-#     # Begin try/except block to handle all cases for filling an array
-#     while True:
-#         try:
-#             assert var1_a.shape == var2_a.shape
-#             break
-#         except: pass
-#         try:
-#             var1_a = np.full_like( var2_a, var1_a )
-#             break
-#         except: pass
-#         try:
-#             var2_a = np.full_like( var1_a, var2_a )
-#             break
-#         except: pass
-#
-#         # If none of the cases properly handle it, throw error
-#         assert False, 'var1 and var2 must both be equal shape or size=1'
-#
-#     return var1_a, var2_a
 #====================================================================
 def fill_array(*arg):
     """
