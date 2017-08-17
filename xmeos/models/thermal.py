@@ -184,6 +184,12 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
     #     """Returns heat capacity as a function of temperature."""
     #     pass
 
+    def _get_Cv_limit(self):
+        Cvlimfac, = self.eos_mod.get_param_values(param_names=['Cvlimfac'])
+        natom = self.eos_mod.natom
+        Cvlim = Cvlimfac*3*natom*core.CONSTS['kboltz']
+        return Cvlim
+
     # @abstractmethod
     # def _calc_energy(self, T_a):
     #     """Returns thermal energy as a function of temperature."""
@@ -271,18 +277,18 @@ class _Debye(ThermalCalc):
         super(_Debye, self).__init__(eos_mod, path_const='V')
         pass
 
-    def _init_params(self, theta_param=None):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
-        natom = self.eos_mod.natom
+
         T0 = 0
         T0_scale = 300
         theta0 = 1000
-        Cvmax = 3*natom*core.CONSTS['kboltz']
+        Cvlimfac = 1
 
-        param_names = ['theta0', 'Cvmax', 'T0']
-        param_units = ['K', 'eV/K', 'K']
-        param_defaults = [theta0, Cvmax, T0]
-        param_scales = [theta0, Cvmax, T0_scale]
+        param_names = ['theta0', 'Cvlimfac', 'T0']
+        param_units = ['K', '1', 'K']
+        param_defaults = [theta0, Cvlimfac, T0]
+        param_scales = [theta0, Cvlimfac, T0_scale]
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)
@@ -293,20 +299,20 @@ class _Debye(ThermalCalc):
         """Returns heat capacity as a function of temperature."""
 
         T_a = core.fill_array(T_a)
-        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        Cvlim = self._get_Cv_limit()
 
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
 
         x = theta/T_a
-        Cv_values = Cvmax*_debye.debye_heat_capacity_fun(x)
+        Cv_values = Cvlim*_debye.debye_heat_capacity_fun(x)
         return Cv_values
 
     def _calc_energy(self, T_a, theta=None, T0=None):
         """Returns heat capacity as a function of temperature."""
 
         T_a = core.fill_array(T_a)
-        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        Cvlim = self._get_Cv_limit()
 
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
@@ -316,7 +322,7 @@ class _Debye(ThermalCalc):
         x = core.fill_array(theta/T_a)
         xref = core.fill_array(theta/T0)
 
-        energy = Cvmax*(T_a*_debye.debye3_fun(x)
+        energy = Cvlim*(T_a*_debye.debye3_fun(x)
                         -T0*_debye.debye3_fun(xref))
 
         return energy
@@ -325,7 +331,7 @@ class _Debye(ThermalCalc):
         """Returns heat capacity as a function of temperature."""
 
         T_a = core.fill_array(T_a)
-        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        Cvlim = self._get_Cv_limit()
 
         if T0 is None:
             T0, = self.eos_mod.get_param_values(param_names=['T0'])
@@ -337,21 +343,19 @@ class _Debye(ThermalCalc):
         x = core.fill_array(theta/T_a)
         xref = core.fill_array(theta0/T0)
 
-        entropy = Cvmax*(+_debye.debye_entropy_fun(x)
+        entropy = Cvlim*(+_debye.debye_entropy_fun(x)
                          -_debye.debye_entropy_fun(xref))
 
         return entropy
 
     def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a):
-        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        Cvlim = self._get_Cv_limit()
 
         x = theta_a/np.array(T_a)
-        dEdV_T = -Cvmax*gamma_a/V_a*theta_a*_debye.debye3_deriv_fun(x)
+        dEdV_T = -Cvlim*gamma_a/V_a*theta_a*_debye.debye3_deriv_fun(x)
         return dEdV_T
 
     def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a):
-        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
-
         x = theta_a/np.array(T_a)
         dEdV_S = 1/x*self._calc_dEdV_T(V_a, T_a, theta_a, gamma_a)
         return dEdV_S
@@ -365,7 +369,7 @@ class _Einstein(ThermalCalc):
         super(_Einstein, self).__init__(eos_mod, path_const='V')
         pass
 
-    def _init_params(self, theta_param=None):
+    def _init_params(self):
         """Initialize list of calculator parameter names."""
 
         natom = self.eos_mod.natom
@@ -373,12 +377,16 @@ class _Einstein(ThermalCalc):
         T0 = 0
         T0_scale = 300
         theta0 = 1000
-        Cvmax = 3*natom*core.CONSTS['kboltz']
+        Cvlimfac = 1
 
-        self._param_names = ['theta0', 'Cvmax', 'T0']
-        self._param_units = ['K', 'eV/K', 'K']
-        self._param_defaults = [theta0, Cvmax, T0]
-        self._param_scales = [theta0, Cvmax, T0_scale]
+        param_names = ['theta0', 'Cvlimfac', 'T0']
+        param_units = ['K', '1', 'K']
+        param_defaults = [theta0, Cvlimfac, T0]
+        param_scales = [theta0, Cvlimfac, T0_scale]
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales)
+
         pass
 
     def _calc_energy_factor(self, x):
@@ -405,8 +413,8 @@ class _Einstein(ThermalCalc):
     def _calc_heat_capacity(self, T_a, theta=None):
         """Returns heat capacity as a function of temperature."""
 
-        theta0, Cvmax = self.eos_mod.get_param_values(
-            param_names=['theta0','Cvmax'])
+        theta0, = self.eos_mod.get_param_values(param_names=['theta0'])
+        Cvlim = self._get_Cv_limit()
 
         if theta is None:
             theta = theta0
@@ -414,7 +422,7 @@ class _Einstein(ThermalCalc):
         T_a = np.array(T_a)
 
         x = theta/T_a
-        Cv_a = Cvmax*x**2*np.exp(x)/(np.exp(x)-1)**2
+        Cv_a = Cvlim*x**2*np.exp(x)/(np.exp(x)-1)**2
         Cv_a[1/x < self._EPS] = 0
 
         return Cv_a
@@ -423,7 +431,7 @@ class _Einstein(ThermalCalc):
         """Returns heat capacity as a function of temperature."""
 
         T_a = core.fill_array(T_a)
-        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        Cvlim = self._get_Cv_limit()
 
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
@@ -434,7 +442,7 @@ class _Einstein(ThermalCalc):
         xref = core.fill_array(theta/T0)
 
         # NOTE: Cannot include zero-pt energy since we are using energy diff
-        energy = Cvmax*theta*(
+        energy = Cvlim*theta*(
             self._calc_energy_factor(x)-self._calc_energy_factor(xref))
         return energy
 
@@ -442,7 +450,7 @@ class _Einstein(ThermalCalc):
         """Returns heat capacity as a function of temperature."""
 
         T_a = core.fill_array(T_a)
-        Cvmax, = self.eos_mod.get_param_values(param_names=['Cvmax'])
+        Cvlim = self._get_Cv_limit()
 
         if T0 is None:
             T0, = self.eos_mod.get_param_values(param_names=['T0'])
@@ -454,7 +462,7 @@ class _Einstein(ThermalCalc):
         x = core.fill_array(theta/T_a)
         xref = core.fill_array(theta0/T0)
 
-        Nosc = Cvmax/core.CONSTS['kboltz']
+        Nosc = Cvlim/core.CONSTS['kboltz']
 
         Equanta = Nosc*self._calc_energy_factor(x)
         Squanta = self._calc_flogf(x, Nosc)
@@ -479,19 +487,52 @@ class _Einstein(ThermalCalc):
 
     # FIX THESE!!!!
     def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
-        Cvmax, = self.eos_mod.get_param_values(
-            param_names=['Cvmax'], overrides=[Cvmax])
+        Cvlim = self._get_Cv_limit()
+        # Cvmax, = self.eos_mod.get_param_values(
+        #     param_names=['Cvmax'], overrides=[Cvmax])
 
         x = theta_a/np.array(T_a)
-        dEdV_S = self._calc_dEdV_S(V_a, T_a, theta_a, gamma_a, Cvmax=Cvmax)
-        dEdV_T = dEdV_S - Cvmax*theta_a*gamma_a/V_a*x*self._einstein_deriv_fun(x)
+        dEdV_S = self._calc_dEdV_S(V_a, T_a, theta_a, gamma_a, Cvmax=Cvlim)
+        dEdV_T = dEdV_S - Cvlim*theta_a*gamma_a/V_a*x*self._einstein_deriv_fun(x)
         return dEdV_T
 
     def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
-        Cvmax, = self.eos_mod.get_param_values(
-            param_names=['Cvmax'], overrides=[Cvmax])
+        Cvlim = self._get_Cv_limit()
+        # Cvmax, = self.eos_mod.get_param_values(
+        #     param_names=['Cvmax'], overrides=[Cvmax])
 
         x = theta_a/np.array(T_a)
-        dEdV_S = -Cvmax*theta_a*gamma_a/V_a*self._einstein_fun(x)
+        dEdV_S = -Cvlim*theta_a*gamma_a/V_a*self._einstein_fun(x)
         return dEdV_S
+#====================================================================
+class _GenRosenfeldTarazona(ThermalCalc):
+
+    _EPS = np.finfo(np.float).eps
+    _path_opts=['V']
+
+    def __init__(self, eos_mod):
+        super(_GenRosenfeldTarazona, self).__init__(eos_mod, path_const='V')
+        pass
+
+    def _init_params(self):
+        """Initialize list of calculator parameter names."""
+        # natom = self.eos_mod.natom
+        # Cvmax = 3*natom*core.CONSTS['kboltz']
+
+        T0 = 3000
+        mexp = 3/5
+        acoef = -55
+        bcoef = +5
+        Cvlimfac = 1
+
+        param_names = ['acoef', 'bcoef', 'mexp', 'Cvlimfac', 'T0']
+        param_units = ['eV', 'eV', '1', '1', 'K']
+        param_defaults = [acoef, bcoef, mexp, Cvlimfac, T0]
+        param_scales = [acoef, np.abs(bcoef), mexp, Cvlimfac, T0]
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales)
+
+        pass
+
 #====================================================================

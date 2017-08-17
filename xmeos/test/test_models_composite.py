@@ -76,7 +76,7 @@ class TestMieGruneisenEos(test_models.BaseTestEos):
         abs_err, rel_err, range_err = self.numerical_deriv(
             Tmod_a, thermal_energy_a, heat_capacity_a, scale=1)
 
-        Cvmax, = eos_mod.get_param_values(param_names=['Cvmax'])
+        Cvlimfac = eos_mod.calculators['thermal']._get_Cv_limit()
         assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
             ', must be less than TOL, ' + np.str(TOL)
 
