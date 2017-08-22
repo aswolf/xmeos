@@ -148,6 +148,36 @@ class TestTait(BaseTestCompressEos):
         eos_mod = models.CompressEos(kind='Tait', path_const=path_const)
         return eos_mod
 #====================================================================
+@pytest.mark.xfail(reason='PolyRho energy expressions not implimented yet.')
+class TestPolyRho(BaseTestCompressEos):
+    def load_eos(self, path_const='T'):
+        eos_mod = models.CompressEos(kind='PolyRho', path_const=path_const,
+                                     order=6)
+        return eos_mod
+
+    def test_poly_scale(self):
+
+        TOL = 1e-6
+
+        Nsamp = 101
+        eos_mod = self.load_eos()
+        calc = eos_mod.calculators['compress']
+
+        V0, = eos_mod.get_param_values(param_names='V0')
+        Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
+
+
+        dV = Vmod_a[1] - Vmod_a[0]
+        coef_a, rho0 = calc._get_poly_coef()
+
+        rho_a = calc._vol_to_rho(Vmod_a)
+        press_a = eos_mod.press(Vmod_a)
+        press_direct_a = np.polyval(coef_a, rho_a-rho0)
+        dev_a = press_a - press_direct_a
+
+        assert np.all(np.abs(dev_a)<TOL), \
+            'PolyRho polynomial calculation of press not consistent'
+#====================================================================
 # class TestCompareCompressEos(object):
 #     def init_params(self):
 #         # Set model parameter values

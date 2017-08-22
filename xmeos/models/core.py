@@ -34,10 +34,11 @@ class Eos(with_metaclass(ABCMeta)):
         self._post_init()
         pass
 
-    def _pre_init(self, natom=1):
+    def _pre_init(self, natom=1, molar_mass=100):
         # self._init_all_calculators()
         self._calculators = {}
         self._natom=natom
+        self._molar_mass=molar_mass
         pass
 
     def _post_init(self, model_state={}):
@@ -180,6 +181,14 @@ class Eos(with_metaclass(ABCMeta)):
         """
         return self._natom
 
+    @property
+    def molar_mass(self):
+        """
+        Molar mass in g/mol of working formula unit.
+
+        """
+        return self._molar_mass
+
     def _get_element_index(self, param_names):
         sorter = np.argsort(self._param_names)
         ind_params = sorter[np.searchsorted(self._param_names, param_names,
@@ -304,6 +313,62 @@ class Eos(with_metaclass(ABCMeta)):
         values = self._override_params(values, overrides)
 
         return values
+
+    def get_array_param_names(self, basename):
+        """
+        Get all param names for array parameter.
+
+        Parameters
+        ----------
+        basename : str
+            array parameter basename
+
+        Returns
+        -------
+        param_names : str array
+            list of parameter names
+
+        """
+
+        all_param_names = self._param_names
+        param_names = []
+        for name in all_param_names:
+            if name.startswith('_'+basename+'_'):
+                param_names.append(name)
+
+        return param_names
+
+    # def get_array_param_names(self, array_param_basename):
+    #     Nchar = len(array_param_basename)
+    #     param_names = []
+
+    #     for key in self.param_names:
+    #         if key.startswith(array_param_basename):
+
+    #     return param_names
+
+    # def get_array_param_values(self, array_param_basename):
+    #     """
+    #     Array values for array-type parameter.
+
+    #     Parameters
+    #     ----------
+    #     array_param_basename : str
+    #         basename of array parameter
+
+    #     Returns
+    #     -------
+    #     values : double array
+    #         values of array parameter
+
+    #     """
+
+    #     param_names = self._validate_param_names(param_names)
+    #     ind_params = self._get_element_index(param_names)
+    #     values = self._param_values[ind_params]
+    #     values = self._override_params(values, overrides)
+
+    #     return values
 
     def set_param_values(self, param_values, param_names=None):
         """
@@ -452,11 +517,12 @@ class Calculator(with_metaclass(ABCMeta)):
         return param_names
 
     def _set_params(self, param_names, param_units,
-                    param_defaults, param_scales):
+                    param_defaults, param_scales, order=None):
         self._param_names = np.array(param_names)
         self._param_units = np.array(param_units)
         self._param_defaults = np.array(param_defaults)
         self._param_scales = np.array(param_scales)
+        self._order = order
         pass
 
     def get_param_defaults(self, param_names=None):
@@ -517,6 +583,80 @@ CONSTS['ang3percc'] = 1e24 # ang^3/cm^3
 CONSTS['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
 CONSTS['TS_ratio'] = CONSTS['R']/CONSTS['kboltz'] # (J/mol)/eV
 
+#====================================================================
+def simplify_poly(shifted_coefs):
+    """
+    convert a polynomial from shifted to absolute form
+
+    sum_i ( b_i*(x-1)**i )  =>  sum_k ( c_k * x**k )
+    """
+
+    rev_shifted_coefs = np.flipud(shifted_coefs)
+
+    rev_abs_coefs = np.zeros(shifted_coefs.shape)
+    for i,icoef in enumerate(rev_shifted_coefs):
+        i_poly_expand = icoef*sp.special.binom(i,range(i+1))*(-1)**np.arange(i+1)
+        rev_abs_coefs[0:i+1] += np.flipud(i_poly_expand)
+
+    abs_coefs= np.flipud(rev_abs_coefs)
+    return abs_coefs
+#====================================================================
+def make_array_param_names(basename, order, skipzero=False):
+    if skipzero:
+        first = 1
+    else:
+        first = 0
+
+    exp_ind = np.arange(first, order)
+    coef_index = exp_ind.astype(str)
+    param_names = ['_' + basename + '_' + index_str for index_str in coef_index]
+
+    return param_names
+#====================================================================
+def get_array_param_index(param_names):
+    coef_index = [int(np.str.split(name,'_')[-1]) for name in param_names]
+    return coef_index
+#====================================================================
+def make_array_param_defaults(param_names, base_scale=500, deriv_scale=3,
+                              base_unit='GPa', deriv_unit='ang', deriv_exp=3):
+
+    coef_index =get_array_param_index(param_names)
+    order = np.max(coef_index)
+
+    param_units = []
+    param_scales = []
+    param_defaults = []
+
+    for ind in coef_index:
+        if ind==0:
+            param_units.append(base_unit)
+            param_scales.append(base_scale)
+            param_defaults.append(base_scale)
+        else:
+            expstr = str(ind*deriv_exp)
+            scale = base_scale/deriv_scale**ind
+            default = scale*(-1)**ind
+            param_units.append(base_unit+'/'+deriv_unit+'^'+expstr)
+            param_scales.append(scale)
+            param_defaults.append(default)
+
+    return param_units, param_defaults, param_scales
+#====================================================================
+def make_array_param_units(param_names, base_unit='GPa', deriv_unit='(ang^3)'):
+
+    coef_index =get_array_param_index(param_names)
+    order = np.max(coef_index)
+
+    param_units = []
+
+    for ind in coef_index:
+        if ind==0:
+            param_units.append(base_unit)
+        else:
+            param_units.append(base_unit+'/'+deriv_unit+'^'+str(ind))
+
+    return param_units
+#====================================================================
 def get_consts( keys ):
     # assert all((key in CONSTS for key in keys)), (
     #     'That is not a valid CONST name. Valid names are '+str(CONSTS.keys()) )

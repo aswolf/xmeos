@@ -613,8 +613,8 @@ class _GenRosenfeldTarazona(ThermalCalc):
         return entropy
 
     def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a):
-        return dEdV_T
+        return np.nan
 
     def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a):
-        return dEdV_S
+        return np.nan
 #====================================================================

@@ -21,4 +21,16 @@ slow = pytest.mark.skipif(
 #====================================================================
 # SEC:3 Test Admin Funcs
 #====================================================================
+def test_simplify_poly():
+    TOL = 1e-6
+    shifted_coefs = np.random.rand(6)
+    abs_coefs = core.simplify_poly(shifted_coefs)
+
+    x = np.linspace(-20,20,100)
+
+    dev = np.polyval(shifted_coefs, x-1) - np.polyval(abs_coefs, x)
+
+    assert np.all(np.abs(dev) < TOL), \
+        'Simplified polynomial must match to within TOL everywhere.'
+
 #====================================================================
