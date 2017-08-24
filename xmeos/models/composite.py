@@ -260,8 +260,6 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
     _kind_thermal_opts = ['GenRosenfeldTarazona']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
                            'GenFiniteStrain','Tait','PolyRho']
-    _kind_RTpoly_opts = ['V','rho','logV']
-    _poly_ref_state_opts = ['V0','0']
 
     def __init__(self, kind_compress='Vinet', compress_order=None,
                  compress_path_const='T', kind_poly='V', poly_order=5,
@@ -274,9 +272,46 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                                 path_const=compress_path_const)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
 
+        self._set_poly_calculator(kind_poly, poly_order, poly_ref_state)
+
         self._set_ref_state()
 
         self._post_init(model_state=model_state)
+        pass
+
+    # def _set_poly_calculator(self, kind_poly, poly_order, poly_ref_state):
+
+    def _set_ref_state(self):
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        V0, K0 = compress_calc.get_param_defaults(['V0','K0'])
+        # redundant T0 declaration
+        T0_scale = 300
+        Cv_scale = 3*self.natom*core.CONSTS['kboltz']
+        S0_scale = Cv_scale*T0_scale
+        energy_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
+
+        if   compress_path_const=='T':
+            param_ref_names = ['T0', 'F0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [T0_scale, 0.0, S0_scale]
+            param_ref_scales = [T0_scale, energy_scale, S0_scale]
+
+        elif compress_path_const=='S':
+            param_ref_names = ['T0', 'E0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [300, 0.0, S0_scale]
+            param_ref_scales = [300, energy_scale, S0_scale]
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        self._param_ref_names = param_ref_names
+        self._param_ref_units = param_ref_units
+        self._param_ref_defaults = param_ref_defaults
+        self._param_ref_scales = param_ref_scales
         pass
 
     def __repr__(self):
@@ -296,224 +331,72 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                 ")"
                 .format(kind_compres=repr(calc_compress.name),
                         compress_order=repr(calc_compress.order),
+                        kind_poly=repr(kind_poly),
+                        poly_order=repr(poly_order),
                         compress_path_const=repr(calc_compress.path_const),
                         natom=repr(self.natom),
                         model_state=self.model_state
                         )
                 )
-#====================================================================
 
-#     def __repr__(self):
-#         calc_thermal = self.calculators['thermal']
-#         calc_compress = self.calculators['compress']
-#         calc_gamma = self.calculators['gamma']
-#
-#         return ("ThermalEos(kind_thermal={kind_thermal}, "
-#                 "kind_gamma={kind_gamma}, "
-#                 "kind_compress={kind_compress}, "
-#                 "compress_path_const={compress_path_const}, "
-#                 "natom={natom}, "
-#                 "model_state={model_state}, "
-#                 ")"
-#                 .format(kind_thermal=repr(calc_thermal.name),
-#                         kind_gamma=repr(calc_gamma.name),
-#                         kind_compress=repr(calc_compress.name),
-#                         compress_path_const=repr(calc_compress.path_const),
-#                         natom=repr(self.natom),
-#                         model_state=self.model_state
-#                         )
-#                 )
-#
-#     def _set_ref_state(self):
-#         compress_calc = self.calculators['compress']
-#         compress_path_const = compress_calc.path_const
-#
-#         V0, K0 = compress_calc.get_param_defaults(['V0','K0'])
-#         # redundant T0 declaration
-#         T0_scale = 300
-#         Cv_scale = 3*self.natom*core.CONSTS['kboltz']
-#         S0_scale = Cv_scale*T0_scale
-#         energy_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
-#
-#         if   compress_path_const=='T':
-#             param_ref_names = ['T0', 'F0', 'S0']
-#             param_ref_units = ['K', 'eV', 'eV/K']
-#             param_ref_defaults = [T0_scale, 0.0, S0_scale]
-#             param_ref_scales = [T0_scale, energy_scale, S0_scale]
-#
-#         elif compress_path_const=='S':
-#             param_ref_names = ['T0', 'E0', 'S0']
-#             param_ref_units = ['K', 'eV', 'eV/K']
-#             param_ref_defaults = [300, 0.0, S0_scale]
-#             param_ref_scales = [300, energy_scale, S0_scale]
-#
-#         elif compress_path_const=='0K':
-#             param_ref_names = []
-#             param_ref_units = []
-#             param_ref_defaults = []
-#             param_ref_scales = []
-#
-#         else:
-#             raise NotImplementedError(
-#                 'path_const '+path_const+' is not valid for CompressEos.')
-#
-#         self._param_ref_names = param_ref_names
-#         self._param_ref_units = param_ref_units
-#         self._param_ref_defaults = param_ref_defaults
-#         self._param_ref_scales = param_ref_scales
-#         pass
-#
-#     def _calc_theta(self, V_a):
-#         gamma_calc = self.calculators['gamma']
-#
-#         theta0, = self.get_param_values(['theta0'])
-#         theta_a = gamma_calc._calc_temp(V_a, T0=theta0)
-#         return theta_a
-#
-#     def ref_temp_path(self, V_a):
-#         T0, theta0 = self.get_param_values(param_names=['T0','theta0'])
-#
-#         gamma_calc = self.calculators['gamma']
-#         compress_calc = self.calculators['compress']
-#         compress_path_const = compress_calc.path_const
-#
-#         # Tref_path = gamma_calc._calc_temp(V_a)
-#         theta_ref = self._calc_theta(V_a)
-#
-#         if   compress_path_const=='T':
-#             Tref_path = T0
-#
-#         elif compress_path_const=='S':
-#             Tref_path = gamma_calc._calc_temp(V_a)
-#
-#         elif compress_path_const=='0K':
-#             Tref_path = 0
-#
-#         else:
-#             raise NotImplementedError(
-#                 'path_const '+path_const+' is not valid for CompressEos.')
-#
-#         Tref_path, V_a = core.fill_array(Tref_path, V_a)
-#         Tref_path, theta_ref = core.fill_array(Tref_path, theta_ref)
-#
-#         return Tref_path, theta_ref
-#
-#     def compress_energy(self, V_a):
-#         V_a = core.fill_array(V_a)
-#         compress_calc = self.calculators['compress']
-#         compress_path_const = compress_calc.path_const
-#
-#         T0, = self.get_param_values(param_names=['T0'])
-#         if   compress_path_const=='T':
-#             F_compress = compress_calc._calc_energy(V_a)
-#             S_compress = self.compress_entropy(V_a)
-#             E_compress = F_compress + T0*S_compress
-#
-#         elif (compress_path_const=='S')|(compress_path_const=='0K'):
-#             E_compress = compress_calc._calc_energy(V_a)
-#
-#         else:
-#             raise NotImplementedError(
-#                 'path_const '+path_const+' is not valid for CompressEos.')
-#
-#         return E_compress
-#
-#     def compress_entropy(self, V_a):
-#         V_a = core.fill_array(V_a)
-#
-#         T0, theta0 = self.get_param_values(param_names=['T0','theta0'])
-#         Tref_path, theta_ref = self.ref_temp_path(V_a)
-#         thermal_calc = self.calculators['thermal']
-#
-#         S_compress = thermal_calc._calc_entropy(Tref_path, theta=theta_ref,
-#                                                 T0=T0, theta0=theta0)
-#         return S_compress
-#
-#     def thermal_energy(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#         Tref_path, theta_ref = self.ref_temp_path(V_a)
-#         thermal_calc = self.calculators['thermal']
-#
-#         E_therm_a = thermal_calc._calc_energy(T_a, theta=theta_ref,
-#                                               T0=Tref_path)
-#         return E_therm_a
-#
-#     def thermal_entropy(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#         Tref_path, theta_ref = self.ref_temp_path(V_a)
-#         thermal_calc = self.calculators['thermal']
-#
-#         S_therm_a = thermal_calc._calc_entropy(T_a, theta=theta_ref,
-#                                                T0=Tref_path, theta0=theta_ref)
-#         return S_therm_a
-#
-#     def thermal_press(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#         gamma_calc = self.calculators['gamma']
-#
-#         PV_ratio, = core.get_consts(['PV_ratio'])
-#         gamma_a = gamma_calc._calc_gamma(V_a)
-#         E_therm_a = self.thermal_energy(V_a, T_a)
-#         P_therm_a = PV_ratio*gamma_a/V_a*E_therm_a
-#         return P_therm_a
-#
-#     def heat_capacity(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#         thermal_calc = self.calculators['thermal']
-#         # theta_a = self._calc_theta(V_a)
-#         Tref_path, theta_ref = self.ref_temp_path(V_a)
-#
-#         heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_ref)
-#         return heat_capacity_a
-#
-#     def press(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#         compress_calc = self.calculators['compress']
-#         P_ref_a = compress_calc._calc_press(V_a)
-#         P_therm_a = self.thermal_press(V_a, T_a)
-#
-#         press_a = P_ref_a + P_therm_a
-#         return press_a
-#
-#     def entropy(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#         S0, = self.get_param_values(param_names=['S0'])
-#         S_compress_a = self.compress_entropy(V_a)
-#         S_therm_a = self.thermal_entropy(V_a, T_a)
-#
-#         entropy_a = S0 + S_compress_a + S_therm_a
-#         return entropy_a
-#
-#     def helmholtz_energy(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#
-#         E_a = self.internal_energy(V_a, T_a)
-#         S_a = self.entropy(V_a, T_a)
-#         F_a = E_a - T_a*S_a
-#
-#         return F_a
-#
-#     def internal_energy(self, V_a, T_a):
-#         V_a, T_a = core.fill_array(V_a, T_a)
-#         compress_calc = self.calculators['compress']
-#         compress_path_const = compress_calc.path_const
-#
-#         if   compress_path_const=='T':
-#             F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
-#             E0 = F0 + T0*S0
-#
-#         elif (compress_path_const=='S')|(compress_path_const=='0K'):
-#             E0, = self.get_param_values(param_names=['E0'])
-#
-#         else:
-#             raise NotImplementedError(
-#                 'path_const '+path_const+' is not valid for CompressEos.')
-#
-#         E_compress_a = self.compress_energy(V_a)
-#         E_therm_a = self.thermal_energy(V_a, T_a)
-#
-#         internal_energy_a = E0 + E_compress_a + E_therm_a
-#         return internal_energy_a
+    def _calc_poly_coef(self, V_a):
+        self._kind_poly = kind_poly
+        self._poly_order = poly_order
+        self._poly_ref_state = poly_ref_state
+
+
+
+        theta0, = self.get_param_values(['theta0'])
+        theta_a = gamma_calc._calc_temp(V_a, T0=theta0)
+        return theta_a
+#====================================================================
+class RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
+    _kind_opts = ['V','rho','logV']
+
+    def __init__(self, eos_mod, order=6, kind='logV'):
+
+        if kind not in self._kind_opts:
+            raise NotImplementedError(
+                'kind '+kind+' is not valid for RTPolyCalc.')
+
+        if ((~np.isscalar(order)) | (order < 0) | (np.mod(order,0) !=0)):
+            raise ValueError(
+                'order ' + order +' is not valid for RTPolyCalc. '+
+                'It must be a positive integer.')
+
+        self._eos_mod = eos_mod
+        self._init_params(order, kind)
+        self._required_calculators = None
+
+        self._kind = kind
+
+        assert path_const in self.path_opts, path_const + ' is not a valid ' + \
+            'path const. You must select one of: ' + path_opts
+
+        assert (np.isscalar(order))&(order>0)&(np.mod(order,1)==0), (
+            'order must be a positive integer.')
+
+        self._eos_mod = eos_mod
+        self._init_params(order)
+        self._required_calculators = None
+
+        self._path_const = path_const
+        self.supress_energy = supress_energy
+        self.supress_press = supress_press
+
+        # Use Expansion Adjustment for negative pressure region?
+        if expand_adj is None:
+            self.expand_adj = False
+        else:
+            self.expand_adj = expand_adj
+
+        if expand_adj_mod is None:
+            self.expand_adj = False
+            self.expand_adj_mod = None
+        else:
+            self.expand_adj = True
+            self.expand_adj_mod = expand_adj_mod
+        pass
 #====================================================================
 
 
@@ -796,3 +679,4 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 #
 #         return E0S_a
 # #====================================================================
+

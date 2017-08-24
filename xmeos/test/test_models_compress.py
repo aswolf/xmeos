@@ -115,6 +115,17 @@ class BaseTestCompressEos(test_models.BaseTestEos):
         # Eperturb_num_a-Eperturb_a
         assert np.all(max_error_a < TOL),'Error in energy perturbation must be'\
             'less than TOL.'
+
+
+    #####################
+    # Explicitly call these test methods from super to guarantee correct
+    # behavior of decorated xfail classes
+    #####################
+    def test_param_getset(self):
+        super(BaseTestCompressEos, self).test_param_getset()
+
+    def test_pickle(self):
+        super(BaseTestCompressEos, self).test_pickle()
 #====================================================================
 
 #====================================================================
@@ -148,7 +159,8 @@ class TestTait(BaseTestCompressEos):
         eos_mod = models.CompressEos(kind='Tait', path_const=path_const)
         return eos_mod
 #====================================================================
-@pytest.mark.xfail(reason='PolyRho energy expressions not implimented yet.')
+notimplimented = pytest.mark.xfail(reason='PolyRho energy expressions not implimented yet.')
+@notimplimented
 class TestPolyRho(BaseTestCompressEos):
     def load_eos(self, path_const='T'):
         eos_mod = models.CompressEos(kind='PolyRho', path_const=path_const,

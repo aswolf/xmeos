@@ -584,22 +584,34 @@ CONSTS['PV_ratio'] = 160.2176487 # (GPa*ang^3)/eV
 CONSTS['TS_ratio'] = CONSTS['R']/CONSTS['kboltz'] # (J/mol)/eV
 
 #====================================================================
-def simplify_poly(shifted_coefs):
+def unshift_poly(shift_coefs, xscale=1):
+    shift_mat = get_shift_poly_matrix(shift_coefs.size, xscale=xscale)
+    coefs = np.dot(shift_mat, shift_coefs)
+    return coefs
+#====================================================================
+def shift_poly(coefs, xscale=1):
+    shift_mat = get_shift_poly_matrix(coefs.size, xscale=xscale)
+    shift_coefs = np.linalg.solve(shift_mat, coefs)
+    return shift_coefs
+#====================================================================
+def get_shift_poly_matrix(order, xscale=1):
     """
     convert a polynomial from shifted to absolute form
 
-    sum_i ( b_i*(x-1)**i )  =>  sum_k ( c_k * x**k )
+    sum_i ( b_i*(x/xscale-1)**i )  =>  sum_k ( c_k * x**k )
     """
 
-    rev_shifted_coefs = np.flipud(shifted_coefs)
+    shift_mat = np.zeros((order,order))
 
-    rev_abs_coefs = np.zeros(shifted_coefs.shape)
-    for i,icoef in enumerate(rev_shifted_coefs):
-        i_poly_expand = icoef*sp.special.binom(i,range(i+1))*(-1)**np.arange(i+1)
-        rev_abs_coefs[0:i+1] += np.flipud(i_poly_expand)
+    # coefs = np.zeros(shift_coefs.shape)
+    for i in range(order):
+        icoef_wt = sp.special.binom(i,range(i+1))
+        isign = (-1)**(i+np.arange(i+1))
+        ixscale_wt =xscale**(-np.arange(i+1))
+        ipoly_expand = isign*ixscale_wt*icoef_wt
+        shift_mat[0:i+1,i] = isign*ixscale_wt*icoef_wt
 
-    abs_coefs= np.flipud(rev_abs_coefs)
-    return abs_coefs
+    return shift_mat
 #====================================================================
 def make_array_param_names(basename, order, skipzero=False):
     if skipzero:
