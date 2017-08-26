@@ -518,6 +518,12 @@ class Calculator(with_metaclass(ABCMeta)):
 
     def _set_params(self, param_names, param_units,
                     param_defaults, param_scales, order=None):
+        N = len(param_names)
+        if ((len(param_units) is not N)|(len(param_defaults) is not N)|
+            (len(param_scales) is not N)):
+            raise ValueError('param names, units, defaults, and scales must have'+
+                             'consistent lengths.')
+
         self._param_names = np.array(param_names)
         self._param_units = np.array(param_units)
         self._param_defaults = np.array(param_defaults)
@@ -619,7 +625,7 @@ def make_array_param_names(basename, order, skipzero=False):
     else:
         first = 0
 
-    exp_ind = np.arange(first, order)
+    exp_ind = np.arange(first, order+1)
     coef_index = exp_ind.astype(str)
     param_names = ['_' + basename + '_' + index_str for index_str in coef_index]
 

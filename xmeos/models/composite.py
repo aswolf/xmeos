@@ -12,7 +12,7 @@ from . import compress
 from . import thermal
 from . import gamma
 
-__all__ = ['MieGruneisenEos']
+__all__ = ['MieGruneisenEos','RTPolyEos']
 
 # class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 # class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
@@ -263,7 +263,7 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 
     def __init__(self, kind_compress='Vinet', compress_order=None,
                  compress_path_const='T', kind_poly='V', poly_order=5,
-                 poly_ref_state='0', natom=1, model_state={}):
+                 natom=1, model_state={}):
 
         kind_thermal = 'GenRosenfeldTarazona'
         self._pre_init(natom=natom)
@@ -272,14 +272,23 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                                 path_const=compress_path_const)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
 
-        self._set_poly_calculator(kind_poly, poly_order, poly_ref_state)
+        self._set_poly_calculators(kind_poly, poly_order)
 
         self._set_ref_state()
 
         self._post_init(model_state=model_state)
         pass
 
-    # def _set_poly_calculator(self, kind_poly, poly_order, poly_ref_state):
+    def _set_poly_calculators(self, kind_poly, poly_order):
+        bcoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
+                                 coef_basename='bcoef')
+        acoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
+                                 coef_basename='acoef')
+
+        self._add_calculator(bcoef_calc, calc_type='bcoef')
+        self._add_calculator(acoef_calc, calc_type='acoef')
+        self._kind_poly = kind_poly
+        self._poly_order = poly_order
 
     def _set_ref_state(self):
         compress_calc = self.calculators['compress']
@@ -319,20 +328,19 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 
         # kind_compress='Vinet', compress_order=None,
         #          compress_path_const='T', kind_poly='V', poly_order=5,
-        #          poly_ref_state='0', natom=1, model_state={}):
+        #          natom=1, model_state={}):
         return ("ThermalEos(kind_compress={kind_compress}, "
                 "compress_order={compress_order}, "
                 "compress_path_const={compress_path_const}, "
                 "kind_poly={kind_poly}, "
                 "poly_order={poly_order}, "
-                "poly_ref_state={poly_ref_state}, "
                 "natom={natom}, "
                 "model_state={model_state}, "
                 ")"
-                .format(kind_compres=repr(calc_compress.name),
+                .format(kind_compress=repr(calc_compress.name),
                         compress_order=repr(calc_compress.order),
-                        kind_poly=repr(kind_poly),
-                        poly_order=repr(poly_order),
+                        kind_poly=repr(self._kind_poly),
+                        poly_order=repr(self._poly_order),
                         compress_path_const=repr(calc_compress.path_const),
                         natom=repr(self.natom),
                         model_state=self.model_state
@@ -342,7 +350,6 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
     def _calc_poly_coef(self, V_a):
         self._kind_poly = kind_poly
         self._poly_order = poly_order
-        self._poly_ref_state = poly_ref_state
 
 
 
@@ -350,53 +357,94 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
         theta_a = gamma_calc._calc_temp(V_a, T0=theta0)
         return theta_a
 #====================================================================
-class RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
+class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
     _kind_opts = ['V','rho','logV']
 
-    def __init__(self, eos_mod, order=6, kind='logV'):
+    def __init__(self, eos_mod, order=6, kind='logV', coef_basename='bcoef'):
 
         if kind not in self._kind_opts:
             raise NotImplementedError(
                 'kind '+kind+' is not valid for RTPolyCalc.')
 
-        if ((~np.isscalar(order)) | (order < 0) | (np.mod(order,0) !=0)):
+        if ((not np.isscalar(order)) | (order < 0) | (np.mod(order,0) !=0)):
             raise ValueError(
-                'order ' + order +' is not valid for RTPolyCalc. '+
+                'order ' + str(order) +' is not valid for RTPolyCalc. '+
                 'It must be a positive integer.')
 
         self._eos_mod = eos_mod
+        self._coef_basename = coef_basename
         self._init_params(order, kind)
         self._required_calculators = None
 
         self._kind = kind
 
-        assert path_const in self.path_opts, path_const + ' is not a valid ' + \
-            'path const. You must select one of: ' + path_opts
+    def _init_params(self, order, kind):
 
-        assert (np.isscalar(order))&(order>0)&(np.mod(order,1)==0), (
-            'order must be a positive integer.')
+        # NOTE switch units cc/g -> ang3,  kJ/g -> eV
+        V0 = 0.408031
 
-        self._eos_mod = eos_mod
-        self._init_params(order)
-        self._required_calculators = None
+        coef_basename = self._coef_basename
+        param_names = core.make_array_param_names(coef_basename, order,
+                                                  skipzero=False)
 
-        self._path_const = path_const
-        self.supress_energy = supress_energy
-        self.supress_press = supress_press
+        if coef_basename == 'bcoef':
+            bcoefs_mgsio3 = np.array([-.371466, 7.09542, -45.7362, 139.020,
+                                      -201.487, 112.513])
 
-        # Use Expansion Adjustment for negative pressure region?
-        if expand_adj is None:
-            self.expand_adj = False
+            shift_coefs_mgsio3 = core.shift_poly(bcoefs_mgsio3, xscale=V0)
+
+        elif coef_basename == 'acoef':
+            acoefs_mgsio3 = np.array([127.116, -3503.98, 20724.4, -60212.0,
+                                      86060.5, -48520.4])
+
+            shift_coefs_mgsio3 = core.shift_poly(acoefs_mgsio3, xscale=V0)
         else:
-            self.expand_adj = expand_adj
+            raise NotImplemented('This is not a valid RTcoef type')
 
-        if expand_adj_mod is None:
-            self.expand_adj = False
-            self.expand_adj_mod = None
+        param_defaults = [0 for ind in range(0,order+1)]
+        if order>5:
+            param_defaults[0:6] = shift_coefs_mgsio3
         else:
-            self.expand_adj = True
-            self.expand_adj_mod = expand_adj_mod
-        pass
+            param_defaults[0:order+1] = shift_coefs_mgsio3[0:order+1]
+
+        param_scales = [1 for ind in range(0,order+1)]
+        param_units = core.make_array_param_units(param_names, base_unit='kJ/g',
+                                                  deriv_unit='(cc/g)')
+
+        param_names.append('V0')
+        param_scales.append(V0)
+        param_units.append('cc/g')
+        param_defaults.append(V0)
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales, order=order)
+
+    def _get_polyval_coef(self):
+        coef_basename = self._coef_basename
+
+        param_names = self.eos_mod.get_array_param_names(coef_basename)
+        param_values = self.eos_mod.get_param_values(param_names=param_names)
+        V0, = self.eos_mod.get_param_values(param_names=['V0'])
+
+        coef_index = core.get_array_param_index(param_names)
+        order = np.max(coef_index)+1
+        param_full = np.zeros(order)
+        param_full[coef_index] = param_values
+
+        coefs_a = param_full[::-1]  # Reverse array for np.polyval
+        return coefs_a, V0
+
+    def calc_coef(self, V_a):
+        coefs_a, V0 = self._get_polyval_coef()
+        coef_V = np.polyval(coefs_a, V_a/V0-1)
+        return coef_V
+
+    def calc_coef_deriv(self, V_a):
+        coefs_a, V0 = self._get_polyval_coef()
+        order = coefs_a.size-1
+        coefs_deriv_a = np.polyder(coefs_a)/V0**np.arange(order,-.1,-1)
+        coef_deriv_V = np.polyval(coefs_deriv_a, V_a/V0-1)
+        return coef_deriv_V
 #====================================================================
 
 

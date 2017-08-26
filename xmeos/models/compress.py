@@ -854,9 +854,6 @@ class _PolyRho(CompressCalc):
         Pcoef_a = coef_a*rho0**np.flipud(np.arange(order))
         core.simplify_poly(coef_a)
 
-
-
-
     def _calc_press(self, V_a):
         V_a = core.fill_array(V_a)
         coef_a, rho0 = self._get_poly_coef()
@@ -913,7 +910,8 @@ class _PolyRho(CompressCalc):
 
         rho0 = 2.58516
         coef_basename = 'Pcoef'
-        param_names = core.make_array_param_names(coef_basename, order, skipzero=True)
+        param_names = core.make_array_param_names(coef_basename, order,
+                                                  skipzero=True)
 
         param_values_sio2 = [8.78411, 12.08481, -5.5986, 4.92863, -0.90499]
         if order>6:
