@@ -279,6 +279,30 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
         self._post_init(model_state=model_state)
         pass
 
+    def __repr__(self):
+        calc_compress = self.calculators['compress']
+
+        # kind_compress='Vinet', compress_order=None,
+        #          compress_path_const='T', kind_poly='V', poly_order=5,
+        #          natom=1, model_state={}):
+        return ("ThermalEos(kind_compress={kind_compress}, "
+                "compress_order={compress_order}, "
+                "compress_path_const={compress_path_const}, "
+                "kind_poly={kind_poly}, "
+                "poly_order={poly_order}, "
+                "natom={natom}, "
+                "model_state={model_state}, "
+                ")"
+                .format(kind_compress=repr(calc_compress.name),
+                        compress_order=repr(calc_compress.order),
+                        kind_poly=repr(self._kind_poly),
+                        poly_order=repr(self._poly_order),
+                        compress_path_const=repr(calc_compress.path_const),
+                        natom=repr(self.natom),
+                        model_state=self.model_state
+                        )
+                )
+
     def _set_poly_calculators(self, kind_poly, poly_order):
         bcoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
                                  coef_basename='bcoef')
@@ -323,39 +347,21 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
         self._param_ref_scales = param_ref_scales
         pass
 
-    def __repr__(self):
-        calc_compress = self.calculators['compress']
+    def _calc_RTcoefs(self, V_a):
+        bcoef_calc = self._calculators['bcoef']
+        acoef_calc = self._calculators['acoef']
 
-        # kind_compress='Vinet', compress_order=None,
-        #          compress_path_const='T', kind_poly='V', poly_order=5,
-        #          natom=1, model_state={}):
-        return ("ThermalEos(kind_compress={kind_compress}, "
-                "compress_order={compress_order}, "
-                "compress_path_const={compress_path_const}, "
-                "kind_poly={kind_poly}, "
-                "poly_order={poly_order}, "
-                "natom={natom}, "
-                "model_state={model_state}, "
-                ")"
-                .format(kind_compress=repr(calc_compress.name),
-                        compress_order=repr(calc_compress.order),
-                        kind_poly=repr(self._kind_poly),
-                        poly_order=repr(self._poly_order),
-                        compress_path_const=repr(calc_compress.path_const),
-                        natom=repr(self.natom),
-                        model_state=self.model_state
-                        )
-                )
+        a_V = acoef_calc.calc_coef(V_a)
+        b_V = bcoef_calc.calc_coef(V_a)
+        return a_V, b_V
 
-    def _calc_poly_coef(self, V_a):
-        self._kind_poly = kind_poly
-        self._poly_order = poly_order
+    def _calc_RTcoefs_deriv(self, V_a):
+        bcoef_calc = self._calculators['bcoef']
+        acoef_calc = self._calculators['acoef']
 
-
-
-        theta0, = self.get_param_values(['theta0'])
-        theta_a = gamma_calc._calc_temp(V_a, T0=theta0)
-        return theta_a
+        a_deriv_V = acoef_calc.calc_coef_deriv(V_a)
+        b_deriv_V = bcoef_calc.calc_coef_deriv(V_a)
+        return a_deriv_V, b_deriv_V
 #====================================================================
 class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
     _kind_opts = ['V','rho','logV']
@@ -442,7 +448,7 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
     def calc_coef_deriv(self, V_a):
         coefs_a, V0 = self._get_polyval_coef()
         order = coefs_a.size-1
-        coefs_deriv_a = np.polyder(coefs_a)/V0**np.arange(order,-.1,-1)
+        coefs_deriv_a = np.polyder(coefs_a)/V0
         coef_deriv_V = np.polyval(coefs_deriv_a, V_a/V0-1)
         return coef_deriv_V
 #====================================================================
