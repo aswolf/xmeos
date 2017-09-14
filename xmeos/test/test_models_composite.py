@@ -283,6 +283,38 @@ class TestRTPolyEos(test_models.BaseTestEos):
 
         assert b_range_err < TOL, 'range error in bcoef, ' + \
             np.str(b_range_err) + ', must be less than TOL, ' + np.str(TOL)
+
+    def test_heat_capacity_T(self):
+        self._calc_test_heat_capacity(compress_path_const='T', poly_order=5)
+
+    def _calc_test_heat_capacity(self, kind_compress='Vinet', compress_order=3,
+                                 compress_path_const='T', kind_poly='V',
+                                 poly_order=5, natom=1):
+
+        TOL = 1e-3
+        Nsamp = 10001
+
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_order=compress_order,
+                                compress_path_const=compress_path_const,
+                                kind_poly=kind_poly, poly_order=poly_order,
+                                natom=natom)
+
+        Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
+
+        V0, = eos_mod.get_param_values(param_names=['V0'])
+        # Vmod_a = V0*(0.6+.5*np.random.rand(Nsamp))
+        Vmod = V0*0.9
+
+        thermal_energy_a = eos_mod.thermal_energy(Vmod, Tmod_a)
+        heat_capacity_a = eos_mod.heat_capacity(Vmod, Tmod_a)
+
+        abs_err, rel_err, range_err = self.numerical_deriv(
+            Tmod_a, thermal_energy_a, heat_capacity_a, scale=1)
+
+        Cvlimfac = eos_mod.calculators['thermal']._get_Cv_limit()
+        assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
+            ', must be less than TOL, ' + np.str(TOL)
 #====================================================================
 
 
@@ -480,4 +512,3 @@ class TestRTPolyEos(test_models.BaseTestEos):
 #         assert s=='y', 'Figure must match published figure'
 #         pass
 #====================================================================
-

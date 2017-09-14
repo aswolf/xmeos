@@ -255,7 +255,6 @@ class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
     #     calculator = self.calculators['thermal']
     #     energy_a =  calculator._calc_energy(T_a)
     #     return energy_a
-#====================================================================
 class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
     _kind_thermal_opts = ['GenRosenfeldTarazona']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
@@ -302,6 +301,24 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                         model_state=self.model_state
                         )
                 )
+
+    def thermal_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        thermal_calc = self._calculators['thermal']
+        a_V, b_V = self._calc_RTcoefs(V_a)
+
+        thermal_energy_a = thermal_calc._calc_energy(T_a, bcoef=b_V)
+        return thermal_energy_a
+
+    def heat_capacity(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        thermal_calc = self.calculators['thermal']
+        a_V, b_V = self._calc_RTcoefs(V_a)
+
+        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
+        return heat_capacity_a
 
     def _set_poly_calculators(self, kind_poly, poly_order):
         bcoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
@@ -733,4 +750,3 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
 #
 #         return E0S_a
 # #====================================================================
-

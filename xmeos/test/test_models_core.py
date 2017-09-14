@@ -1,6 +1,6 @@
 from __future__ import absolute_import, print_function, division
 import numpy as np
-from models import core
+from xmeos.models import core
 
 import pytest
 import matplotlib.pyplot as plt
