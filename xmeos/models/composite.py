@@ -4,7 +4,7 @@ from future.utils import with_metaclass
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
-from scipy import integrate
+from scipy import integrate, optimize
 import scipy.interpolate as interpolate
 
 from . import core
@@ -12,15 +12,115 @@ from . import compress
 from . import thermal
 from . import gamma
 
-__all__ = ['MieGruneisenEos','RTPolyEos']
+__all__ = ['CompositeEos','MieGruneisenEos','RTPolyEos']
 
 # class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 # class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 # class CompressPolyEos(with_metaclass(ABCMeta, core.Eos)):
 
 #====================================================================
-class MieGruneisenEos(with_metaclass(ABCMeta, core.Eos)):
-    _kind_thermal_opts = ['Debye','Einstein']
+class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
+    # Meta class
+
+    # MUST be used
+    # def __init__():
+    # def __repr__():
+
+    # def thermal_energy(self, V_a, T_a):
+    # def compress_energy(self, V_a, T_a):
+
+    def entropy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        S0, = self.get_param_values(param_names=['S0'])
+        S_compress_a = self.compress_entropy(V_a)
+        S_therm_a = self.thermal_entropy(V_a, T_a)
+
+        entropy_a = S0 + S_compress_a + S_therm_a
+        return entropy_a
+
+    def press(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        compress_calc = self.calculators['compress']
+        P_ref_a = compress_calc._calc_press(V_a)
+        P_therm_a = self.thermal_press(V_a, T_a)
+
+        press_a = P_ref_a + P_therm_a
+        return press_a
+
+    def helmholtz_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        E_a = self.internal_energy(V_a, T_a)
+        S_a = self.entropy(V_a, T_a)
+        F_a = E_a - T_a*S_a
+
+        return F_a
+
+    def internal_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        if   compress_path_const=='T':
+            F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
+            E0 = F0 + T0*S0
+
+        elif (compress_path_const=='S')|(compress_path_const=='0K'):
+            E0, = self.get_param_values(param_names=['E0'])
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        E_compress_a = self.compress_energy(V_a)
+        E_therm_a = self.thermal_energy(V_a, T_a)
+
+        internal_energy_a = E0 + E_compress_a + E_therm_a
+        return internal_energy_a
+
+    def bulk_modulus(self, V_a, T_a, TOL=1e-4):
+        P_lo_a = self.press(V_a*np.exp(-TOL/2), T_a)
+        P_hi_a = self.press(V_a*np.exp(+TOL/2), T_a)
+        K_a = -(P_hi_a-P_lo_a)/TOL
+
+        return K_a
+
+    def volume(self, P_a, T_a, TOL=1e-3, step=0.1, Kmin=1):
+        V0, K0, KP0 = self.get_param_values(param_names=['V0','K0','KP0'])
+
+        Kapprox = K0 + KP0*P_a
+
+        Kscl = 0.5*(K0+Kapprox)
+        iV_a = V0*np.exp(-step*P_a/Kscl)
+        # iV_a = V0*np.exp(-step*P_a/Kapprox)
+
+        # from IPython import embed;embed();import ipdb as pdb;pdb.set_trace()
+        while True:
+            #print('V = ', iV_a)
+            iK_a = self.bulk_modulus(iV_a, T_a)
+            # print('K = ', iK_a)
+            iP_a = self.press(iV_a, T_a)
+            # print('P = ', iP_a)
+            idelP = P_a-iP_a
+            # print(idelP/iK_a)
+            #print(P_a)
+
+            Kapprox = iK_a + .3*0.5*KP0*idelP
+
+            # iKscl = np.maximum(iK_a,Kmin)
+            idelV = np.exp(-idelP/Kapprox)
+            # print('idelV = ',idelV)
+            iV_a = iV_a*idelV
+            if np.all(np.abs(idelV-1) < TOL):
+                break
+
+        V_a = iV_a
+        return V_a
+
+
+#====================================================================
+class MieGruneisenEos(CompositeEos):
+    _kind_thermal_opts = ['Debye','Einstein','ConstHeatCap']
     _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
                            'GenFiniteStrain','Tait']
@@ -308,8 +408,30 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
         thermal_calc = self._calculators['thermal']
         a_V, b_V = self._calc_RTcoefs(V_a)
 
-        thermal_energy_a = thermal_calc._calc_energy(T_a, bcoef=b_V)
+        thermal_energy_a = a_V + thermal_calc._calc_energy(T_a, bcoef=b_V)
         return thermal_energy_a
+
+    def internal_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        if   compress_path_const=='T':
+            F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
+            E0 = F0 + T0*S0
+
+        elif (compress_path_const=='S')|(compress_path_const=='0K'):
+            E0, = self.get_param_values(param_names=['E0'])
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        E_compress_a = self.compress_energy(V_a)
+        E_therm_a = self.thermal_energy(V_a, T_a)
+
+        internal_energy_a = E0 + E_compress_a + E_therm_a
+        return internal_energy_a
 
     def heat_capacity(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
@@ -319,6 +441,15 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 
         heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
         return heat_capacity_a
+
+    def press(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        compress_calc = self.calculators['compress']
+        P_ref_a = compress_calc._calc_press(V_a)
+        P_therm_a = self.thermal_press(V_a, T_a)
+
+        press_a = P_ref_a + P_therm_a
+        return press_a
 
     def _set_poly_calculators(self, kind_poly, poly_order):
         bcoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
