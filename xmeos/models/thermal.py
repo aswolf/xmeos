@@ -30,6 +30,8 @@ def set_calculator(eos_mod, kind, kind_opts):
         calc = _Einstein(eos_mod)
     elif kind=='GenRosenfeldTarazona':
         calc = _GenRosenfeldTarazona(eos_mod)
+    elif kind=='ConstHeatCap':
+        calc = _ConstHeatCap(eos_mod)
     elif kind=='Cp-Berman':
         calc = _Cp_Berman(eos_mod)
     elif kind=='Cp-Fei':
@@ -56,7 +58,7 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
     """
 
     _path_opts = ['V','P']
-    _kind_opts = ['Debye','Einstein','GenRosenfeldTarazona',
+    _kind_opts = ['Debye','Einstein','GenRosenfeldTarazona','ConstHeatCap',
                   'Cp-Berman','Cp-Fei','Cp-Maier-Kelley']
 
     def __init__(self, kind='Debye', natom=1, model_state={}):
@@ -617,4 +619,94 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
     def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a):
         return np.nan
+#====================================================================
+class _ConstHeatCap(ThermalCalc):
+
+    _EPS = np.finfo(np.float).eps
+    _path_opts=['V']
+
+    def __init__(self, eos_mod, ndof=3):
+        """
+        default ndof is 3 relevant for liquids
+        """
+        super(_ConstHeatCap, self).__init__(eos_mod, path_const='V')
+        self._ndof = ndof
+        pass
+
+    def _init_params(self):
+        """Initialize list of calculator parameter names."""
+
+        natom = self.eos_mod.natom
+
+        T0 = 1000
+        T0_scale = 300
+        theta0 = 1000
+        Cvlimfac = 1
+
+        param_names = ['theta0','Cvlimfac', 'T0']
+        param_units = ['K','1', 'K']
+        param_defaults = [theta0, Cvlimfac, T0]
+        param_scales = [theta0, 1, T0_scale]
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales)
+
+        pass
+
+    def _calc_heat_capacity(self, T_a, theta=None, T0=None):
+        """
+        Returns heat capacity as a function of temperature.
+
+        T0, theta included for compatibility with MieGruneisenEos.
+        """
+
+        T_a = core.fill_array(T_a)
+
+        Cvlimfac, = self.eos_mod.get_param_values(param_names=['Cvlimfac'])
+        Cvlim = self._get_Cv_limit()
+        Cv = Cvlimfac*Cvlim
+
+        Cv_a, T_a = core.fill_array(Cv, T_a)
+        return Cv_a
+
+    def _calc_energy(self, T_a, theta=None, T0=None):
+        """
+        Returns heat capacity as a function of temperature.
+
+        theta included for compatibility with MieGruneisenEos.
+        """
+
+        T_a = core.fill_array(T_a)
+        if T0 is None:
+            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+
+        Cv_a = self._calc_heat_capacity(T_a, T0=T0)
+        energy = Cv_a*(T_a-T0)
+
+        return energy
+
+    def _calc_entropy(self, T_a, T0=None, theta=None, theta0=None):
+        """
+        Returns heat capacity as a function of temperature.
+
+        theta & theta0 included for compatibility with MieGruneisenEos.
+        """
+
+        T_a = core.fill_array(T_a)
+        if T0 is None:
+            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+
+        Cv_a = self._calc_heat_capacity(T_a, T0=T0)
+        S_a = Cv_a*np.log(T_a/T0)
+
+        return S_a
+
+    # FIX THESE!!!!
+    def _calc_dEdV_T(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return 0*V_a
+
+    def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a, Cvmax=None):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return 0*V_a
 #====================================================================

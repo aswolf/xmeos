@@ -181,6 +181,15 @@ class Eos(with_metaclass(ABCMeta)):
         """
         return self._natom
 
+    @natom.setter
+    def natom(self, natom):
+        """
+        Number of atoms (per working formula unit).
+
+        """
+        self._natom = natom
+        pass
+
     @property
     def molar_mass(self):
         """
