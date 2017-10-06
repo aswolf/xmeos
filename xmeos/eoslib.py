@@ -86,11 +86,17 @@ def get_oxide_data():
 
     oxide_data_list = []
     oxide_data_list.append(make_oxide_dat( 'SiO2', 'Si',   60.0848, +4, 1, 2))
+    oxide_data_list.append(make_oxide_dat( 'TiO2', 'Ti',   79.8988, +4, 1, 2))
+
     oxide_data_list.append(make_oxide_dat('Al2O3', 'Al', 101.96128, +3, 2, 3))
-    oxide_data_list.append(make_oxide_dat(  'FeO', 'Fe',   71.8464, +2, 1, 1))
+    oxide_data_list.append(make_oxide_dat('Fe2O3', 'Fe',  159.6922, +3, 2, 3))
+
     oxide_data_list.append(make_oxide_dat(  'MgO', 'Mg',   40.3044, +2, 1, 1))
+    oxide_data_list.append(make_oxide_dat(  'FeO', 'Fe',   71.8464, +2, 1, 1))
     oxide_data_list.append(make_oxide_dat(  'CaO', 'Ca',   56.0794, +2, 1, 1))
+
     oxide_data_list.append(make_oxide_dat( 'Na2O', 'Na',  61.97894, +1, 2, 1))
+    oxide_data_list.append(make_oxide_dat(  'K2O',  'K',   94.1954, +1, 2, 1))
 
     oxide_data = {}
     oxide_data['oxides'] = [idat['name'] for idat in oxide_data_list]
@@ -121,15 +127,18 @@ def calc_comp_details(comp_d, kind='wt'):
         comp_mol_a = get_value_array(comp_d, keys=oxide_data['oxides'])
 
     comp_wt_a = comp_mol_a*oxide_data['molwt']
-    mol_mass = np.sum(comp_wt_a)
-    comp_wt_a *= 100/mol_mass
+    mol_mass = np.sum(comp_wt_a)/100
+    comp_wt_a *= mol_mass
 
-    cat_num_a = comp_mol_a*oxide_data['catnum']
-    oxy_num_a = comp_mol_a*oxide_data['oxynum']
+    cat_num_a = comp_mol_a/100*oxide_data['catnum']
+    oxy_num_a = comp_mol_a/100*oxide_data['oxynum']
+    # print('cat ',cat_num_a)
+    # print('oxy ',oxy_num_a)
     oxy_num = np.sum(oxy_num_a)
     cat_a = 100*cat_num_a/np.sum(cat_num_a)
-    natom = np.sum(cat_num_a)+oxy_num
-    oxy_frac = 100*oxy_num/natom
+    atomspermol = np.sum(cat_num_a)+oxy_num
+    # print('atomspermol ',atomspermol)
+    oxy_frac = 100*oxy_num/atomspermol
 
     catoxy_ratio = cat_a/oxy_num
 
@@ -142,7 +151,7 @@ def calc_comp_details(comp_d, kind='wt'):
     comp_details['cat'] = cat_a
     comp_details['oxy'] = oxy_frac
     comp_details['catoxy_ratio'] = catoxy_ratio
-    comp_details['natom'] = natom
+    comp_details['atomspermol'] = atomspermol
 
     return comp_details
 
