@@ -407,6 +407,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         b_abs_err, b_rel_err, b_range_err = self.numerical_deriv(
             Vmod_a, bcoef_a, bcoef_deriv_a, scale=1)
 
+
         assert b_range_err < TOL, 'range error in bcoef, ' + \
             np.str(b_range_err) + ', must be less than TOL, ' + np.str(TOL)
 
@@ -510,6 +511,18 @@ class TestRTPressEos(test_models.BaseTestEos):
         # print('dP_E = ', Pnum_therm_E-P_therm_E)
         # # assert range_err < TOL, ('range error in Press, ' + np.str(range_err) +
         # #                          ', must be less than TOL, ' + np.str(TOL))
+
+        P5_a = eos_mod.press(Vmod_a, 5000)
+        P3_a = eos_mod.press(Vmod_a, 3000)
+
+        # plt.ion()
+        # plt.figure()
+        # plt.plot(Vmod_a,P3_a,'b-')
+        # plt.plot(Vmod_a,P5_a,'r-')
+        # plt.xlabel('V')
+        # plt.ylabel('P')
+
+        assert np.all((P5_a-P3_a)>0), 'Thermal pressure must be positive'
 #
         # assert False, 'nope'
         assert abs_err < TOL, ('abs error in Press, ' + np.str(range_err) +

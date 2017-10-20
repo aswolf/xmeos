@@ -652,7 +652,7 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 
         gamma_a = gamma_calc._calc_gamma(V_a)
 
-        P_therm_S = PV_ratio*(
+        P_therm_S = +PV_ratio*(
             b_deriv_V/(mexp-1)*(T_a*dtherm_dev_deriv_T
                                 -T0*dtherm_dev_deriv_T0) +
             gamma_a/V_a*(T_a-T0)*heat_capacity_0S_a

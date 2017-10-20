@@ -350,3 +350,53 @@ class CMASF_melt_Thomas2013(CompositeEos):
         eos_mod.set_param_values([Cvlimfac], param_names=['Cvlimfac'])
 
         return eos_mod, comp_d
+
+class MgSiO3_RTPress(models.RTPressEos):
+    def __init__(self):
+        self.init_eos()
+        self.load_params()
+
+    def init_eos(self):
+        kind_compress='Vinet'
+        compress_path_const='T'
+        kind_gamma='GammaFiniteStrain'
+        kind_poly='logV'
+        poly_order=4
+        natom=1
+
+        super().__init__(
+            kind_compress=kind_compress,
+            compress_path_const=compress_path_const,
+            kind_gamma=kind_gamma, kind_poly=kind_poly,
+            poly_order=poly_order, natom=natom )
+        pass
+
+    def load_params(self):
+        T0 = 3000
+        S0 = 0.0
+        V0 = 12.970 # Ang^3/atom
+        mexp = 0.6
+        K0 = 12.73
+        KP0 = 8.391
+        F0 = -20.5985
+        gamma0 = 0.134
+        gammap0 = -2.113
+        # NOTE: the python standard puts the highest order coefficients first
+        bcoef_a = np.array([-6.97, -6.39, +0.122, +0.688, +1.0027])[::-1]
+        Cvlimfac = 1.0
+
+        # ndof=6
+        # self.ndof = ndof
+
+        self.set_param_values([T0,S0,V0,mexp,Cvlimfac],
+                              param_names=['T0','S0','V0','mexp','Cvlimfac'])
+        self.set_param_values([K0,KP0,F0], param_names=['K0','KP0','F0'])
+        self.set_param_values([gamma0,gammap0],
+                                 param_names=['gamma0','gammap0'])
+
+        bcoef_names = self.get_array_param_names('bcoef')
+        print("***************")
+        print(bcoef_names)
+        print("***************")
+        self.set_param_values(bcoef_a, param_names=bcoef_names)
+        pass

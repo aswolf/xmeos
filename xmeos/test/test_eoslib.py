@@ -64,3 +64,42 @@ class TestThomas2013():
     def test_endmem_Di(self):
         eos_mod,comp_d = eoslib.CMASF_melt_Thomas2013.get_endmem_eos(endmem='Di')
         self._test_endmem_melt(eos_mod)
+#====================================================================
+class TestMgSiO3RTPress():
+    def test_basic_isotherms(self):
+        eos_mod = eoslib.MgSiO3_RTPress()
+        V0, T0 = eos_mod.get_param_values(param_names=['V0','T0'])
+        V_a = V0*np.linspace(.4,1.15,1001)
+        # P_a = np.linspace(5,135,51)
+        # P_a = np.array([5,25,50,75,100,125])
+        P2500_a = eos_mod.press(V_a, 2500)
+        P3000_a = eos_mod.press(V_a, 3000)
+        P5000_a = eos_mod.press(V_a, 5000)
+        E2500_a = eos_mod.internal_energy(V_a, 2500)
+        E3000_a = eos_mod.internal_energy(V_a, 3000)
+        E5000_a = eos_mod.internal_energy(V_a, 5000)
+        # T = 4000
+        # assert False, 'stop'
+        # V_a = eos_mod.volume(P_a, T)
+
+        plt.ion()
+        plt.figure()
+        plt.plot(V_a/V0,P2500_a,'b-')
+        plt.plot(V_a/V0,P3000_a,'k-')
+        plt.plot(V_a/V0,P5000_a,'r-')
+        plt.ylim(-1,179)
+        plt.xlim(0.4,1.13)
+
+        plt.ion()
+        plt.figure()
+        plt.plot(V_a/V0,E2500_a,'b-')
+        plt.plot(V_a/V0,E3000_a,'k-')
+        plt.plot(V_a/V0,E5000_a,'r-')
+        plt.xlim(0.4,1.13)
+
+
+
+        eos_mod.thermal_press(V_a, 5000)
+        # assert False
+
+#====================================================================

@@ -197,7 +197,10 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
         Cvlimfac, = self.eos_mod.get_param_values(param_names=['Cvlimfac'])
         ndof = self.ndof
         natom = self.eos_mod.natom
-        Cvlim = Cvlimfac*3*ndof/2*natom*core.CONSTS['kboltz']
+       #  print('ndof = ',ndof)
+       #  print('natom = ',natom)
+       #  print('Cvlimfac = ',Cvlimfac)
+        Cvlim = Cvlimfac*ndof/2*natom*core.CONSTS['kboltz']
         return Cvlim
 
     # @abstractmethod
