@@ -12,7 +12,7 @@ from . import compress
 from . import thermal
 from . import gamma
 
-__all__ = ['CompositeEos','MieGruneisenEos','RTPolyEos']
+__all__ = ['CompositeEos','MieGruneisenEos','RTPolyEos','RTPressEos']
 
 # class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 # class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
@@ -116,8 +116,6 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
 
         V_a = iV_a
         return V_a
-
-
 #====================================================================
 class MieGruneisenEos(CompositeEos):
     _kind_thermal_opts = ['Debye','Einstein','ConstHeatCap']
@@ -402,11 +400,41 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                         )
                 )
 
+    def ref_temp_path(self, V_a):
+        T0, theta0 = self.get_param_values(param_names=['T0','theta0'])
+
+        gamma_calc = self.calculators['gamma']
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        # Tref_path = gamma_calc._calc_temp(V_a)
+        theta_ref = self._calc_theta(V_a)
+
+        if   compress_path_const=='T':
+            Tref_path = T0
+
+        elif compress_path_const=='S':
+            Tref_path = gamma_calc._calc_temp(V_a)
+
+        elif compress_path_const=='0K':
+            Tref_path = 0
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        Tref_path, V_a = core.fill_array(Tref_path, V_a)
+        Tref_path, theta_ref = core.fill_array(Tref_path, theta_ref)
+
+        return Tref_path, theta_ref
+
     def thermal_energy(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
 
         thermal_calc = self._calculators['thermal']
         a_V, b_V = self._calc_RTcoefs(V_a)
+
+        # Tref_path, theta_ref = self.ref_temp_path(V_a)
 
         thermal_energy_a = a_V + thermal_calc._calc_energy(T_a, bcoef=b_V)
         return thermal_energy_a
@@ -510,6 +538,480 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
         a_deriv_V = acoef_calc.calc_coef_deriv(V_a)
         b_deriv_V = bcoef_calc.calc_coef_deriv(V_a)
         return a_deriv_V, b_deriv_V
+#====================================================================
+    # def bulk_mod(self, V_a, T_a):
+    #     calculator = self.calculators['thermal']
+    #     energy_a =  calculator._calc_energy(T_a)
+    #     return energy_a
+class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
+    _kind_thermal_opts = ['GenRosenfeldTarazona']
+    _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
+    _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
+                           'GenFiniteStrain','Tait','PolyRho']
+
+    def __init__(self, kind_compress='Vinet', compress_path_const='T',
+                 kind_gamma='GammaFiniteStrain', kind_poly='V',
+                 poly_order=5, natom=1, model_state={}):
+
+        assert compress_path_const=='T', (
+            'Only isothermal compress models supported now.')
+
+        kind_thermal = 'GenRosenfeldTarazona'
+        self._pre_init(natom=natom)
+
+        compress.set_calculator(self, kind_compress, self._kind_compress_opts,
+                                path_const=compress_path_const)
+        gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
+        thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
+
+        self._set_poly_calculators(kind_poly, poly_order)
+
+        self._set_ref_state()
+
+        self._post_init(model_state=model_state)
+        pass
+
+    def __repr__(self):
+        calc_compress = self.calculators['compress']
+
+        # kind_compress='Vinet', compress_order=None,
+        #          compress_path_const='T', kind_poly='V', poly_order=5,
+        #          natom=1, model_state={}):
+        return ("ThermalEos(kind_compress={kind_compress}, "
+                "compress_order={compress_order}, "
+                "compress_path_const={compress_path_const}, "
+                "kind_poly={kind_poly}, "
+                "poly_order={poly_order}, "
+                "natom={natom}, "
+                "model_state={model_state}, "
+                ")"
+                .format(kind_compress=repr(calc_compress.name),
+                        compress_order=repr(calc_compress.order),
+                        kind_poly=repr(self._kind_poly),
+                        poly_order=repr(self._poly_order),
+                        compress_path_const=repr(calc_compress.path_const),
+                        natom=repr(self.natom),
+                        model_state=self.model_state
+                        )
+                )
+
+    def heat_capacity(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        thermal_calc = self.calculators['thermal']
+        b_V = self._calc_RTcoefs(V_a)
+
+        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
+        return heat_capacity_a
+
+    def ref_temp_adiabat(self, V_a):
+        """
+        Calculate reference adiabatic temperature path
+
+        Parameters
+        ==========
+        V_a: array of volumes
+
+        Returns
+        =======
+        Tref_adiabat:  array of temperature values
+
+        """
+
+        T0, = self.get_param_values(param_names=['T0',])
+
+        gamma_calc = self.calculators['gamma']
+        Tref_adiabat = gamma_calc._calc_temp(V_a)
+        Tref_adiabat, V_a = core.fill_array(Tref_adiabat, V_a)
+
+        return Tref_adiabat
+
+    def _calc_thermal_press_S(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        thermal_calc = self._calculators['thermal']
+        gamma_calc = self.calculators['gamma']
+
+        PV_ratio, = core.get_consts(['PV_ratio'])
+        T0, mexp = self.get_param_values(param_names=['T0','mexp'])
+
+        b_V = self._calc_RTcoefs(V_a)
+        b_deriv_V = self._calc_RTcoefs_deriv(V_a)
+
+        Tref_adiabat = self.ref_temp_adiabat(V_a)
+
+        heat_capacity_0S_a = thermal_calc._calc_heat_capacity(
+            Tref_adiabat, bcoef=b_V)
+
+        dtherm_dev_deriv_T = (
+            thermal_calc._calc_therm_dev_deriv(T_a)
+            - thermal_calc._calc_therm_dev_deriv(Tref_adiabat) )
+        dtherm_dev_deriv_T0 = (
+            thermal_calc._calc_therm_dev_deriv(T0)
+            - thermal_calc._calc_therm_dev_deriv(Tref_adiabat) )
+
+        gamma_a = gamma_calc._calc_gamma(V_a)
+
+        P_therm_S = PV_ratio*(
+            b_deriv_V/(mexp-1)*(T_a*dtherm_dev_deriv_T
+                                -T0*dtherm_dev_deriv_T0) +
+            gamma_a/V_a*(T_a-T0)*heat_capacity_0S_a
+            )
+
+        return P_therm_S
+
+    def _calc_thermal_press_E(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        thermal_calc = self._calculators['thermal']
+
+        PV_ratio, = core.get_consts(['PV_ratio'])
+        T0, mexp = self.get_param_values(param_names=['T0','mexp'])
+
+        b_deriv_V = self._calc_RTcoefs_deriv(V_a)
+
+        dtherm_dev = (
+            thermal_calc._calc_therm_dev(T_a)
+            - thermal_calc._calc_therm_dev(T0) )
+
+        P_therm_E = -PV_ratio*b_deriv_V*dtherm_dev
+
+        return P_therm_E
+
+    def thermal_press(self, V_a, T_a):
+        P_therm_E = self._calc_thermal_press_E(V_a, T_a)
+        P_therm_S = self._calc_thermal_press_S(V_a, T_a)
+        P_therm_a = P_therm_E + P_therm_S
+        return P_therm_a
+
+    def thermal_energy(self, V_a, T_a):
+        """
+        Internal Energy difference from T=T0
+        """
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        b_V = self._calc_RTcoefs(V_a)
+        thermal_calc = self.calculators['thermal']
+        T0, = self.get_param_values(param_names=['T0',])
+
+        thermal_energy_a = thermal_calc._calc_energy(T_a, bcoef=b_V, Tref=T0)
+        return  thermal_energy_a
+
+    def thermal_entropy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        Tref_adiabat = self.ref_temp_adiabat(V_a)
+        thermal_calc = self._calculators['thermal']
+        b_V = self._calc_RTcoefs(V_a)
+
+        thermal_entropy_a = thermal_calc._calc_entropy(
+            T_a, bcoef=b_V, Tref=Tref_adiabat)
+        return  thermal_entropy_a
+
+    def press(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        P_compress_a = self.compress_press(V_a)
+        P_therm_a = self.thermal_press(V_a, T_a)
+
+        press_a = P_compress_a + P_therm_a
+        return press_a
+
+    def compress_press(self, V_a):
+        V_a = core.fill_array(V_a)
+
+        compress_calc = self.calculators['compress']
+        P_compress_a = compress_calc._calc_press(V_a)
+        return P_compress_a
+
+    def compress_energy(self, V_a):
+        V_a = core.fill_array(V_a)
+        compress_calc = self.calculators['compress']
+        F_compress = compress_calc._calc_energy(V_a)
+        return F_compress
+
+    def internal_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+        assert compress_path_const=='T', (
+            'Only isothermal compress models supported now.')
+
+        S0, T0 = self.get_param_values(param_names=['S0','T0'])
+
+        if   compress_path_const=='T':
+            F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
+            E0 = F0 + T0*S0
+
+        elif (compress_path_const=='S')|(compress_path_const=='0K'):
+            E0, = self.get_param_values(param_names=['E0'])
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        F_compress = self.compress_energy(V_a)
+        # Sref = S0 + self.thermal_entropy(V_a, T0)
+        Sref = self.entropy(V_a, T0)
+        E_compress = F_compress + T0*Sref
+
+        thermal_energy_a = self.thermal_energy(V_a, T_a)
+
+        internal_energy_a = E0 + E_compress + thermal_energy_a
+        return internal_energy_a
+
+    def helmholtz_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        E_a = self.internal_energy(V_a, T_a)
+        S_a = self.entropy(V_a, T_a)
+        F_a = E_a - T_a*S_a
+
+        return F_a
+
+    def entropy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        S0, = self.get_param_values(param_names=['S0'])
+
+        thermal_entropy_a = self.thermal_entropy(V_a, T_a)
+
+        entropy_a = S0 + thermal_entropy_a
+        return entropy_a
+
+    def _set_poly_calculators(self, kind_poly, poly_order):
+        bcoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
+                                 coef_basename='bcoef')
+
+        self._add_calculator(bcoef_calc, calc_type='bcoef')
+        self._kind_poly = kind_poly
+        self._poly_order = poly_order
+
+    def _set_ref_state(self):
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        V0, K0 = compress_calc.get_param_defaults(['V0','K0'])
+        # redundant T0 declaration
+        T0_scale = 300
+        Cv_scale = 3*self.natom*core.CONSTS['kboltz']
+        S0_scale = Cv_scale*T0_scale
+        energy_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
+
+        if   compress_path_const=='T':
+            param_ref_names = ['T0', 'F0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [T0_scale, 0.0, S0_scale]
+            param_ref_scales = [T0_scale, energy_scale, S0_scale]
+
+        elif compress_path_const=='S':
+            param_ref_names = ['T0', 'E0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [300, 0.0, S0_scale]
+            param_ref_scales = [300, energy_scale, S0_scale]
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        self._param_ref_names = param_ref_names
+        self._param_ref_units = param_ref_units
+        self._param_ref_defaults = param_ref_defaults
+        self._param_ref_scales = param_ref_scales
+        pass
+
+    def _calc_RTcoefs(self, V_a):
+        bcoef_calc = self._calculators['bcoef']
+
+        b_V = bcoef_calc.calc_coef(V_a)
+        return b_V
+
+    def _calc_RTcoefs_deriv(self, V_a):
+        bcoef_calc = self._calculators['bcoef']
+
+        b_deriv_V = bcoef_calc.calc_coef_deriv(V_a)
+        return b_deriv_V
+#====================================================================
+
+#     def thermal_press(self, V_a, T_a):
+#         V_a, T_a = core.fill_array(V_a, T_a)
+#
+#         thermal_calc = self._calculators['thermal']
+#         gamma_calc = self.calculators['gamma']
+#
+#         PV_ratio, = core.get_consts(['PV_ratio'])
+#         T0, mexp = self.get_param_values(param_names=['T0','mexp'])
+#
+#         b_V = self._calc_RTcoefs(V_a)
+#         b_deriv_V = self._calc_RTcoefs_deriv(V_a)
+#
+#         Tref_adiabat = self.ref_temp_adiabat(V_a)
+#
+#         heat_capacity_0S_a = thermal_calc._calc_heat_capacity(
+#             Tref_adiabat, bcoef=b_V)
+#
+#         dtherm_dev = (
+#             thermal_calc._calc_therm_dev(T_a)
+#             - thermal_calc._calc_therm_dev(T0) )
+#         dtherm_dev_deriv_T = (
+#             thermal_calc._calc_therm_dev_deriv(T_a)
+#             - thermal_calc._calc_therm_dev_deriv(Tref_adiabat) )
+#         dtherm_dev_deriv_T0 = (
+#             thermal_calc._calc_therm_dev_deriv(T0)
+#             - thermal_calc._calc_therm_dev_deriv(Tref_adiabat) )
+#
+#         gamma_a = gamma_calc._calc_gamma(V_a)
+#
+#         P_therm_E = -b_deriv_V*dtherm_dev
+#         P_therm_S = (
+#             b_deriv_V/(mexp-1)*(T_a*dtherm_dev_deriv_T
+#                                 -T0*dtherm_dev_deriv_T0) +
+#             PV_ratio*gamma_a/V_a*(T_a-T0)*heat_capacity_0S_a
+#             )
+#         P_therm_a = P_therm_E + P_therm_S
+#
+#         return P_therm_a
+#     def compress_entropy(self, V_a):
+#         """
+#         Calc entropy along compression path
+#
+#         NOTE: currently assumes isothermal compression path
+#
+#         Parameters
+#         ==========
+#         V_a : array of volume values
+#
+#         Returns
+#         =======
+#         S_compress : array of entropy values
+#
+#         """
+#
+#         V_a = core.fill_array(V_a)
+#
+#
+#         thermal_calc = self._calculators['thermal']
+#         compress_calc = self._calculators['compress']
+#
+#         assert compress_calc.path_const=='T', (
+#             'Only isothermal compress models supported now.')
+#
+#         b_V = self._calc_RTcoefs(V_a)
+#
+#         Tref_adiabat = self.ref_temp_adiabat(V_a)
+#         T0, = self.get_param_values(param_names=['T0',])
+#
+#         V_a, T0 = core.fill_array(V_a, T0)
+#
+#         # def _calc_entropy(self, T_a, bcoef=None, Tref=None):
+#         S_compress = thermal_calc._calc_entropy(
+#             T0, bcoef=b_V, Tref=Tref_adiabat)
+#         return S_compress
+#
+#     def thermal_entropy(self, V_a, T_a):
+#         """
+#         Calc thermal entropy deviation from reference compression path
+#
+#         NOTE: currently assumes isothermal compression path
+#
+#         Parameters
+#         ==========
+#         V_a : array of volume values
+#
+#         Returns
+#         =======
+#         S_thermal : array of entropy values
+#
+#         """
+#
+#         V_a, T_a = core.fill_array(V_a, T_a)
+#
+#         thermal_calc = self._calculators['thermal']
+#         compress_calc = self._calculators['compress']
+#
+#         assert compress_calc.path_const=='T', (
+#             'Only isothermal compress models supported now.')
+#         b_V = self._calc_RTcoefs(V_a)
+#
+#         T0, = self.get_param_values(param_names=['T0',])
+#
+#         V_a, T0 = core.fill_array(V_a, T0)
+#
+#         # def _calc_entropy(self, T_a, bcoef=None, Tref=None):
+#         S_thermal = thermal_calc._calc_entropy(
+#             T_a, bcoef=b_V, Tref=T0)
+#
+#         return S_thermal
+#
+#     def thermal_energy(self, V_a, T_a):
+#         """
+#         Calc thermal energy deviation from ref compression path
+#
+#         NOTE: currently assumes isothermal compression path
+#
+#         Parameters
+#         ==========
+#         V_a : array of volume values
+#
+#         Returns
+#         =======
+#         E_compress : array of internal energy values
+#
+#         """
+#
+#         V_a, T_a = core.fill_array(V_a, T_a)
+#
+#
+#         thermal_calc = self._calculators['thermal']
+#         compress_calc = self._calculators['compress']
+#
+#         assert compress_calc.path_const=='T', (
+#             'Only isothermal compress models supported now.')
+#         b_V = self._calc_RTcoefs(V_a)
+#
+#         # Tref_path = self.ref_temp_adiabat(V_a)
+#         T0, = self.get_param_values(param_names=['T0',])
+#
+#         thermal_energy_a = thermal_calc._calc_energy(T_a, bcoef=b_V, Tref=T0)
+#
+#         return thermal_energy_a
+#     def compress_energy(self, V_a):
+#         """
+#         Calc internal energy along compression path
+#
+#         NOTE: currently assumes isothermal compression path
+#
+#         Parameters
+#         ==========
+#         V_a : array of volume values
+#
+#         Returns
+#         =======
+#         E_compress : array of internal energy values
+#
+#         """
+#
+#         V_a = core.fill_array(V_a)
+#         compress_calc = self.calculators['compress']
+#         compress_path_const = compress_calc.path_const
+#         assert compress_path_const=='T', (
+#             'Only isothermal compress models supported now.')
+#
+#         T0, = self.get_param_values(param_names=['T0'])
+#         if   compress_path_const=='T':
+#             F_compress = compress_calc._calc_energy(V_a)
+#             S_compress = self.compress_entropy(V_a)
+#             E_compress = F_compress + T0*S_compress
+#
+#         elif (compress_path_const=='S')|(compress_path_const=='0K'):
+#             E_compress = compress_calc._calc_energy(V_a)
+#
+#         else:
+#             raise NotImplementedError(
+#                 'path_const '+path_const+' is not valid for CompressEos.')
+#
+#         return E_compress
+
 #====================================================================
 class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
     _kind_opts = ['V','rho','logV']

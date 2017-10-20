@@ -466,7 +466,6 @@ class _Vinet(CompressCalc):
     #     #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
 
     #     return Eperturb_a, scale_a, paramkey_a
-
 #====================================================================
 class _BirchMurn3(CompressCalc):
     def _calc_press(self, V_a):

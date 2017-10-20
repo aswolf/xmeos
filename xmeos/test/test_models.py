@@ -86,9 +86,9 @@ class BaseTestEos(object):
 
         dydx_diff = dydx_num-dydx
 
-        abs_err =  np.max(np.abs(dydx_diff))
-        rel_err =  np.max(np.abs(dydx_diff/dydx))
-        range_err =  np.max(np.abs(dydx_diff/dydx_range))
+        abs_err =  np.max(np.abs(dydx_diff)[1:-1])
+        rel_err =  np.max(np.abs(dydx_diff/dydx)[1:-1])
+        range_err =  np.max(np.abs(dydx_diff/dydx_range)[1:-1])
 
         return abs_err, rel_err, range_err
 

@@ -206,11 +206,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
         Cv_J_kg_K = 1690.53
         ndof = 6
         Cvlim = ndof/2*core.CONSTS['R']
-        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/comp_d['natom'] # J/mol/K
+        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/natom # J/mol/K
         Cvlimfac = Cv/Cvlim
 
         # Normalize to a single atom basis
-        V0 /= comp_d['natom']
+        V0 /= natom
 
         eos_mod = models.MieGruneisenEos(
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
@@ -237,11 +237,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
         Cv_J_kg_K = 1737.36
         ndof = 6
         Cvlim = ndof/2*core.CONSTS['R']
-        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/comp_d['natom'] # J/mol/K
+        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/natom # J/mol/K
         Cvlimfac = Cv/Cvlim
 
         # Normalize to a single atom basis
-        V0 /= comp_d['natom']
+        V0 /= natom
 
         eos_mod = models.MieGruneisenEos(
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
@@ -267,11 +267,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
         Cv_J_kg_K = 1122.73
         ndof = 6
         Cvlim = ndof/2*core.CONSTS['R']
-        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/comp_d['natom'] # J/mol/K
+        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/natom # J/mol/K
         Cvlimfac = Cv/Cvlim
 
         # Normalize to a single atom basis
-        V0 /= comp_d['natom']
+        V0 /= natom
 
         eos_mod = models.MieGruneisenEos(
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
@@ -298,11 +298,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
         Cv_J_kg_K = 1506.21
         ndof = 6
         Cvlim = ndof/2*core.CONSTS['R']
-        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/comp_d['natom'] # J/mol/K
+        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/natom # J/mol/K
         Cvlimfac = Cv/Cvlim
 
         # Normalize to a single atom basis
-        V0 /= comp_d['natom']
+        V0 /= natom
 
         eos_mod = models.MieGruneisenEos(
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
@@ -332,11 +332,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
         Cv_J_kg_K = 1511.28
         ndof = 6
         Cvlim = ndof/2*core.CONSTS['R']
-        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/comp_d['natom'] # J/mol/K
+        Cv = Cv_J_kg_K*1e-3*comp_d['molmass']/natom # J/mol/K
         Cvlimfac = Cv/Cvlim
 
         # Normalize to a single atom basis
-        V0 /= comp_d['natom']
+        V0 /= natom
 
         eos_mod = models.MieGruneisenEos(
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
