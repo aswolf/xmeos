@@ -359,7 +359,7 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                            'GenFiniteStrain','Tait','PolyRho']
 
     def __init__(self, kind_compress='Vinet', compress_order=None,
-                 compress_path_const='T', kind_poly='V', poly_order=5,
+                 compress_path_const='T', kind_RTpoly='V', RTpoly_order=5,
                  natom=1, model_state={}):
 
         kind_thermal = 'GenRosenfeldTarazona'
@@ -369,7 +369,7 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                                 path_const=compress_path_const)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
 
-        self._set_poly_calculators(kind_poly, poly_order)
+        self._set_poly_calculators(kind_RTpoly, RTpoly_order)
 
         self._set_ref_state()
 
@@ -380,20 +380,20 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
         calc_compress = self.calculators['compress']
 
         # kind_compress='Vinet', compress_order=None,
-        #          compress_path_const='T', kind_poly='V', poly_order=5,
+        #          compress_path_const='T', kind_RTpoly='V', RTpoly_order=5,
         #          natom=1, model_state={}):
         return ("ThermalEos(kind_compress={kind_compress}, "
                 "compress_order={compress_order}, "
                 "compress_path_const={compress_path_const}, "
-                "kind_poly={kind_poly}, "
-                "poly_order={poly_order}, "
+                "kind_RTpoly={kind_RTpoly}, "
+                "RTpoly_order={RTpoly_order}, "
                 "natom={natom}, "
                 "model_state={model_state}, "
                 ")"
                 .format(kind_compress=repr(calc_compress.name),
                         compress_order=repr(calc_compress.order),
-                        kind_poly=repr(self._kind_poly),
-                        poly_order=repr(self._poly_order),
+                        kind_RTpoly=repr(self._kind_RTpoly),
+                        RTpoly_order=repr(self._RTpoly_order),
                         compress_path_const=repr(calc_compress.path_const),
                         natom=repr(self.natom),
                         model_state=self.model_state
@@ -479,16 +479,16 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
         press_a = P_ref_a + P_therm_a
         return press_a
 
-    def _set_poly_calculators(self, kind_poly, poly_order):
-        bcoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
+    def _set_poly_calculators(self, kind_RTpoly, RTpoly_order):
+        bcoef_calc = _RTPolyCalc(self, order=RTpoly_order, kind=kind_RTpoly,
                                  coef_basename='bcoef')
-        acoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
+        acoef_calc = _RTPolyCalc(self, order=RTpoly_order, kind=kind_RTpoly,
                                  coef_basename='acoef')
 
         self._add_calculator(bcoef_calc, calc_type='bcoef')
         self._add_calculator(acoef_calc, calc_type='acoef')
-        self._kind_poly = kind_poly
-        self._poly_order = poly_order
+        self._kind_RTpoly = kind_RTpoly
+        self._RTpoly_order = RTpoly_order
 
     def _set_ref_state(self):
         compress_calc = self.calculators['compress']
@@ -550,8 +550,8 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
                            'GenFiniteStrain','Tait','PolyRho']
 
     def __init__(self, kind_compress='Vinet', compress_path_const='T',
-                 kind_gamma='GammaFiniteStrain', kind_poly='V',
-                 poly_order=5, natom=1, model_state={}):
+                 kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
+                 RTpoly_order=5, natom=1, model_state={}):
 
         assert compress_path_const=='T', (
             'Only isothermal compress models supported now.')
@@ -564,7 +564,7 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
 
-        self._set_poly_calculators(kind_poly, poly_order)
+        self._set_poly_calculators(kind_RTpoly, RTpoly_order)
 
         self._set_ref_state()
 
@@ -575,20 +575,20 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         calc_compress = self.calculators['compress']
 
         # kind_compress='Vinet', compress_order=None,
-        #          compress_path_const='T', kind_poly='V', poly_order=5,
+        #          compress_path_const='T', kind_RTpoly='V', RTpoly_order=5,
         #          natom=1, model_state={}):
         return ("ThermalEos(kind_compress={kind_compress}, "
                 "compress_order={compress_order}, "
                 "compress_path_const={compress_path_const}, "
-                "kind_poly={kind_poly}, "
-                "poly_order={poly_order}, "
+                "kind_RTpoly={kind_RTpoly}, "
+                "RTpoly_order={RTpoly_order}, "
                 "natom={natom}, "
                 "model_state={model_state}, "
                 ")"
                 .format(kind_compress=repr(calc_compress.name),
                         compress_order=repr(calc_compress.order),
-                        kind_poly=repr(self._kind_poly),
-                        poly_order=repr(self._poly_order),
+                        kind_RTpoly=repr(self._kind_RTpoly),
+                        RTpoly_order=repr(self._RTpoly_order),
                         compress_path_const=repr(calc_compress.path_const),
                         natom=repr(self.natom),
                         model_state=self.model_state
@@ -779,13 +779,13 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         entropy_a = S0 + thermal_entropy_a
         return entropy_a
 
-    def _set_poly_calculators(self, kind_poly, poly_order):
-        bcoef_calc = _RTPolyCalc(self, order=poly_order, kind=kind_poly,
+    def _set_poly_calculators(self, kind_RTpoly, RTpoly_order):
+        bcoef_calc = _RTPolyCalc(self, order=RTpoly_order, kind=kind_RTpoly,
                                  coef_basename='bcoef')
 
         self._add_calculator(bcoef_calc, calc_type='bcoef')
-        self._kind_poly = kind_poly
-        self._poly_order = poly_order
+        self._kind_RTpoly = kind_RTpoly
+        self._RTpoly_order = RTpoly_order
 
     def _set_ref_state(self):
         compress_calc = self.calculators['compress']

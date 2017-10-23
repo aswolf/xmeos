@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import scipy as sp
 import emcee
 from abc import ABCMeta, abstractmethod
@@ -18,35 +19,39 @@ import copy
 #====================================================================
 def load_data(V=None, T=None, P=None, E=None,
               Verr=None, Terr=None, Perr=None, Eerr=None,
+              Vconv=1, Tconv=1, Pconv=1, Econv=1,
               mass_avg=None, groupID=None, mask=None ):
-    data_d = {}
+    data = {}
+    data['table'] = pd.DataFrame()
 
     if V is not None:
-        data_d['V'] = V
+        data['table']['V'] = V*Vconv
     if T is not None:
-        data_d['T'] = T
+        data['table']['T'] = T*Tconv
     if P is not None:
-        data_d['P'] = P
+        data['table']['P'] = P*Pconv
     if E is not None:
-        data_d['E'] = E
+        data['table']['E'] = E*Econv
 
     if Verr is not None:
-        data_d['Verr'] = Verr
+        data['table']['Verr'] = Verr*Vconv
+    else:
+        data['table']['Verr'] = 0
     if Terr is not None:
-        data_d['Terr'] = Terr
+        data['table']['Terr'] = Terr*Tconv
     if Perr is not None:
-        data_d['Perr'] = Perr
+        data['table']['Perr'] = Perr*Pconv
     if Eerr is not None:
-        data_d['Eerr'] = Eerr
+        data['table']['Eerr'] = Eerr*Econv
 
     if groupID is not None:
-        data_d['groupID'] = groupID
+        data['groupID'] = groupID
     if mask is not None:
-        data_d['mask'] = mask
+        data['mask'] = mask
     if mass_avg is not None:
-        data_d['mass_avg'] = mass_avg
+        data['mass_avg'] = mass_avg
 
-    return data_d
+    return data
 #====================================================================
 def init_param_distbn(fit_model_l, eos_d, fix_param_l=[]):
     param_distbn_d = {}
@@ -656,4 +661,3 @@ def fill_array( var1, var2 ):
 
     return var1_a, var2_a
 #====================================================================
-

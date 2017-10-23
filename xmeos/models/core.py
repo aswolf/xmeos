@@ -7,8 +7,7 @@ import scipy as sp
 from abc import ABCMeta, abstractmethod
 
 
-__all__ = ['Eos','Calculator',
-           'set_array_params', 'get_array_params', 'fill_array']
+__all__ = ['Eos','Calculator','CONSTS','fill_array']
 
 
 
@@ -690,52 +689,52 @@ def get_consts( keys ):
 
     return tuple(CONSTS[key] for key in keys)
 #====================================================================
-def set_array_params( basename, param_arr_a, eos_d ):
-    name_l = []
-
-    for i in range(len(param_arr_a)):
-        iname = basename+'_'+np.str(i)
-        name_l.append(iname)
-
-    set_params(name_l, param_arr_a, eos_d)
+# def set_array_params( basename, param_arr_a, eos_d ):
+#     name_l = []
+#
+#     for i in range(len(param_arr_a)):
+#         iname = basename+'_'+np.str(i)
+#         name_l.append(iname)
+#
+#     set_params(name_l, param_arr_a, eos_d)
 #====================================================================
-def get_array_params( basename, eos_d ):
-    param_d = eos_d['param_d']
-    paramkeys_a = np.array(param_d.keys())
-
-    baselen = len(basename+'_')
-
-    mask = np.array([key.startswith(basename+'_') for key in paramkeys_a])
-
-    arrindlist = []
-    vallist = []
-    for key in paramkeys_a[mask]:
-        idstr = key[baselen:]
-        try:
-            idnum = np.array(idstr).astype(np.float)
-            assert np.equal(np.mod(idnum,1),0), \
-                'Parameter keys that are part of a parameter array must '+\
-                'have form "basename_???" where ??? are integers.'
-            idnum = idnum.astype(np.int)
-        except:
-            assert False, 'That basename does not correspond to any valid parameter arrays stored in eos_d'
-
-        arrindlist.append(idnum)
-        vallist.append(param_d[key])
-
-    arrind_a = np.array(arrindlist)
-    val_a = np.array(vallist)
-
-    if arrind_a.size==0:
-        return np.array([])
-    else:
-        indmax = np.max(arrind_a)
-
-        param_arr = np.zeros(indmax+1)
-        for arrind, val in zip(arrind_a,val_a):
-            param_arr[arrind] = val
-
-        return param_arr
+# def get_array_params( basename, eos_d ):
+#     param_d = eos_d['param_d']
+#     paramkeys_a = np.array(param_d.keys())
+#
+#     baselen = len(basename+'_')
+#
+#     mask = np.array([key.startswith(basename+'_') for key in paramkeys_a])
+#
+#     arrindlist = []
+#     vallist = []
+#     for key in paramkeys_a[mask]:
+#         idstr = key[baselen:]
+#         try:
+#             idnum = np.array(idstr).astype(np.float)
+#             assert np.equal(np.mod(idnum,1),0), \
+#                 'Parameter keys that are part of a parameter array must '+\
+#                 'have form "basename_???" where ??? are integers.'
+#             idnum = idnum.astype(np.int)
+#         except:
+#             assert False, 'That basename does not correspond to any valid parameter arrays stored in eos_d'
+#
+#         arrindlist.append(idnum)
+#         vallist.append(param_d[key])
+#
+#     arrind_a = np.array(arrindlist)
+#     val_a = np.array(vallist)
+#
+#     if arrind_a.size==0:
+#         return np.array([])
+#     else:
+#         indmax = np.max(arrind_a)
+#
+#         param_arr = np.zeros(indmax+1)
+#         for arrind, val in zip(arrind_a,val_a):
+#             param_arr[arrind] = val
+#
+#         return param_arr
 #====================================================================
 def fill_array(*arg):
     """
