@@ -43,7 +43,7 @@ class TestThomas2013():
         T = 4000
         V_a = eos_mod.volume(P_a, T)
 
-        print(V_a)
+        # print(V_a)
 
     def test_endmem_En(self):
         eos_mod,comp_d = eoslib.CMASF_melt_Thomas2013.get_endmem_eos(endmem='En')
@@ -68,7 +68,11 @@ class TestThomas2013():
 class TestMgSiO3RTPress():
     def test_basic_isotherms(self):
         eos_mod = eoslib.MgSiO3_RTPress()
-        V0, T0 = eos_mod.get_param_values(param_names=['V0','T0'])
+        refstate_calc = eos_mod.calculators['refstate']
+
+        V0  = refstate_calc.ref_volume()
+        T0  = refstate_calc.ref_temp()
+        # V0, T0 = eos_mod.get_param_values(param_names=['V0','T0'])
         V_a = V0*np.linspace(.4,1.15,1001)
         # P_a = np.linspace(5,135,51)
         # P_a = np.array([5,25,50,75,100,125])

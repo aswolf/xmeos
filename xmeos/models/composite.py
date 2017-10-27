@@ -8,6 +8,7 @@ from scipy import integrate, optimize
 import scipy.interpolate as interpolate
 
 from . import core
+from . import refstate
 from . import compress
 from . import thermal
 from . import gamma
@@ -124,16 +125,22 @@ class MieGruneisenEos(CompositeEos):
                            'GenFiniteStrain','Tait']
 
     def __init__(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
-                 kind_compress='Vinet', compress_path_const='T',
-                 natom=1, model_state={}):
+                 kind_compress='Vinet', compress_path_const='T', natom=1,
+                 ref_energy_type='F0',
+                 model_state={}):
         self._pre_init(natom=natom)
+
+        ref_compress_state='P0'
+        ref_thermal_state='T0'
 
         compress.set_calculator(self, kind_compress, self._kind_compress_opts,
                                 path_const=compress_path_const)
         gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
-
-        self._set_ref_state()
+        refstate.set_calculator(self, ref_compress_state=ref_compress_state,
+                                ref_thermal_state=ref_thermal_state,
+                                ref_energy_type=ref_energy_type)
+        # self._set_ref_state()
 
         self._post_init(model_state=model_state)
         pass
@@ -206,7 +213,8 @@ class MieGruneisenEos(CompositeEos):
         return theta_a
 
     def ref_temp_path(self, V_a):
-        T0, theta0 = self.get_param_values(param_names=['T0','theta0'])
+        T0 = self.refstate.ref_temp()
+        theta0 = self.get_param_values(param_names=['theta0'])
 
         gamma_calc = self.calculators['gamma']
         compress_calc = self.calculators['compress']
@@ -238,7 +246,7 @@ class MieGruneisenEos(CompositeEos):
         compress_calc = self.calculators['compress']
         compress_path_const = compress_calc.path_const
 
-        T0, = self.get_param_values(param_names=['T0'])
+        T0 = self.refstate.ref_temp()
         if   compress_path_const=='T':
             F_compress = compress_calc._calc_energy(V_a)
             S_compress = self.compress_entropy(V_a)
@@ -256,7 +264,9 @@ class MieGruneisenEos(CompositeEos):
     def compress_entropy(self, V_a):
         V_a = core.fill_array(V_a)
 
-        T0, theta0 = self.get_param_values(param_names=['T0','theta0'])
+        T0 = self.refstate.ref_temp()
+
+        theta0 = self.get_param_values(param_names=['theta0'])
         Tref_path, theta_ref = self.ref_temp_path(V_a)
         thermal_calc = self.calculators['thermal']
 
@@ -332,16 +342,19 @@ class MieGruneisenEos(CompositeEos):
         compress_calc = self.calculators['compress']
         compress_path_const = compress_calc.path_const
 
-        if   compress_path_const=='T':
-            F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
-            E0 = F0 + T0*S0
+        T0 = self.refstate.ref_temp()
+        E0 = self.refstate.ref_internal_energy()
 
-        elif (compress_path_const=='S')|(compress_path_const=='0K'):
-            E0, = self.get_param_values(param_names=['E0'])
+        # if   compress_path_const=='T':
+        #     F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
+        #     E0 = F0 + T0*S0
 
-        else:
-            raise NotImplementedError(
-                'path_const '+path_const+' is not valid for CompressEos.')
+        # elif (compress_path_const=='S')|(compress_path_const=='0K'):
+        #     E0, = self.get_param_values(param_names=['E0'])
+
+        # else:
+        #     raise NotImplementedError(
+        #         'path_const '+path_const+' is not valid for CompressEos.')
 
         E_compress_a = self.compress_energy(V_a)
         E_therm_a = self.thermal_energy(V_a, T_a)
@@ -360,18 +373,24 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 
     def __init__(self, kind_compress='Vinet', compress_order=None,
                  compress_path_const='T', kind_RTpoly='V', RTpoly_order=5,
-                 natom=1, model_state={}):
+                 natom=1, ref_energy_type='E0', model_state={}):
 
         kind_thermal = 'GenRosenfeldTarazona'
+        ref_compress_state='P0'
+        ref_thermal_state='T0'
+
         self._pre_init(natom=natom)
 
         compress.set_calculator(self, kind_compress, self._kind_compress_opts,
                                 path_const=compress_path_const)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
+        refstate.set_calculator(self, ref_compress_state=ref_compress_state,
+                                ref_thermal_state=ref_thermal_state,
+                                ref_energy_type=ref_energy_type)
 
         self._set_poly_calculators(kind_RTpoly, RTpoly_order)
 
-        self._set_ref_state()
+        # self._set_ref_state()
 
         self._post_init(model_state=model_state)
         pass
@@ -401,7 +420,8 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
                 )
 
     def ref_temp_path(self, V_a):
-        T0, theta0 = self.get_param_values(param_names=['T0','theta0'])
+        T0 = self.refstate.ref_temp()
+        theta0 = self.get_param_values(param_names=['theta0'])
 
         gamma_calc = self.calculators['gamma']
         compress_calc = self.calculators['compress']
@@ -551,22 +571,29 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 
     def __init__(self, kind_compress='Vinet', compress_path_const='T',
                  kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
-                 RTpoly_order=5, natom=1, model_state={}):
+                 RTpoly_order=5, natom=1, ref_energy_type='F0',
+                 model_state={}):
 
         assert compress_path_const=='T', (
             'Only isothermal compress models supported now.')
 
         kind_thermal = 'GenRosenfeldTarazona'
+        ref_compress_state='P0'
+        ref_thermal_state='T0'
+
         self._pre_init(natom=natom)
 
         compress.set_calculator(self, kind_compress, self._kind_compress_opts,
                                 path_const=compress_path_const)
         gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
+        refstate.set_calculator(self, ref_compress_state=ref_compress_state,
+                                ref_thermal_state=ref_thermal_state,
+                                ref_energy_type=ref_energy_type)
 
         self._set_poly_calculators(kind_RTpoly, RTpoly_order)
 
-        self._set_ref_state()
+        # self._set_ref_state()
 
         self._post_init(model_state=model_state)
         pass
@@ -618,8 +645,6 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 
         """
 
-        T0, = self.get_param_values(param_names=['T0',])
-
         gamma_calc = self.calculators['gamma']
         Tref_adiabat = gamma_calc._calc_temp(V_a)
         Tref_adiabat, V_a = core.fill_array(Tref_adiabat, V_a)
@@ -631,9 +656,10 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 
         thermal_calc = self._calculators['thermal']
         gamma_calc = self.calculators['gamma']
+        T0 = self.refstate.ref_temp()
 
         PV_ratio, = core.get_consts(['PV_ratio'])
-        T0, mexp = self.get_param_values(param_names=['T0','mexp'])
+        mexp = self.get_param_values(param_names='mexp')
 
         b_V = self._calc_RTcoefs(V_a)
         b_deriv_V = self._calc_RTcoefs_deriv(V_a)
@@ -664,9 +690,10 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         V_a, T_a = core.fill_array(V_a, T_a)
 
         thermal_calc = self._calculators['thermal']
+        T0 = self.refstate.ref_temp()
 
         PV_ratio, = core.get_consts(['PV_ratio'])
-        T0, mexp = self.get_param_values(param_names=['T0','mexp'])
+        mexp = self.get_param_values(param_names='mexp')
 
         b_deriv_V = self._calc_RTcoefs_deriv(V_a)
 
@@ -690,10 +717,11 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         """
 
         V_a, T_a = core.fill_array(V_a, T_a)
+        T0 = self.refstate.ref_temp()
 
         b_V = self._calc_RTcoefs(V_a)
         thermal_calc = self.calculators['thermal']
-        T0, = self.get_param_values(param_names=['T0',])
+        # T0, = self.get_param_values(param_names=['T0',])
 
         thermal_energy_a = thermal_calc._calc_energy(T_a, bcoef=b_V, Tref=T0)
         return  thermal_energy_a
@@ -711,11 +739,12 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 
     def press(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
+        P0 = self.refstate.ref_press()
 
         P_compress_a = self.compress_press(V_a)
         P_therm_a = self.thermal_press(V_a, T_a)
 
-        press_a = P_compress_a + P_therm_a
+        press_a = P0 + P_compress_a + P_therm_a
         return press_a
 
     def compress_press(self, V_a):
@@ -738,18 +767,21 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         assert compress_path_const=='T', (
             'Only isothermal compress models supported now.')
 
-        S0, T0 = self.get_param_values(param_names=['S0','T0'])
+        T0 = self.refstate.ref_temp()
+        S0 = self.refstate.ref_entropy()
+        E0 = self.refstate.ref_internal_energy()
+        # S0, T0 = self.get_param_values(param_names=['S0','T0'])
 
-        if   compress_path_const=='T':
-            F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
-            E0 = F0 + T0*S0
+        # if   compress_path_const=='T':
+        #     F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
+        #     E0 = F0 + T0*S0
 
-        elif (compress_path_const=='S')|(compress_path_const=='0K'):
-            E0, = self.get_param_values(param_names=['E0'])
+        # elif (compress_path_const=='S')|(compress_path_const=='0K'):
+        #     E0, = self.get_param_values(param_names=['E0'])
 
-        else:
-            raise NotImplementedError(
-                'path_const '+path_const+' is not valid for CompressEos.')
+        # else:
+        #     raise NotImplementedError(
+        #       'path_const '+path_const+' is not valid for CompressEos.')
 
         F_compress = self.compress_energy(V_a)
         # Sref = S0 + self.thermal_entropy(V_a, T0)
@@ -772,7 +804,7 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 
     def entropy(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
-        S0, = self.get_param_values(param_names=['S0'])
+        S0 = self.refstate.ref_temp()
 
         thermal_entropy_a = self.thermal_entropy(V_a, T_a)
 

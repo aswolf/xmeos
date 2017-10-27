@@ -216,9 +216,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
             kind_compress='BirchMurn4', compress_path_const='S',
             natom=natom)
+        ref_state = eos_mod.refstate.ref_state
+        ref_state['T0'] = 1673
 
         eos_mod.ndof = ndof
-        eos_mod.set_param_values([1673,V0], param_names=['T0','V0'])
+        eos_mod.set_param_values([V0], param_names=['V0'])
         eos_mod.set_param_values([0.365,-0.88], param_names=['gamma0','q'])
         eos_mod.set_param_values([24.66, 10.07, -2.35], param_names=['K0','KP0','KP20'])
         eos_mod.set_param_values([Cvlimfac], param_names=['Cvlimfac'])
@@ -247,8 +249,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
             kind_compress='BirchMurn3', compress_path_const='S',
             natom=natom)
+        ref_state = eos_mod.refstate.ref_state
+        ref_state['T0'] = 2273
+
         eos_mod.ndof = ndof
-        eos_mod.set_param_values([2273,V0], param_names=['T0','V0'])
+        eos_mod.set_param_values([V0], param_names=['V0'])
         eos_mod.set_param_values([0.396,-2.02], param_names=['gamma0','q'])
         eos_mod.set_param_values([16.41, 7.37], param_names=['K0','KP0'])
         eos_mod.set_param_values([Cvlimfac], param_names=['Cvlimfac'])
@@ -277,9 +282,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
             kind_thermal='ConstHeatCap', kind_gamma='GammaPowLaw',
             kind_compress='BirchMurn3', compress_path_const='S',
             natom=natom)
+        ref_state = eos_mod.refstate.ref_state
+        ref_state['T0'] = 1573
 
         eos_mod.ndof = ndof
-        eos_mod.set_param_values([1573,V0], param_names=['T0','V0'])
+        eos_mod.set_param_values([V0], param_names=['V0'])
         eos_mod.set_param_values([0.412,-0.95], param_names=['gamma0','q'])
         eos_mod.set_param_values([21.99, 7.28], param_names=['K0','KP0'])
         eos_mod.set_param_values([Cvlimfac], param_names=['Cvlimfac'])
@@ -309,10 +316,11 @@ class CMASF_melt_Thomas2013(CompositeEos):
             kind_compress='BirchMurn3', compress_path_const='S',
             natom=natom
             )
-
+        ref_state = eos_mod.refstate.ref_state
+        ref_state['T0'] = 1673
         eos_mod.ndof = ndof
 
-        eos_mod.set_param_values([1673,V0], param_names=['T0','V0'])
+        eos_mod.set_param_values([V0], param_names=['V0'])
         eos_mod.set_param_values([0.493,-1.28], param_names=['gamma0','q'])
         eos_mod.set_param_values([24.57, 6.77], param_names=['K0','KP0'])
         eos_mod.set_param_values([Cvlimfac], param_names=['Cvlimfac'])
@@ -343,8 +351,10 @@ class CMASF_melt_Thomas2013(CompositeEos):
             kind_compress='BirchMurn4', compress_path_const='S',
             natom=natom)
 
+        ref_state = eos_mod.refstate.ref_state
+        ref_state['T0'] = 1932
         eos_mod.ndof = ndof
-        eos_mod.set_param_values([1932,V0], param_names=['T0','V0'])
+        eos_mod.set_param_values([V0], param_names=['V0'])
         eos_mod.set_param_values([0.174,-1.86], param_names=['gamma0','q'])
         eos_mod.set_param_values([19.77, 3.73, 0.38], param_names=['K0','KP0','KP20'])
         eos_mod.set_param_values([Cvlimfac], param_names=['Cvlimfac'])
@@ -360,19 +370,23 @@ class MgSiO3_RTPress(models.RTPressEos):
         kind_compress='Vinet'
         compress_path_const='T'
         kind_gamma='GammaFiniteStrain'
-        kind_poly='logV'
-        poly_order=4
+        kind_RTpoly='logV'
+        RTpoly_order=4
         natom=1
 
         super().__init__(
             kind_compress=kind_compress,
             compress_path_const=compress_path_const,
-            kind_gamma=kind_gamma, kind_poly=kind_poly,
-            poly_order=poly_order, natom=natom )
+            kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+            RTpoly_order=RTpoly_order, natom=natom )
         pass
 
     def load_params(self):
         T0 = 3000
+        # self.set_refstate('T0',T0)
+        ref_state = self.refstate.ref_state
+        ref_state['T0'] = T0
+
         S0 = 0.0
         V0 = 12.970 # Ang^3/atom
         mexp = 0.6
@@ -388,15 +402,16 @@ class MgSiO3_RTPress(models.RTPressEos):
         # ndof=6
         # self.ndof = ndof
 
-        self.set_param_values([T0,S0,V0,mexp,Cvlimfac],
-                              param_names=['T0','S0','V0','mexp','Cvlimfac'])
+
+        self.set_param_values([S0,V0,mexp,Cvlimfac],
+                              param_names=['S0','V0','mexp','Cvlimfac'])
         self.set_param_values([K0,KP0,F0], param_names=['K0','KP0','F0'])
         self.set_param_values([gamma0,gammap0],
                                  param_names=['gamma0','gammap0'])
 
         bcoef_names = self.get_array_param_names('bcoef')
-        print("***************")
-        print(bcoef_names)
-        print("***************")
+        # print("***************")
+        # print(bcoef_names)
+        # print("***************")
         self.set_param_values(bcoef_a, param_names=bcoef_names)
         pass

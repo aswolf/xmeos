@@ -8,6 +8,7 @@ from scipy import integrate
 import scipy.interpolate as interpolate
 
 from . import core
+from . import refstate
 
 __all__ = ['GammaEos','GammaCalc']
 
@@ -51,7 +52,14 @@ class GammaEos(with_metaclass(ABCMeta, core.Eos)):
         self._pre_init(natom=natom)
 
         set_calculator(self, kind, self._kind_opts)
-        self._set_ref_state()
+
+        ref_compress_state='P0'
+        ref_thermal_state='T0'
+        ref_energy_type = 'E0'
+        refstate.set_calculator(self, ref_compress_state=ref_compress_state,
+                                ref_thermal_state=ref_thermal_state,
+                                ref_energy_type=ref_energy_type)
+        # self._set_ref_state()
         self._post_init(model_state=model_state)
 
         pass
@@ -217,12 +225,11 @@ class _GammaPowLaw(GammaCalc):
         V0 = 100
         gamma0 = 1.0
         q = 1.0
-        T0 = 300
 
-        self._param_names = ['V0', 'gamma0', 'q', 'T0']
-        self._param_units = ['ang^3', '1', '1', 'K']
-        self._param_defaults = [V0, gamma0, q, T0]
-        self._param_scales = [V0, gamma0, q, T0]
+        self._param_names = ['V0', 'gamma0', 'q']
+        self._param_units = ['ang^3', '1', '1']
+        self._param_defaults = [V0, gamma0, q]
+        self._param_scales = [V0, gamma0, q]
         pass
 
     def _calc_gamma(self, V_a):
@@ -241,7 +248,9 @@ class _GammaPowLaw(GammaCalc):
         return gamma_deriv_a
 
     def _calc_temp(self, V_a, T0=None):
-        T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
+        if T0 is None:
+            T0 = self.eos_mod.refstate.ref_temp()
+        # T0, = self.eos_mod.get_param_values(param_names=['T0'], overrides=[T0])
         gamma0, q = self.eos_mod.get_param_values(
             param_names=['gamma0','q'])
 
@@ -315,12 +324,11 @@ class _GammaFiniteStrain(GammaCalc):
         V0 = 100
         gamma0 = 1.0
         gammap0 = 1.0
-        T0 = 300
 
-        self._param_names = ['V0', 'gamma0', 'gammap0', 'T0']
-        self._param_units = ['ang^3', '1', '1', 'K']
-        self._param_defaults = [V0, gamma0, gammap0, T0]
-        self._param_scales = [V0, gamma0, gammap0, T0]
+        self._param_names = ['V0', 'gamma0', 'gammap0']
+        self._param_units = ['ang^3', '1', '1']
+        self._param_defaults = [V0, gamma0, gammap0]
+        self._param_scales = [V0, gamma0, gammap0]
         pass
 
     def _calc_strain_coefs(self):
@@ -363,8 +371,8 @@ class _GammaFiniteStrain(GammaCalc):
         return gamma_deriv_a
 
     def _calc_temp(self, V_a, T0=None):
-        T0, = self.eos_mod.get_param_values(param_names=['T0'],
-                                            overrides=[T0])
+        if T0 is None:
+            T0 = self.eos_mod.refstate.ref_temp()
 
         a1, a2 = self._calc_strain_coefs()
         fstr_a = self._calc_fstrain(V_a)

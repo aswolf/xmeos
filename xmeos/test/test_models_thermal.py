@@ -99,21 +99,30 @@ class TestDebye(BaseTestThermalEos):
         # add T0
         natom=10
         eos_mod = models.ThermalEos(kind='Debye', natom=natom)
-        eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
+        refstate_calc = eos_mod.calculators['refstate']
+        refstate = refstate_calc.ref_state
+        refstate['T0'] = T0
+        # eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
         return eos_mod
 #====================================================================
 class TestEinstein(BaseTestThermalEos):
     def load_eos(self, T0=0):
         natom=10
         eos_mod = models.ThermalEos(kind='Einstein', natom=natom)
-        eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
+        refstate_calc = eos_mod.calculators['refstate']
+        refstate = refstate_calc.ref_state
+        refstate['T0'] = T0
+        # eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
         return eos_mod
 #====================================================================
 class TestGenRosenfeldTarazona(BaseTestThermalEos):
     def load_eos(self, T0=0):
         natom=10
         eos_mod = models.ThermalEos(kind='GenRosenfeldTarazona', natom=natom)
-        eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
+        refstate_calc = eos_mod.calculators['refstate']
+        refstate = refstate_calc.ref_state
+        refstate['T0'] = T0
+        # eos_mod.set_param_values(param_names=['T0'], param_values=[T0])
         return eos_mod
 
     def test_heat_capacity_0K(self):

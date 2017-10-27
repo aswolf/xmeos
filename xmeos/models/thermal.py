@@ -11,6 +11,7 @@ from scipy import integrate
 import scipy.interpolate as interpolate
 
 from . import core
+from . import refstate
 from . import _debye
 
 __all__ = ['ThermalEos','ThermalCalc']
@@ -63,10 +64,18 @@ class ThermalEos(with_metaclass(ABCMeta, core.Eos)):
 
     def __init__(self, kind='Debye', natom=1, model_state={}):
 
+        ref_compress_state='P0'
+        ref_thermal_state='T0'
+        ref_energy_type='E0'
         self._pre_init(natom=natom)
 
         set_calculator(self, kind, self._kind_opts)
-        self._set_ref_state()
+        # self._set_ref_state()
+
+
+        refstate.set_calculator(self, ref_compress_state=ref_compress_state,
+                                ref_thermal_state=ref_thermal_state,
+                                ref_energy_type=ref_energy_type)
 
         self._post_init(model_state=model_state)
         pass
@@ -299,10 +308,10 @@ class _Debye(ThermalCalc):
         theta0 = 1000
         Cvlimfac = 1
 
-        param_names = ['theta0', 'Cvlimfac', 'T0']
-        param_units = ['K', '1', 'K']
-        param_defaults = [theta0, Cvlimfac, T0]
-        param_scales = [theta0, Cvlimfac, T0_scale]
+        param_names = ['theta0', 'Cvlimfac']
+        param_units = ['K', '1']
+        param_defaults = [theta0, Cvlimfac]
+        param_scales = [theta0, Cvlimfac]
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)
@@ -331,7 +340,7 @@ class _Debye(ThermalCalc):
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
         if T0 is None:
-            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+            T0 = self.eos_mod.refstate.ref_temp()
 
         x = core.fill_array(theta/T_a)
         xref = core.fill_array(theta/T0)
@@ -348,7 +357,7 @@ class _Debye(ThermalCalc):
         Cvlim = self._get_Cv_limit()
 
         if T0 is None:
-            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+            T0 = self.eos_mod.refstate.ref_temp()
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
         if theta0 is None:
@@ -394,10 +403,10 @@ class _Einstein(ThermalCalc):
         theta0 = 1000
         Cvlimfac = 1
 
-        param_names = ['theta0', 'Cvlimfac', 'T0']
-        param_units = ['K', '1', 'K']
-        param_defaults = [theta0, Cvlimfac, T0]
-        param_scales = [theta0, Cvlimfac, T0_scale]
+        param_names = ['theta0', 'Cvlimfac']
+        param_units = ['K', '1']
+        param_defaults = [theta0, Cvlimfac]
+        param_scales = [theta0, Cvlimfac]
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)
@@ -451,7 +460,7 @@ class _Einstein(ThermalCalc):
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
         if T0 is None:
-            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+            T0 = self.eos_mod.refstate.ref_temp()
 
         x = core.fill_array(theta/T_a)
         xref = core.fill_array(theta/T0)
@@ -468,7 +477,7 @@ class _Einstein(ThermalCalc):
         Cvlim = self._get_Cv_limit()
 
         if T0 is None:
-            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+            T0 = self.eos_mod.refstate.ref_temp()
         if theta is None:
             theta, = self.eos_mod.get_param_values(param_names=['theta0'])
         if theta0 is None:
@@ -533,8 +542,8 @@ class _GenRosenfeldTarazona(ThermalCalc):
     def _init_params(self):
         """Initialize list of calculator parameter names."""
 
-        T0 = 3000
-        T0_scl = T0*0.1
+        # T0 = 3000
+        # T0_scl = T0*0.1
         mexp = 3/5
         bcoef = -5
         Cvlimfac = 1
@@ -543,10 +552,10 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
         # acoef = -20
 
-        param_names = ['bcoef', 'mexp', 'Cvlimfac', 'T0']
-        param_units = ['eV', '1', '1', 'K']
-        param_defaults = [bcoef, mexp, Cvlimfac, T0]
-        param_scales = [coef_scl, mexp, Cvlimfac_scl, T0_scl]
+        param_names = ['bcoef', 'mexp', 'Cvlimfac']
+        param_units = ['eV', '1', '1']
+        param_defaults = [bcoef, mexp, Cvlimfac]
+        param_scales = [coef_scl, mexp, Cvlimfac_scl]
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)
@@ -569,13 +578,18 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
     def _calc_therm_dev(self, T_a):
         T_a = core.fill_array(T_a)
-        T0, mexp = self.eos_mod.get_param_values(param_names=['T0','mexp'])
+
+        T0 = self.eos_mod.refstate.ref_temp()
+        # T0, mexp = self.eos_mod.get_param_values(param_names=['T0','mexp'])
+        mexp = self.eos_mod.get_param_values(param_names='mexp')
         therm_dev_a = (T_a/T0)**mexp - 1
         return therm_dev_a
 
     def _calc_therm_dev_deriv(self, T_a):
         T_a = core.fill_array(T_a)
-        T0, mexp = self.eos_mod.get_param_values(param_names=['T0','mexp'])
+        T0 = self.eos_mod.refstate.ref_temp()
+        # T0, mexp = self.eos_mod.get_param_values(param_names=['T0','mexp'])
+        mexp = self.eos_mod.get_param_values(param_names='mexp')
         dtherm_dev_a = (mexp/T0)*(T_a/T0)**(mexp-1)
         return dtherm_dev_a
 
@@ -588,7 +602,8 @@ class _GenRosenfeldTarazona(ThermalCalc):
         if bcoef is None:
             bcoef, = self.eos_mod.get_param_values(param_names=['bcoef'])
         if Tref is None:
-            Tref, = self.eos_mod.get_param_values(param_names=['T0'])
+            Tref = self.eos_mod.refstate.ref_temp()
+            # Tref, = self.eos_mod.get_param_values(param_names=['T0'])
 
         therm_dev = self._calc_therm_dev(T_a)
         energy_pot = bcoef*therm_dev
@@ -605,7 +620,8 @@ class _GenRosenfeldTarazona(ThermalCalc):
         if bcoef is None:
             bcoef, = self.eos_mod.get_param_values(param_names=['bcoef'])
         if Tref is None:
-            Tref, = self.eos_mod.get_param_values(param_names=['T0'])
+            Tref = self.eos_mod.refstate.ref_temp()
+            # Tref, = self.eos_mod.get_param_values(param_names=['T0'])
 
         T_a, Tref = core.fill_array(T_a, Tref)
 
@@ -646,10 +662,10 @@ class _ConstHeatCap(ThermalCalc):
         theta0 = 1000
         Cvlimfac = 1
 
-        param_names = ['theta0','Cvlimfac', 'T0']
-        param_units = ['K','1', 'K']
-        param_defaults = [theta0, Cvlimfac, T0]
-        param_scales = [theta0, 1, T0_scale]
+        param_names = ['theta0','Cvlimfac']
+        param_units = ['K','1']
+        param_defaults = [theta0, Cvlimfac]
+        param_scales = [theta0, 1]
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)
@@ -681,7 +697,7 @@ class _ConstHeatCap(ThermalCalc):
 
         T_a = core.fill_array(T_a)
         if T0 is None:
-            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+            T0 = self.eos_mod.refstate.ref_temp()
 
         Cv_a = self._calc_heat_capacity(T_a, T0=T0)
         energy = Cv_a*(T_a-T0)
@@ -697,7 +713,7 @@ class _ConstHeatCap(ThermalCalc):
 
         T_a = core.fill_array(T_a)
         if T0 is None:
-            T0, = self.eos_mod.get_param_values(param_names=['T0'])
+            T0 = self.eos_mod.refstate.ref_temp()
 
         Cv_a = self._calc_heat_capacity(T_a, T0=T0)
         S_a = Cv_a*np.log(T_a/T0)

@@ -5,12 +5,9 @@ from future.utils import with_metaclass
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
-
+from collections import OrderedDict
 
 __all__ = ['Eos','Calculator','CONSTS','fill_array']
-
-
-
 
 
 # xmeos.models.Calculator
@@ -88,10 +85,15 @@ class Eos(with_metaclass(ABCMeta)):
         """
 
         # Initialize with ref parameters
-        param_names = self._param_ref_names
-        param_units = self._param_ref_units
-        param_defaults = self._param_ref_defaults
-        param_scales = self._param_ref_scales
+        # XXXXX REMOVE
+        # param_names = self._param_ref_names
+        # param_units = self._param_ref_units
+        # param_defaults = self._param_ref_defaults
+        # param_scales = self._param_ref_scales
+        param_names = []
+        param_units = []
+        param_defaults = []
+        param_scales = []
 
         # Add all calculator parameters
         for calc in self._calculators:
@@ -442,6 +444,25 @@ class Eos(with_metaclass(ABCMeta)):
         self.set_param_values(param_values)
         pass
 
+    def get_params(self):
+        return OrderedDict([(name,value) for name,value in
+                            zip(self.param_names,self.param_values)])
+
+    def set_params(self, params_dict):
+        param_names = list(params_dict.keys())
+        param_values = np.array([params_dict[name] for name in param_names])
+        self.set_param_values(param_values, param_names=param_names)
+
+    @property
+    def refstate(self):
+        return self.calculators['refstate']
+        # refstate_calc._ref_state[name] = value
+        # pass
+
+    def get_refstate(self):
+        refstate_calc = self.calculators['refstate']
+        return refstate_calc._ref_state
+
     @property
     def model_state(self):
         model_state = {
@@ -582,7 +603,17 @@ class Calculator(with_metaclass(ABCMeta)):
 
         """
         return self._required_calculators
+
+    # def get_refstate(self, names):
+    #     eos_mod = self.eos_mod
+    #     refstate_calc = eos_mod.calculators['refstate']
+    #     values = np.zeros(len(names))
+    #     for ind, name in enumerate(names):
+    #         if name=='P0':
+    #         values[ind] = value
+     #    T0 = refstate_calc.ref_temp()
 #====================================================================
+
 
 #====================================================================
 CONSTS = {}

@@ -17,12 +17,18 @@ import copy
 #====================================================================
 # SECT 0: Admin functions
 #====================================================================
-def load_data(V=None, T=None, P=None, E=None,
+def load_data(title=None, datasource=None,
+              V=None, T=None, P=None, E=None,
               Verr=None, Terr=None, Perr=None, Eerr=None,
               Vconv=1, Tconv=1, Pconv=1, Econv=1,
               mass_avg=None, groupID=None, mask=None ):
     data = {}
     data['table'] = pd.DataFrame()
+
+    if title is not None:
+        data['title'] = title
+    if datasource is not None:
+        data['datasource'] = datasource
 
     if V is not None:
         data['table']['V'] = V*Vconv
@@ -53,10 +59,9 @@ def load_data(V=None, T=None, P=None, E=None,
 
     return data
 #====================================================================
-def init_param_distbn(fit_model_l, eos_d, fix_param_l=[]):
-    param_distbn_d = {}
+def init_param_distbn(eos_mod, fit_models, fix_params=[]):
+    param_distbn = {}
 
-    scale_full_a = []
     paramkey_full_a = []
     for fit_model_type in fit_model_l:
         fit_mod = eos_d['modtype_d'][fit_model_type]
