@@ -21,15 +21,6 @@ __all__ = ['CompositeEos','MieGruneisenEos','RTPolyEos','RTPressEos']
 
 #====================================================================
 class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
-    # Meta class
-
-    # MUST be used
-    # def __init__():
-    # def __repr__():
-
-    # def thermal_energy(self, V_a, T_a):
-    # def compress_energy(self, V_a, T_a):
-
     def entropy(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
         S0, = self.get_param_values(param_names=['S0'])
@@ -366,7 +357,7 @@ class MieGruneisenEos(CompositeEos):
     #     calculator = self.calculators['thermal']
     #     energy_a =  calculator._calc_energy(T_a)
     #     return energy_a
-class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
+class RTPolyEos(CompositeEos):
     _kind_thermal_opts = ['GenRosenfeldTarazona']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
                            'GenFiniteStrain','Tait','PolyRho']
@@ -563,7 +554,7 @@ class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
     #     calculator = self.calculators['thermal']
     #     energy_a =  calculator._calc_energy(T_a)
     #     return energy_a
-class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
+class RTPressEos(CompositeEos):
     _kind_thermal_opts = ['GenRosenfeldTarazona']
     _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
@@ -586,7 +577,9 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         compress.set_calculator(self, kind_compress, self._kind_compress_opts,
                                 path_const=compress_path_const)
         gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
-        thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
+        thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts,
+                               external_bcoef=True)
+
         refstate.set_calculator(self, ref_compress_state=ref_compress_state,
                                 ref_thermal_state=ref_thermal_state,
                                 ref_energy_type=ref_energy_type)
@@ -604,8 +597,7 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         # kind_compress='Vinet', compress_order=None,
         #          compress_path_const='T', kind_RTpoly='V', RTpoly_order=5,
         #          natom=1, model_state={}):
-        return ("ThermalEos(kind_compress={kind_compress}, "
-                "compress_order={compress_order}, "
+        return ("RTPressEos(kind_compress={kind_compress}, "
                 "compress_path_const={compress_path_const}, "
                 "kind_RTpoly={kind_RTpoly}, "
                 "RTpoly_order={RTpoly_order}, "
@@ -770,6 +762,7 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         T0 = self.refstate.ref_temp()
         S0 = self.refstate.ref_entropy()
         E0 = self.refstate.ref_internal_energy()
+
         # S0, T0 = self.get_param_values(param_names=['S0','T0'])
 
         # if   compress_path_const=='T':
@@ -788,6 +781,7 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
         Sref = self.entropy(V_a, T0)
         E_compress = F_compress + T0*Sref
 
+
         thermal_energy_a = self.thermal_energy(V_a, T_a)
 
         internal_energy_a = E0 + E_compress + thermal_energy_a
@@ -804,7 +798,7 @@ class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
 
     def entropy(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
-        S0 = self.refstate.ref_temp()
+        S0 = self.refstate.ref_entropy()
 
         thermal_entropy_a = self.thermal_entropy(V_a, T_a)
 

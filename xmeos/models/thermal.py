@@ -20,7 +20,7 @@ __all__ = ['ThermalEos','ThermalCalc']
 #====================================================================
 # Base Classes
 #====================================================================
-def set_calculator(eos_mod, kind, kind_opts):
+def set_calculator(eos_mod, kind, kind_opts, external_bcoef=False):
     assert kind in kind_opts, (
         kind + ' is not a valid thermal calculator. '+
         'You must select one of: ' +  kind_opts)
@@ -30,7 +30,7 @@ def set_calculator(eos_mod, kind, kind_opts):
     elif kind=='Einstein':
         calc = _Einstein(eos_mod)
     elif kind=='GenRosenfeldTarazona':
-        calc = _GenRosenfeldTarazona(eos_mod)
+        calc = _GenRosenfeldTarazona(eos_mod, external_bcoef=external_bcoef)
     elif kind=='ConstHeatCap':
         calc = _ConstHeatCap(eos_mod)
     elif kind=='Cp-Berman':
@@ -535,7 +535,8 @@ class _GenRosenfeldTarazona(ThermalCalc):
     _EPS = np.finfo(np.float).eps
     _path_opts=['V']
 
-    def __init__(self, eos_mod):
+    def __init__(self, eos_mod, external_bcoef=False):
+        self._external_bcoef = external_bcoef
         super(_GenRosenfeldTarazona, self).__init__(eos_mod, path_const='V')
         pass
 
@@ -550,12 +551,16 @@ class _GenRosenfeldTarazona(ThermalCalc):
         Cvlimfac_scl = 0.03
         coef_scl = np.abs(bcoef)
 
+        param_names = ['mexp', 'Cvlimfac']
+        param_units = ['1', '1']
+        param_defaults = [mexp, Cvlimfac]
+        param_scales = [mexp, Cvlimfac_scl]
         # acoef = -20
-
-        param_names = ['bcoef', 'mexp', 'Cvlimfac']
-        param_units = ['eV', '1', '1']
-        param_defaults = [bcoef, mexp, Cvlimfac]
-        param_scales = [coef_scl, mexp, Cvlimfac_scl]
+        if not self._external_bcoef:
+            param_names.append('bcoef')
+            param_units.append('eV')
+            param_defaults.append(bcoef)
+            param_scales.append(coef_scl)
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)

@@ -40,7 +40,7 @@ class Eos(with_metaclass(ABCMeta)):
     def _post_init(self, model_state={}):
 
         param_names, param_units, param_defaults, param_scales = \
-            self._get_calculator_params()
+            self._get_all_calc_params()
 
         param_values = self._overwrite_param_values(param_names, param_defaults,
                                                     model_state)
@@ -79,9 +79,9 @@ class Eos(with_metaclass(ABCMeta)):
     ######################
     # Calculator methods #
     ######################
-    def _get_calculator_params( self ):
+    def _get_all_calc_params(self):
         """
-        Get list of valid Eos calculators
+        Get list of all calculator params
         """
 
         # Initialize with ref parameters
@@ -111,6 +111,13 @@ class Eos(with_metaclass(ABCMeta)):
         param_scales = np.array([param_scales[ind] for ind in indices])
 
         return param_names, param_units, param_defaults, param_scales
+
+    def get_calc_params(self):
+        calc_params = {}
+        for calc in self.calculators:
+            calc_params[calc] = list(self.calculators[calc].param_names)
+
+        return calc_params
 
     @property
     def calculators(self):
