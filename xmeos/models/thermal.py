@@ -638,6 +638,25 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
         return entropy
 
+    def _calc_entropy_pot(self, T_a, bcoef=None, Tref=None):
+        """Returns heat capacity as a function of temperature."""
+
+        Cvlim = self._get_Cv_limit()
+
+        if bcoef is None:
+            bcoef, = self.eos_mod.get_param_values(param_names=['bcoef'])
+        if Tref is None:
+            Tref = self.eos_mod.refstate.ref_temp()
+            # Tref, = self.eos_mod.get_param_values(param_names=['T0'])
+
+        T_a, Tref = core.fill_array(T_a, Tref)
+
+        mexp, = self.eos_mod.get_param_values(param_names=['mexp'])
+        entropy_pot = bcoef/(mexp-1)*(self._calc_therm_dev_deriv(T_a)
+                                      - self._calc_therm_dev_deriv(Tref))
+
+        return entropy_pot
+
     def _calc_dEdV_T(self, V_a, T_a, theta_a, gamma_a):
         return np.nan
 

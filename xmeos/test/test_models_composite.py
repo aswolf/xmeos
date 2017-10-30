@@ -426,6 +426,23 @@ class TestRTPressEos(test_models.BaseTestEos):
     def test_heat_capacity_T(self):
         self._calc_test_heat_capacity(compress_path_const='T', RTpoly_order=5)
 
+    def test_gamma(self, kind_compress='Vinet', compress_path_const='T',
+                   kind_gamma='GammaFiniteStrain', kind_RTpoly='logV',
+                   RTpoly_order=5, natom=1):
+        TOL = 1e-3
+        Nsamp = 10001
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+                                RTpoly_order=RTpoly_order, natom=natom)
+
+        V0 = eos_mod.get_params()['V0']
+        Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
+        Tfoot = 2000
+
+        gamma_a = eos_mod.gamma(Vmod_a, Tfoot)
+        pass
+
     def _calc_test_heat_capacity(self, kind_compress='Vinet',
                                  compress_path_const='T',
                                  kind_gamma='GammaFiniteStrain', kind_RTpoly='V',

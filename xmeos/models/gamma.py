@@ -322,8 +322,8 @@ class _GammaFiniteStrain(GammaCalc):
         """Initialize list of calculator parameter names."""
 
         V0 = 100
-        gamma0 = 1.0
-        gammap0 = 1.0
+        gamma0 = 0.5
+        gammap0 = -2
 
         self._param_names = ['V0', 'gamma0', 'gammap0']
         self._param_units = ['ang^3', '1', '1']
@@ -377,6 +377,5 @@ class _GammaFiniteStrain(GammaCalc):
         a1, a2 = self._calc_strain_coefs()
         fstr_a = self._calc_fstrain(V_a)
         T_a = T0*np.sqrt(1 + a1*fstr_a + 0.5*a2*fstr_a**2)
-
         return T_a
 #====================================================================

@@ -805,6 +805,30 @@ class RTPressEos(CompositeEos):
         entropy_a = S0 + thermal_entropy_a
         return entropy_a
 
+    def gamma(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        gamma_calc = self.calculators['gamma']
+        thermal_calc = self._calculators['thermal']
+
+        T0S = self.ref_temp_adiabat(V_a)
+
+        CV = self.heat_capacity(V_a, T_a)
+        CV_0S = self.heat_capacity(V_a, T0S)
+
+        gamma0S = gamma_calc._calc_gamma(V_a)
+
+        bcoef = self._calc_RTcoefs(V_a)
+        bcoef_deriv = self._calc_RTcoefs_deriv(V_a)
+
+        entropy_pot_a = thermal_calc._calc_entropy_pot(
+            T_a, bcoef=bcoef, Tref=T0S)
+        dSdV_T =  gamma0S/V_a*CV_0S + bcoef/bcoef_deriv*entropy_pot_a
+
+        gamma = V_a/CV*dSdV_T
+        assert False
+        return gamma
+
     def _set_poly_calculators(self, kind_RTpoly, RTpoly_order):
         bcoef_calc = _RTPolyCalc(self, order=RTpoly_order, kind=kind_RTpoly,
                                  coef_basename='bcoef')
