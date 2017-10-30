@@ -355,38 +355,6 @@ class Eos(with_metaclass(ABCMeta)):
 
         return param_names
 
-    # def get_array_param_names(self, array_param_basename):
-    #     Nchar = len(array_param_basename)
-    #     param_names = []
-
-    #     for key in self.param_names:
-    #         if key.startswith(array_param_basename):
-
-    #     return param_names
-
-    # def get_array_param_values(self, array_param_basename):
-    #     """
-    #     Array values for array-type parameter.
-
-    #     Parameters
-    #     ----------
-    #     array_param_basename : str
-    #         basename of array parameter
-
-    #     Returns
-    #     -------
-    #     values : double array
-    #         values of array parameter
-
-    #     """
-
-    #     param_names = self._validate_param_names(param_names)
-    #     ind_params = self._get_element_index(param_names)
-    #     values = self._param_values[ind_params]
-    #     values = self._override_params(values, overrides)
-
-    #     return values
-
     def set_param_values(self, param_values, param_names=None):
         """
         Set values for (selected) parameters.

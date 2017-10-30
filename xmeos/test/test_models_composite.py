@@ -504,10 +504,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         # Stherm_a = (
         #     eos_mod.thermal_entropy(Vmod_a,T)
         #     -eos_mod.thermal_entropy(Vmod_a,T0))
-#
         # Stherm_a = eos_mod.thermal_entropy(Vmod_a,T)
-#
-#
         # # S_a = Stherm_a + S0
         # Pnum_therm_E = -core.CONSTS['PV_ratio']*np.gradient(Etherm_a,dV)
         # # Pnum_therm_S = +core.CONSTS['PV_ratio']*np.gradient((T-T0)*S_a,dV)
@@ -515,13 +512,13 @@ class TestRTPressEos(test_models.BaseTestEos):
         # P_compress = eos_mod.compress_press(Vmod_a)
         # P_therm_S = eos_mod._calc_thermal_press_S(Vmod_a, T)
         # P_therm_E = eos_mod._calc_thermal_press_E(Vmod_a, T)
-#
+
         # Pnum_tot_a = -core.CONSTS['PV_ratio']*np.gradient(F_a,dV)
-#
+
         # S0, = eos_mod.get_param_values(param_names=['S0'])
-#
+
         # eos_mod.thermal_energy(Vmod_a, T)
-#
+
         # print('abs_err = ', abs_err)
         # print('dP_S = ', Pnum_therm_S-P_therm_S)
         # print('dP_E = ', Pnum_therm_E-P_therm_E)
@@ -539,7 +536,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         # plt.ylabel('P')
 
         assert np.all((P5_a-P3_a)>0), 'Thermal pressure must be positive'
-#
+
         # assert False, 'nope'
         assert abs_err < TOL, ('abs error in Press, ' + np.str(range_err) +
                                  ', must be less than TOL, ' + np.str(TOL))

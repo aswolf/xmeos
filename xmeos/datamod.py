@@ -10,6 +10,7 @@ from xmeos import models
 import copy
 
 from scipy import optimize
+from collections import OrderedDict
 
 #====================================================================
 #     xmeos: Xtal-Melt Equation of State package
@@ -92,12 +93,12 @@ def select_fit_params(datamodel, fit_calcs, fix_params=[]):
     fit_params = []
     for calc_name in fit_calcs:
         for param in calc_params[calc_name]:
-            if param not in fit_params:
+            if (param not in fit_params) and (param not in fix_params):
                 fit_params.append(param)
 
-    for param in fit_params:
-        if param in fix_params:
-            fit_params.remove(param)
+    # for param in fit_params:
+    #     if param in fix_params:
+    #         fit_params.remove(param)
 
     param_names = eos_mod.param_names
     param_isfree = np.tile(False, len(param_names))
@@ -140,9 +141,9 @@ def calc_resid(datamodel, detail_output=False):
     V_a = np.array(tbl['V'])
     T_a = np.array(tbl['T'])
     P_a = np.array(tbl['P'])
-    Perr_a = np.array(tbl['Perr'])
     E_a = np.array(tbl['E'])
-    Eerr_a = np.array(tbl['Eerr'])
+    # Perr_a = np.array(tbl['Perr'])
+    # Eerr_a = np.array(tbl['Eerr'])
     if datamodel['bulk_mod_wt'] is None:
         bulk_mod_wt = None
     else:
@@ -155,13 +156,22 @@ def calc_resid(datamodel, detail_output=False):
     if bulk_mod_wt is not None:
         delV = - V_a*delP/bulk_mod_wt
         output['V'] = delV
-        Vadj_a = V_a - delV
+        # Vadj_a = V_a - delV
         resid_P = delV/err_scale['V']
     else:
-        Vadj_a = V_a
+        # Vadj_a = V_a
         resid_P = delP/err_scale['P']
 
-    Emod = eos_mod.internal_energy(Vadj_a, T_a)
+
+    # if direct_vol_err:
+    #     Vmod = eos_mod.volume(P_a, T_a)
+    #     delV = Vmod - V_a
+    #     output['V'] = delV
+    #     Vadj_a = Vmod
+    #     resid_P = delV/err_scale['V']
+
+    # Emod = eos_mod.internal_energy(Vadj_a, T_a)
+    Emod = eos_mod.internal_energy(V_a, T_a)
     delE = Emod - E_a
     output['E'] = delE
     resid_E = delE/err_scale['E']
@@ -213,18 +223,31 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False):
 
     resid_a = info['fvec']
     resid_var = np.var(resid_a)
-    cov = resid_var*cov_scl
-    param_err = np.sqrt(np.diag(cov))
-    corr = cov/(np.expand_dims(param_err,1)*param_err)
+    try:
+        cov = resid_var*cov_scl
+        param_err = np.sqrt(np.diag(cov))
+        corr = cov/(np.expand_dims(param_err,1)*param_err)
+    except:
+        cov = None
+        param_err = None
+        corr = None
 
-    error, R2fit = residual_model_error(datamodel, apply_bulk_mod_wt)
+    model_error, R2fit = residual_model_error(datamodel, apply_bulk_mod_wt)
 
-    posterior = {}
+
+    param_tbl = pd.DataFrame(columns=['name','value','error'])
+    for ind,(name, value, error) in enumerate(
+        zip(datamodel['fit_params'], paramf_a, param_err)):
+        param_tbl.loc[ind] = [name, value, error]
+
+
+    posterior = OrderedDict()
     posterior['param_names'] = datamodel['fit_params']
     posterior['param_val'] = paramf_a
     posterior['param_err'] = param_err
+    posterior['param_tbl'] = param_tbl
     posterior['corr'] = corr
-    posterior['err'] = error
+    posterior['fit_err'] = model_error
     posterior['R2fit'] = R2fit
 
     datamodel['posterior'] = posterior
@@ -245,17 +268,17 @@ def residual_model_error(datamodel, apply_bulk_mod_wt):
     # Ndat = resid_a.size/2
     Ndof = Ndat - Nparam/2 # free parameters are shared between 2 data types
 
-    error = {}
+    model_error = {}
     R2fit = {}
     for datatype in output:
         abs_resid = output[datatype]
-        error[datatype] = np.sqrt(np.sum(abs_resid**2)/Ndof)
-        R2fit[datatype] = 1 - np.var(abs_resid)/err_scale[datatype]
+        model_error[datatype] = np.sqrt(np.sum(abs_resid**2)/Ndof)
+        R2fit[datatype] = 1 - np.var(abs_resid)/err_scale[datatype]**2
 
     if not apply_bulk_mod_wt:
         datamodel['bulk_mod_wt'] = None
 
-    return error, R2fit
+    return model_error, R2fit
 #====================================================================
 def model_eval_list( V_a, T_a, param_a, datamod_d ):
     """
