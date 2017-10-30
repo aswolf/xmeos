@@ -823,10 +823,19 @@ class RTPressEos(CompositeEos):
 
         entropy_pot_a = thermal_calc._calc_entropy_pot(
             T_a, bcoef=bcoef, Tref=T0S)
-        dSdV_T =  gamma0S/V_a*CV_0S + bcoef/bcoef_deriv*entropy_pot_a
+
+        term1 = gamma0S/V_a*CV_0S
+        term2 = bcoef_deriv/bcoef*entropy_pot_a
+        # dSdV_T =  gamma0S/V_a*CV_0S + bcoef/bcoef_deriv*entropy_pot_a
+        dSdV_T =  term1 + term2
+
+        # This ONLY works if T is const
+        # dV = np.diff(V_a)[0]
+        # S_a = self.entropy(V_a,T_a)
+        # dSdV_num = np.gradient(S_a,dV)
+        # dSdV_num-dSdV_T
 
         gamma = V_a/CV*dSdV_T
-        assert False
         return gamma
 
     def _set_poly_calculators(self, kind_RTpoly, RTpoly_order):
@@ -885,7 +894,7 @@ class RTPressEos(CompositeEos):
 
 #====================================================================
 class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
-    _kind_opts = ['V','rho','logV']
+    _kind_opts = ['V','logV']
 
     def __init__(self, eos_mod, order=6, kind='logV', coef_basename='bcoef'):
 
@@ -905,45 +914,60 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
         self._init_params(order)
         self._required_calculators = None
 
-
     def _init_params(self, order):
-
-        # NOTE switch units cc/g -> ang3,  kJ/g -> eV
-        V0 = 0.408031
-
-        coef_basename = self._coef_basename
         kind = self._kind
-        param_names = core.make_array_param_names(coef_basename, order,
-                                                  skipzero=False)
+        coef_basename = self._coef_basename
 
-        if coef_basename == 'bcoef':
-            bcoefs_mgsio3 = np.array([-.371466, 7.09542, -45.7362, 139.020,
-                                      -201.487, 112.513])
+        if kind=='V':
+            # Defaults from Spera2011
+            # NOTE switch units cc/g -> ang3,  kJ/g -> eV
 
-            shift_coefs_mgsio3 = core.shift_poly(bcoefs_mgsio3, xscale=V0)
+            if coef_basename == 'bcoef':
+                shifted_coefs = np.array([-.371466, 7.09542, -45.7362, 139.020,
+                                          -201.487, 112.513])
 
-        elif coef_basename == 'acoef':
-            acoefs_mgsio3 = np.array([127.116, -3503.98, 20724.4, -60212.0,
-                                      86060.5, -48520.4])
+            elif coef_basename == 'acoef':
+                shifted_coefs = np.array([127.116, -3503.98, 20724.4, -60212.0,
+                                          86060.5, -48520.4])
 
-            shift_coefs_mgsio3 = core.shift_poly(acoefs_mgsio3, xscale=V0)
-        else:
-            raise NotImplemented('This is not a valid RTcoef type')
+            else:
+                raise NotImplemented('This is not a valid RTcoef type')
 
+            V0 = 0.408031
+            coefs = core.shift_poly(shifted_coefs, xscale=V0)
+
+        elif kind=='logV':
+            # Defaults from Spera2011
+            # NOTE switch units cc/g -> ang3,  kJ/g -> eV
+            V0 = 0.408031
+
+            if coef_basename == 'bcoef':
+                coefs = np.array([ 0.04070134,  0.02020084, -0.07904852,
+                                  -0.45542896, -0.55941513, -0.20257299])
+
+            elif coef_basename == 'acoef':
+                coefs = np.array([-105.88653606, -1.56279233, 16.34275157,
+                                  87.28979726, 121.16123888,   40.31492443])
+
+            else:
+                raise NotImplemented('This is not a valid RTcoef type')
+
+        param_names = core.make_array_param_names(
+            coef_basename, order, skipzero=False)
         param_defaults = [0 for ind in range(0,order+1)]
         if order>5:
-            param_defaults[0:6] = shift_coefs_mgsio3
+            param_defaults[0:6] = coefs
         else:
-            param_defaults[0:order+1] = shift_coefs_mgsio3[0:order+1]
+            param_defaults[0:order+1] = coefs[0:order+1]
 
         param_scales = [1 for ind in range(0,order+1)]
         param_units = core.make_array_param_units(param_names, base_unit='kJ/g',
                                                   deriv_unit='(cc/g)')
 
         param_names.append('V0')
-        param_scales.append(V0)
-        param_units.append('cc/g')
         param_defaults.append(V0)
+        param_scales.append(V0/10)
+        param_units.append('cc/g')
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales, order=order)
@@ -953,7 +977,6 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         param_names = self.eos_mod.get_array_param_names(coef_basename)
         param_values = self.eos_mod.get_param_values(param_names=param_names)
-        V0, = self.eos_mod.get_param_values(param_names=['V0'])
 
         coef_index = core.get_array_param_index(param_names)
         order = np.max(coef_index)+1
@@ -961,7 +984,7 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
         param_full[coef_index] = param_values
 
         coefs_a = param_full[::-1]  # Reverse array for np.polyval
-        return coefs_a, V0
+        return coefs_a
 
     def _calc_vol_dev(self, V_a):
         kind = self._kind
@@ -969,24 +992,38 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         if kind=='V':
             vol_dev = V_a/V0 - 1
-        elif kind=='rho':
-            vol_dev = V0/V_a - 1
         elif kind=='logV':
             vol_dev = np.log(V0/V_a)
+        elif kind=='rho':
+            vol_dev = V0/V_a - 1
 
+        return vol_dev
 
+    def _calc_vol_dev_deriv(self, V_a):
+        kind = self._kind
+        V0 = self.eos_mod.get_param_values(param_names='V0')
 
+        if kind=='V':
+            vol_dev_deriv = 1/V0*np.ones(V_a.shape)
+        elif kind=='logV':
+            vol_dev_deriv = -1/V_a
+        elif kind=='rho':
+            vol_dev_deriv = -V0/V_a**2
 
+        return vol_dev_deriv
 
     def calc_coef(self, V_a):
-        coefs_a, V0 = self._get_polyval_coef()
-        coef_V = np.polyval(coefs_a, V_a/V0-1)
+        vol_dev = self._calc_vol_dev(V_a)
+        coefs_a = self._get_polyval_coef()
+        coef_V = np.polyval(coefs_a, vol_dev)
         return coef_V
 
     def calc_coef_deriv(self, V_a):
-        coefs_a, V0 = self._get_polyval_coef()
+        vol_dev = self._calc_vol_dev(V_a)
+        vol_dev_deriv = self._calc_vol_dev_deriv(V_a)
+        coefs_a = self._get_polyval_coef()
         order = coefs_a.size-1
-        coefs_deriv_a = np.polyder(coefs_a)/V0
-        coef_deriv_V = np.polyval(coefs_deriv_a, V_a/V0-1)
+        coefs_deriv_a = np.polyder(coefs_a)
+        coef_deriv_V = vol_dev_deriv * np.polyval(coefs_deriv_a, vol_dev)
         return coef_deriv_V
 #====================================================================

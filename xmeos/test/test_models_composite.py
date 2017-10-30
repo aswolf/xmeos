@@ -397,9 +397,26 @@ class TestRTPressEos(test_models.BaseTestEos):
 
         return eos_mod
 
-    def test_RTcoefs(self, kind_compress='Vinet',
-                     compress_path_const='T', kind_gamma='GammaFiniteStrain',
-                     kind_RTpoly='V', RTpoly_order=5, natom=1):
+    def test_RTcoefs(self, kind_compress='Vinet', compress_path_const='T',
+                     kind_gamma='GammaFiniteStrain',
+                     RTpoly_order=5, natom=1):
+
+        self._calc_test_RTcoefs(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly='V',
+                                RTpoly_order=RTpoly_order, natom=natom)
+
+        self._calc_test_RTcoefs(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly='logV',
+                                RTpoly_order=RTpoly_order, natom=natom)
+
+        pass
+
+    def _calc_test_RTcoefs(self, kind_compress='Vinet',
+                           compress_path_const='T',
+                           kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
+                           RTpoly_order=5, natom=1):
 
         TOL = 1e-3
 
@@ -419,7 +436,6 @@ class TestRTPressEos(test_models.BaseTestEos):
         b_abs_err, b_rel_err, b_range_err = self.numerical_deriv(
             Vmod_a, bcoef_a, bcoef_deriv_a, scale=1)
 
-
         assert b_range_err < TOL, 'range error in bcoef, ' + \
             np.str(b_range_err) + ', must be less than TOL, ' + np.str(TOL)
 
@@ -438,9 +454,28 @@ class TestRTPressEos(test_models.BaseTestEos):
 
         V0 = eos_mod.get_params()['V0']
         Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
-        Tfoot = 2000
+        T = 2000
+        # T0S_a = eos_mod.ref_temp_adiabat(Vmod_a)
 
-        gamma_a = eos_mod.gamma(Vmod_a, Tfoot)
+        gamma_a = eos_mod.gamma(Vmod_a, T)
+        CV_a = eos_mod.heat_capacity(Vmod_a,T)
+        KT_a = eos_mod.bulk_modulus(Vmod_a,T)
+
+        alpha_a = models.CONSTS['PV_ratio']*gamma_a/Vmod_a*CV_a/KT_a
+        dPdT_a = alpha_a*KT_a
+
+        dT = 10
+        dPdT_num = (eos_mod.press(Vmod_a,T+dT/2) -
+                    eos_mod.press(Vmod_a,T-dT/2))/dT
+
+        range_err = np.max(np.abs(
+            (dPdT_a-dPdT_num)/(np.max(dPdT_a)-np.min(dPdT_a))
+            ))
+
+        assert range_err < TOL, 'Thermal press calculated from gamma does not match numerical value'
+
+        # alpha = 1/V*dVdT_P = -1/V*dVdP_T*dPdT_V = -1/K_T*dPdT_V
+        # alpha*K_T
         pass
 
     def _calc_test_heat_capacity(self, kind_compress='Vinet',
@@ -473,12 +508,20 @@ class TestRTPressEos(test_models.BaseTestEos):
             ', must be less than TOL, ' + np.str(TOL)
 
     def test_press_T(self):
-        self._calc_test_press()
+        self._calc_test_press(kind_RTpoly='V')
+        self._calc_test_press(kind_RTpoly='logV')
+
+        self._calc_test_press(kind_RTpoly='V', kind_compress='BirchMurn3')
+        self._calc_test_press(kind_RTpoly='logV', kind_compress='BirchMurn3')
+
+        self._calc_test_press(kind_RTpoly='V', kind_gamma='GammaPowLaw' )
+        self._calc_test_press(kind_RTpoly='logV', kind_gamma='GammaPowLaw')
+        pass
 
     def _calc_test_press(self, kind_compress='Vinet',
                          compress_path_const='T',
                          kind_gamma='GammaFiniteStrain',
-                         kind_RTpoly='logV', RTpoly_order=5, natom=1):
+                         kind_RTpoly='V', RTpoly_order=5, natom=1):
 
         TOL = 1e-3
         Nsamp = 10001
@@ -552,7 +595,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         # plt.xlabel('V')
         # plt.ylabel('P')
 
-        assert np.all((P5_a-P3_a)>0), 'Thermal pressure must be positive'
+        # assert np.all((P5_a-P3_a)>0), 'Thermal pressure must be positive'
 
         # assert False, 'nope'
         assert abs_err < TOL, ('abs error in Press, ' + np.str(range_err) +
