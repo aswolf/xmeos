@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, print_function, division
+# from __future__ import absolute_import, print_function, division
 from future.utils import with_metaclass
 import numpy as np
 import scipy as sp
@@ -152,11 +152,18 @@ class CompressEos(with_metaclass(ABCMeta, core.Eos)):
         return energy_a
 
     def bulk_mod( self, V_a, apply_expand_adj=True ):
-        bulk_mod_a =  self.calculators['compress']._calc_bulk_mod(V_a)
-        if self.expand_adj and apply_expand_adj:
-            ind_exp = self.get_ind_expand(V_a)
-            if apply_expand_adj and (ind_exp.size>0):
-                bulk_mod_a[ind_exp] = self.expand_adj_mod._calc_bulk_mod(V_a[ind_exp])
+        try:
+            bulk_mod_a =  self.calculators['compress']._calc_bulk_mod(V_a)
+            # if self.expand_adj and apply_expand_adj:
+            #     ind_exp = self.get_ind_expand(V_a)
+            #     if apply_expand_adj and (ind_exp.size>0):
+            #         bulk_mod_a[ind_exp] =
+            #         self.expand_adj_mod._calc_bulk_mod(V_a[ind_exp])
+        except:
+            TOL=1e-4
+            P_lo_a = self.press(V_a*np.exp(-TOL/2))
+            P_hi_a = self.press(V_a*np.exp(+TOL/2))
+            bulk_mod_a = -(P_hi_a-P_lo_a)/TOL
 
         return bulk_mod_a
 

@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, print_function, division
+# from __future__ import absolute_import, print_function, division
 from future.utils import with_metaclass
 import numpy as np
 import scipy as sp
 from abc import ABCMeta, abstractmethod
 from scipy import integrate, optimize
 import scipy.interpolate as interpolate
+from collections import OrderedDict
 
 from . import core
 from . import refstate
@@ -70,14 +71,14 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
         internal_energy_a = E0 + E_compress_a + E_therm_a
         return internal_energy_a
 
-    def bulk_modulus(self, V_a, T_a, TOL=1e-4):
+    def bulk_mod(self, V_a, T_a, TOL=1e-4):
         P_lo_a = self.press(V_a*np.exp(-TOL/2), T_a)
         P_hi_a = self.press(V_a*np.exp(+TOL/2), T_a)
         K_a = -(P_hi_a-P_lo_a)/TOL
 
         return K_a
 
-    def volume(self, P_a, T_a, TOL=1e-3, step=0.1, Kmin=1):
+    def _volume_old(self, P_a, T_a, TOL=1e-3, step=0.1, Kmin=1):
         V0, K0, KP0 = self.get_param_values(param_names=['V0','K0','KP0'])
 
         Kapprox = K0 + KP0*P_a
@@ -89,7 +90,7 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
         # from IPython import embed;embed();import ipdb as pdb;pdb.set_trace()
         while True:
             #print('V = ', iV_a)
-            iK_a = self.bulk_modulus(iV_a, T_a)
+            iK_a = self.bulk_mod(iV_a, T_a)
             # print('K = ', iK_a)
             iP_a = self.press(iV_a, T_a)
             # print('P = ', iP_a)
@@ -108,6 +109,62 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
 
         V_a = iV_a
         return V_a
+
+    def volume(self, P, T, Vinit=None, TOL=1e-3, step=0.1):
+        if Vinit is None:
+            V0 = self.get_param_values(param_names='V0')
+            Vinit = 0.8*V0
+
+        # Kapprox = K0 + KP0*P_a
+        # Kscl = 0.5*(K0+Kapprox)
+        KT = self.bulk_mod(Vinit,T)
+
+        iV = Vinit*np.exp(-step*P/KT)
+        # iV_a = V0*np.exp(-step*P_a/Kapprox)
+
+        # from IPython import embed;embed();import ipdb as pdb;pdb.set_trace()
+        while True:
+            #print('V = ', iV_a)
+            iK = self.bulk_mod(iV, T)
+            # print('K = ', iK_a)
+            iP = self.press(iV, T)
+            # print('P = ', iP_a)
+            idelP = P-iP
+            # print(idelP/iK_a)
+            #print(P_a)
+
+            # Kapprox = iK + step*0.5*KP0*idelP
+
+            # iKscl = np.maximum(iK_a,Kmin)
+            # idelV = np.exp(-idelP/Kapprox)
+            idelV = np.exp(-idelP/iK)
+            # print('idelV = ',idelV)
+            iV = iV*idelV
+            if np.all(np.abs(idelV-1) < TOL):
+                break
+
+        V = iV
+        return V
+
+    def material_properties(self, Pref, Tref, Vref=None):
+        if Vref is None:
+            Vref = self.volume(Pref, Tref, Vinit=12.8)[0]
+
+        KT = self.bulk_mod(Vref,Tref)[0]
+        CV = self.heat_capacity(Vref,Tref)
+        alpha =  self.thermal_exp(Vref,Tref)[0]
+        gamma =  self.gamma(Vref,Tref)[0]
+        KS = KT*(1+alpha*gamma*Tref)
+        props = OrderedDict()
+        props['P'] = Pref
+        props['T'] = Tref
+        props['V'] = Vref
+        props['KT'] = KT
+        props['KS'] =  KS
+        props['Cv'] = CV/core.CONSTS['kboltz']
+        props['therm_exp'] = alpha
+        props['gamma'] = gamma
+        return props
 #====================================================================
 class MieGruneisenEos(CompositeEos):
     _kind_thermal_opts = ['Debye','Einstein','ConstHeatCap']
