@@ -24,7 +24,7 @@ def load_data(title=None, datasource=None,
               V=None, T=None, P=None, E=None,
               Verr=None, Terr=None, Perr=None, Eerr=None,
               Vconv=1, Tconv=1, Pconv=1, Econv=1,
-              mass_avg=None, groupID=None, mask=None):
+              mass_avg=None, groupID=None, trust=None):
     data = {}
     data['table'] = pd.DataFrame()
 
@@ -32,6 +32,8 @@ def load_data(title=None, datasource=None,
         data['title'] = title
     if datasource is not None:
         data['datasource'] = datasource
+
+    data['exp_constraint'] = None
 
     if V is not None:
         data['table']['V'] = V*Vconv
@@ -41,6 +43,10 @@ def load_data(title=None, datasource=None,
         data['table']['P'] = P*Pconv
     if E is not None:
         data['table']['E'] = E*Econv
+    if trust is not None:
+       data['table']['trust'] = trust
+    else:
+       data['table']['trust'] = np.tile(True, V.size)
 
     if Verr is not None:
         data['table']['Verr'] = Verr*Vconv
@@ -55,8 +61,6 @@ def load_data(title=None, datasource=None,
 
     if groupID is not None:
         data['groupID'] = groupID
-    if mask is not None:
-        data['mask'] = mask
     if mass_avg is not None:
         data['mass_avg'] = mass_avg
 
@@ -64,16 +68,29 @@ def load_data(title=None, datasource=None,
 #====================================================================
 def _get_err_scale(data):
     err_scale = {}
-    err_scale['P'] = np.std(data['table']['P'])
-    err_scale['E'] = np.std(data['table']['E'])
     err_scale['V'] = np.std(data['table']['V'])
-    err_scale['T'] = np.std(data['table']['T'])
+    err_scale['P'] = np.std(data['table']['P'])
+    err_scale['PV'] = None
+    if 'E' in data['table'].columns:
+        err_scale['E'] = np.std(data['table']['E'])
+    else:
+        err_scale['E'] = 1
+    if 'T' in data['table'].columns:
+        err_scale['T'] = np.std(data['table']['T'])
+    else:
+        err_scale['T'] = 1
     return err_scale
 #====================================================================
 def init_datamodel(data, eos_mod):
     datamodel = {}
     datamodel['data'] = data
     datamodel['eos_mod'] = eos_mod
+
+    if 'thermal' in eos_mod.calculators:
+        isthermal=True
+    else:
+        isthermal=False
+    datamodel['isthermal'] = isthermal
     datamodel['err_scale'] = _get_err_scale(data)
     param_names = eos_mod.param_names
     datamodel['param_names'] = param_names
@@ -111,15 +128,35 @@ def select_fit_params(datamodel, fit_calcs, fix_params=[]):
     # datamodel['fit_param_values'] = get_fit_params(datamodel)
     pass
 #====================================================================
-def update_bulk_mod_wt(datamodel):
+def update_bulk_mod_wt(datamodel, wt_vol=0.5):
     eos_mod = datamodel['eos_mod']
     data = datamodel['data']
 
     V_a = data['table']['V']
-    T_a = data['table']['T']
 
-    K_a = eos_mod.bulk_modulus(V_a, T_a)
+    if datamodel['isthermal']:
+        T_a = data['table']['T']
+        K_a = eos_mod.bulk_mod(V_a, T_a)
+    else:
+        K_a = eos_mod.bulk_mod(V_a)
+
     datamodel['bulk_mod_wt'] = K_a
+    err_scale = datamodel['err_scale']
+
+    err_scale['PV'] = 1/np.sqrt(
+        (1-wt_vol)/err_scale['P']**2 + wt_vol*(V_a/K_a/err_scale['V'])**2)
+    datamodel['bulk_mod_wt'] = K_a
+    pass
+#====================================================================
+def set_exp_constraint(data, V, T, P, KT=None, alpha=None, wt=1e3):
+    exp_constraint = {}
+    exp_constraint['V'] = np.array(V)
+    exp_constraint['T'] = np.array(T)
+    exp_constraint['P'] = np.array(P)
+    exp_constraint['KT'] = KT
+    exp_constraint['alpha'] = alpha
+    exp_constraint['wt'] = wt
+    data['exp_constraint'] = exp_constraint
     pass
 #====================================================================
 def calc_resid(datamodel, detail_output=False):
@@ -136,20 +173,34 @@ def calc_resid(datamodel, detail_output=False):
     tbl = datamodel['data']['table']
     eos_mod = datamodel['eos_mod']
     err_scale = datamodel['err_scale']
+    exp_constraint = datamodel['data']['exp_constraint']
 
     # mask = np.array(tbl['P']>0)
-    V_a = np.array(tbl['V'])
-    T_a = np.array(tbl['T'])
-    P_a = np.array(tbl['P'])
-    E_a = np.array(tbl['E'])
+    trust = tbl['trust']
+    V_a = np.array(tbl['V'][trust])
+    P_a = np.array(tbl['P'][trust])
+
+    if datamodel['isthermal']:
+        T_a = np.array(tbl['T'][trust])
+
+    if 'E' in tbl.columns:
+        hasenergy = True
+        E_a = np.array(tbl['E'][trust])
+    else:
+        hasenergy = False
+
     # Perr_a = np.array(tbl['Perr'])
     # Eerr_a = np.array(tbl['Eerr'])
     if datamodel['bulk_mod_wt'] is None:
         bulk_mod_wt = None
     else:
-        bulk_mod_wt = datamodel['bulk_mod_wt']
+        bulk_mod_wt = datamodel['bulk_mod_wt'][trust]
 
-    Pmod = eos_mod.press(V_a, T_a)
+    if datamodel['isthermal']:
+        Pmod = eos_mod.press(V_a, T_a)
+    else:
+        Pmod = eos_mod.press(V_a)
+
     delP = Pmod - P_a
     output['P'] = delP
 
@@ -157,26 +208,56 @@ def calc_resid(datamodel, detail_output=False):
         delV = - V_a*delP/bulk_mod_wt
         output['V'] = delV
         # Vadj_a = V_a - delV
-        resid_P = delV/err_scale['V']
+        # resid_P = delV/err_scale['V']
+        resid_P = delP/err_scale['PV'][trust]
     else:
         # Vadj_a = V_a
         resid_P = delP/err_scale['P']
 
+    delE = np.zeros(V_a.shape)
+    resid_E = np.zeros(V_a.shape)
+    if hasenergy:
+        try:
+            if datamodel['isthermal']:
+                Emod = eos_mod.internal_energy(V_a, T_a)
+            else:
+                Emod = eos_mod.internal_energy(V_a)
 
-    # if direct_vol_err:
-    #     Vmod = eos_mod.volume(P_a, T_a)
-    #     delV = Vmod - V_a
-    #     output['V'] = delV
-    #     Vadj_a = Vmod
-    #     resid_P = delV/err_scale['V']
+            delE = Emod - E_a
+            resid_E = delE/err_scale['E']
+            resid_E[np.isnan(E_a)] = 0
+        except:
+            pass
 
-    # Emod = eos_mod.internal_energy(Vadj_a, T_a)
-    Emod = eos_mod.internal_energy(V_a, T_a)
-    delE = Emod - E_a
+
+
     output['E'] = delE
-    resid_E = delE/err_scale['E']
+    resid_all = [resid_P,resid_E]
 
-    resid_a = np.concatenate((resid_P,resid_E))
+    if exp_constraint is not None:
+        Vexp = exp_constraint['V']
+        Texp = exp_constraint['T']
+        Pexp = exp_constraint['P']
+        wt = exp_constraint['wt']
+        KTexp = exp_constraint['KT']
+        alphaexp = exp_constraint['alpha']
+        Pexp_mod = eos_mod.press(Vexp, Texp)
+
+
+        residPexp = wt*(Pexp_mod-Pexp)/err_scale['P']
+        resid_all.append(residPexp)
+
+        if KTexp is not None:
+            KT_mod = eos_mod.bulk_mod(Vexp, Texp)
+            residKT = wt*(KT_mod-KTexp)/err_scale['P']
+            resid_all.append(residKT)
+
+        if alphaexp is not None:
+            alpha_mod = eos_mod.thermal_exp(Vexp, Texp)
+            residalpha = wt*np.log(alpha_mod/alphaexp)*err_scale['T']/1e4
+            resid_all.append(residalpha)
+
+    resid_a = np.concatenate(resid_all)
 
     if detail_output==True:
         return output
@@ -194,18 +275,21 @@ def get_fit_params(datamodel):
     fit_params = datamodel['fit_params']
     return eos_mod.get_param_values(param_names=fit_params)
 #====================================================================
-def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False):
+def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5):
+    if not datamodel['fit_params']:
+        assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
+
     param0_a = get_fit_params(datamodel)
 
     if apply_bulk_mod_wt:
-        update_bulk_mod_wt(datamodel)
+        update_bulk_mod_wt(datamodel, wt_vol=wt_vol)
     else:
         datamodel['bulk_mod_wt'] = None
 
     for i in np.arange(nrepeat):
         def resid_fun(param_a, datamodel=datamodel):
             set_fit_params(param_a, datamodel)
-            resid_a = calc_resid(datamodel)
+            resid_a = calc_resid(datamodel, )
             return resid_a
 
         fit_tup = optimize.leastsq(resid_fun, param0_a, full_output=True)
@@ -217,7 +301,7 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False):
         param0_a = paramf_a
 
         if apply_bulk_mod_wt:
-            update_bulk_mod_wt(datamodel)
+            update_bulk_mod_wt(datamodel, wt_vol=wt_vol )
         else:
             datamodel['bulk_mod_wt'] = None
 
@@ -229,10 +313,14 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False):
         corr = cov/(np.expand_dims(param_err,1)*param_err)
     except:
         cov = None
-        param_err = None
+        param_err = np.nan*paramf_a
         corr = None
 
-    model_error, R2fit = residual_model_error(datamodel, apply_bulk_mod_wt)
+    model_error, R2fit = residual_model_error(datamodel,
+                                              apply_bulk_mod_wt, wt_vol)
+    # print(param_err)
+    # print(paramf_a)
+
 
 
     param_tbl = pd.DataFrame(columns=['name','value','error'])
@@ -253,11 +341,11 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False):
     datamodel['posterior'] = posterior
     pass
 #====================================================================
-def residual_model_error(datamodel, apply_bulk_mod_wt):
+def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol):
     eos_mod = datamodel['eos_mod']
     err_scale = datamodel['err_scale']
 
-    update_bulk_mod_wt(datamodel)
+    update_bulk_mod_wt(datamodel, wt_vol=wt_vol)
     output = calc_resid(datamodel, detail_output=True)
 
     Nparam = len(datamodel['fit_params'])
