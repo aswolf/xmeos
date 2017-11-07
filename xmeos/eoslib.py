@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, print_function, division
+# from __future__ import absolute_import, print_function, division
 from future.utils import with_metaclass
 
 import numpy as np
@@ -371,6 +371,8 @@ class MgSiO3_RTPress(models.RTPressEos):
         compress_path_const='T'
         kind_gamma='GammaFiniteStrain'
         kind_RTpoly='logV'
+        # kind_RTpoly='V'
+        ref_energy_type='E0'
         RTpoly_order=4
         natom=1
 
@@ -378,6 +380,7 @@ class MgSiO3_RTPress(models.RTPressEos):
             kind_compress=kind_compress,
             compress_path_const=compress_path_const,
             kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+            ref_energy_type=ref_energy_type,
             RTpoly_order=RTpoly_order, natom=natom )
         pass
 
@@ -392,11 +395,11 @@ class MgSiO3_RTPress(models.RTPressEos):
         mexp = 0.6
         K0 = 12.73
         KP0 = 8.391
-        F0 = -20.5985
+        E0 = -20.5985
         gamma0 = 0.134
         gammap0 = -2.113
-        # NOTE: the python standard puts the highest order coefficients first
-        bcoef_a = np.array([-6.97, -6.39, +0.122, +0.688, +1.0027])[::-1]
+        # NOTE: this is increasing order
+        bcoef_a = np.array([+1.0027, +0.688, +0.122, -6.39, -6.97])
         Cvlimfac = 1.0
 
         # ndof=6
@@ -405,7 +408,7 @@ class MgSiO3_RTPress(models.RTPressEos):
 
         self.set_param_values([S0,V0,mexp,Cvlimfac],
                               param_names=['S0','V0','mexp','Cvlimfac'])
-        self.set_param_values([K0,KP0,F0], param_names=['K0','KP0','F0'])
+        self.set_param_values([K0,KP0,E0], param_names=['K0','KP0','E0'])
         self.set_param_values([gamma0,gammap0],
                                  param_names=['gamma0','gammap0'])
 

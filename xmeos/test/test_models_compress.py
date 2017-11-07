@@ -1,4 +1,4 @@
-from __future__ import absolute_import, print_function, division, with_statement
+# from __future__ import absolute_import, print_function, division, with_statement
 from builtins import object
 import numpy as np
 import xmeos
@@ -50,6 +50,17 @@ class BaseTestCompressEos(test_models.BaseTestEos):
         eos_mod = self.load_eos(path_const=path_const)
 
         V0, = eos_mod.get_param_values(param_names='V0')
+        V0 += -.137
+        eos_mod.set_param_values(V0,param_names='V0')
+
+        V0get, = eos_mod.get_param_values(param_names='V0')
+
+        assert V0 == V0get, 'Must be able to store and retrieve non-integer values'
+
+        assert np.abs(eos_mod.press(V0))<TOL/100,(
+            'pressure at V0 must be zero by definition'
+        )
+
         Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
         dV = Vmod_a[1] - Vmod_a[0]
 

@@ -500,7 +500,7 @@ class RTPolyEos(CompositeEos):
         V_a, T_a = core.fill_array(V_a, T_a)
 
         thermal_calc = self._calculators['thermal']
-        a_V, b_V = self._calc_RTcoefs(V_a)
+        a_V, b_V = self.calc_RTcoefs(V_a)
 
         # Tref_path, theta_ref = self.ref_temp_path(V_a)
 
@@ -533,7 +533,7 @@ class RTPolyEos(CompositeEos):
         V_a, T_a = core.fill_array(V_a, T_a)
 
         thermal_calc = self.calculators['thermal']
-        a_V, b_V = self._calc_RTcoefs(V_a)
+        a_V, b_V = self.calc_RTcoefs(V_a)
 
         heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
         return heat_capacity_a
@@ -591,7 +591,7 @@ class RTPolyEos(CompositeEos):
         self._param_ref_scales = param_ref_scales
         pass
 
-    def _calc_RTcoefs(self, V_a):
+    def calc_RTcoefs(self, V_a):
         bcoef_calc = self._calculators['bcoef']
         acoef_calc = self._calculators['acoef']
 
@@ -599,7 +599,7 @@ class RTPolyEos(CompositeEos):
         b_V = bcoef_calc.calc_coef(V_a)
         return a_V, b_V
 
-    def _calc_RTcoefs_deriv(self, V_a):
+    def calc_RTcoefs_deriv(self, V_a):
         bcoef_calc = self._calculators['bcoef']
         acoef_calc = self._calculators['acoef']
 
@@ -675,7 +675,7 @@ class RTPressEos(CompositeEos):
         V_a, T_a = core.fill_array(V_a, T_a)
 
         thermal_calc = self.calculators['thermal']
-        b_V = self._calc_RTcoefs(V_a)
+        b_V = self.calc_RTcoefs(V_a)
 
         heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
         return heat_capacity_a
@@ -710,8 +710,8 @@ class RTPressEos(CompositeEos):
         PV_ratio, = core.get_consts(['PV_ratio'])
         mexp = self.get_param_values(param_names='mexp')
 
-        b_V = self._calc_RTcoefs(V_a)
-        b_deriv_V = self._calc_RTcoefs_deriv(V_a)
+        b_V = self.calc_RTcoefs(V_a)
+        b_deriv_V = self.calc_RTcoefs_deriv(V_a)
 
         Tref_adiabat = self.ref_temp_adiabat(V_a)
 
@@ -744,7 +744,7 @@ class RTPressEos(CompositeEos):
         PV_ratio, = core.get_consts(['PV_ratio'])
         mexp = self.get_param_values(param_names='mexp')
 
-        b_deriv_V = self._calc_RTcoefs_deriv(V_a)
+        b_deriv_V = self.calc_RTcoefs_deriv(V_a)
 
         dtherm_dev = (
             thermal_calc._calc_therm_dev(T_a)
@@ -768,7 +768,7 @@ class RTPressEos(CompositeEos):
         V_a, T_a = core.fill_array(V_a, T_a)
         T0 = self.refstate.ref_temp()
 
-        b_V = self._calc_RTcoefs(V_a)
+        b_V = self.calc_RTcoefs(V_a)
         thermal_calc = self.calculators['thermal']
         # T0, = self.get_param_values(param_names=['T0',])
 
@@ -780,7 +780,7 @@ class RTPressEos(CompositeEos):
 
         Tref_adiabat = self.ref_temp_adiabat(V_a)
         thermal_calc = self._calculators['thermal']
-        b_V = self._calc_RTcoefs(V_a)
+        b_V = self.calc_RTcoefs(V_a)
 
         thermal_entropy_a = thermal_calc._calc_entropy(
             T_a, bcoef=b_V, Tref=Tref_adiabat)
@@ -875,8 +875,8 @@ class RTPressEos(CompositeEos):
 
         gamma0S = gamma_calc._calc_gamma(V_a)
 
-        bcoef = self._calc_RTcoefs(V_a)
-        bcoef_deriv = self._calc_RTcoefs_deriv(V_a)
+        bcoef = self.calc_RTcoefs(V_a)
+        bcoef_deriv = self.calc_RTcoefs_deriv(V_a)
 
         entropy_pot_a = thermal_calc._calc_entropy_pot(
             T_a, bcoef=bcoef, Tref=T0S)
@@ -936,18 +936,24 @@ class RTPressEos(CompositeEos):
         self._param_ref_scales = param_ref_scales
         pass
 
-    def _calc_RTcoefs(self, V_a):
+    def calc_RT_vol_dev(self, V_a):
+        bcoef_calc = self._calculators['bcoef']
+        vol_dev = bcoef_calc._calc_vol_dev(V_a)
+        return vol_dev
+
+    def calc_RTcoefs(self, V_a):
         bcoef_calc = self._calculators['bcoef']
 
         b_V = bcoef_calc.calc_coef(V_a)
         return b_V
 
-    def _calc_RTcoefs_deriv(self, V_a):
+    def calc_RTcoefs_deriv(self, V_a):
         bcoef_calc = self._calculators['bcoef']
 
         b_deriv_V = bcoef_calc.calc_coef_deriv(V_a)
         return b_deriv_V
 #====================================================================
+
 
 #====================================================================
 class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
@@ -1050,7 +1056,7 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
         if kind=='V':
             vol_dev = V_a/V0 - 1
         elif kind=='logV':
-            vol_dev = np.log(V0/V_a)
+            vol_dev = np.log(V_a/V0)
         elif kind=='rho':
             vol_dev = V0/V_a - 1
 
@@ -1063,7 +1069,7 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
         if kind=='V':
             vol_dev_deriv = 1/V0*np.ones(V_a.shape)
         elif kind=='logV':
-            vol_dev_deriv = -1/V_a
+            vol_dev_deriv = +1/V_a
         elif kind=='rho':
             vol_dev_deriv = -V0/V_a**2
 

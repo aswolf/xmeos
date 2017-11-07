@@ -67,7 +67,15 @@ class TestThomas2013():
 #====================================================================
 class TestMgSiO3RTPress():
     def test_basic_isotherms(self):
+        show_plots=False
+
         eos_mod = eoslib.MgSiO3_RTPress()
+
+        calc_V = models.composite._RTPolyCalc(eos_mod, kind='V', order=4, coef_basename='bcoef')
+
+        calc_logV = models.composite._RTPolyCalc(eos_mod, kind='logV',order=4, coef_basename='bcoef')
+
+
         refstate_calc = eos_mod.calculators['refstate']
 
         V0  = refstate_calc.ref_volume()
@@ -86,24 +94,28 @@ class TestMgSiO3RTPress():
         # assert False, 'stop'
         # V_a = eos_mod.volume(P_a, T)
 
-        plt.ion()
-        plt.figure()
-        plt.plot(V_a/V0,P2500_a,'b-')
-        plt.plot(V_a/V0,P3000_a,'k-')
-        plt.plot(V_a/V0,P5000_a,'r-')
-        plt.ylim(-1,179)
-        plt.xlim(0.4,1.13)
+        if show_plots:
+            plt.ion()
+            plt.figure()
+            plt.plot(V_a/V0,P2500_a,'b-')
+            plt.plot(V_a/V0,P3000_a,'k-')
+            plt.plot(V_a/V0,P5000_a,'r-')
+            plt.ylim(-1,179)
+            plt.xlim(0.4,1.13)
 
-        plt.ion()
-        plt.figure()
-        plt.plot(V_a/V0,E2500_a,'b-')
-        plt.plot(V_a/V0,E3000_a,'k-')
-        plt.plot(V_a/V0,E5000_a,'r-')
-        plt.xlim(0.4,1.13)
+            plt.figure()
+            plt.plot(V_a/V0,E2500_a,'b-')
+            plt.plot(V_a/V0,E3000_a,'k-')
+            plt.plot(V_a/V0,E5000_a,'r-')
+            plt.xlim(0.4,1.13)
+
+            plt.figure()
+            plt.plot(V_a, calc_V.calc_coef(V_a),'k-',
+                     V_a, calc_logV.calc_coef(V_a),'r--')
 
 
+            eos_mod.thermal_press(V_a, 5000)
 
-        eos_mod.thermal_press(V_a, 5000)
-        # assert False
+            assert False
 
 #====================================================================

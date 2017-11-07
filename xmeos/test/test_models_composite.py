@@ -335,8 +335,8 @@ class TestRTPolyEos(test_models.BaseTestEos):
         Vmod_a = np.linspace(.5,1.2,Nsamp)*V0
         dV = Vmod_a[1] - Vmod_a[0]
 
-        acoef_a, bcoef_a = eos_mod._calc_RTcoefs(Vmod_a)
-        acoef_deriv_a, bcoef_deriv_a = eos_mod._calc_RTcoefs_deriv(Vmod_a)
+        acoef_a, bcoef_a = eos_mod.calc_RTcoefs(Vmod_a)
+        acoef_deriv_a, bcoef_deriv_a = eos_mod.calc_RTcoefs_deriv(Vmod_a)
 
         a_abs_err, a_rel_err, a_range_err = self.numerical_deriv(
             Vmod_a, acoef_a, acoef_deriv_a, scale=1)
@@ -401,19 +401,19 @@ class TestRTPressEos(test_models.BaseTestEos):
                      kind_gamma='GammaFiniteStrain',
                      RTpoly_order=5, natom=1):
 
-        self._calc_test_RTcoefs(kind_compress=kind_compress,
+        self.calc_test_RTcoefs(kind_compress=kind_compress,
                                 compress_path_const=compress_path_const,
                                 kind_gamma=kind_gamma, kind_RTpoly='V',
                                 RTpoly_order=RTpoly_order, natom=natom)
 
-        self._calc_test_RTcoefs(kind_compress=kind_compress,
+        self.calc_test_RTcoefs(kind_compress=kind_compress,
                                 compress_path_const=compress_path_const,
                                 kind_gamma=kind_gamma, kind_RTpoly='logV',
                                 RTpoly_order=RTpoly_order, natom=natom)
 
         pass
 
-    def _calc_test_RTcoefs(self, kind_compress='Vinet',
+    def calc_test_RTcoefs(self, kind_compress='Vinet',
                            compress_path_const='T',
                            kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
                            RTpoly_order=5, natom=1):
@@ -430,8 +430,8 @@ class TestRTPressEos(test_models.BaseTestEos):
         Vmod_a = np.linspace(.5,1.2,Nsamp)*V0
         dV = Vmod_a[1] - Vmod_a[0]
 
-        bcoef_a = eos_mod._calc_RTcoefs(Vmod_a)
-        bcoef_deriv_a = eos_mod._calc_RTcoefs_deriv(Vmod_a)
+        bcoef_a = eos_mod.calc_RTcoefs(Vmod_a)
+        bcoef_deriv_a = eos_mod.calc_RTcoefs_deriv(Vmod_a)
 
         b_abs_err, b_rel_err, b_range_err = self.numerical_deriv(
             Vmod_a, bcoef_a, bcoef_deriv_a, scale=1)
