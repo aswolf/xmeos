@@ -700,6 +700,56 @@ class RTPressEos(CompositeEos):
 
         return Tref_adiabat
 
+    def adiabatic_path(self, Tfoot, P_a):
+        Pfoot = P_a[0]
+        Vfoot = self.volume(Pfoot, Tfoot)
+
+        VTfoot = [Vfoot, Tfoot]
+        soln = integrate.odeint(self._calc_adiabatic_derivs_fun,
+                                VTfoot, P_a)
+        # yvals = soln[0]
+        V_adiabat = soln[:,0]
+        T_adiabat = soln[:,1]
+        return V_adiabat, T_adiabat
+
+    def adiabatic_path_grid(self, Tfoot_grid, Pgrid):
+        Vgrid = np.zeros((len(Tfoot_grid), len(Pgrid)))
+        Tgrid = np.zeros((len(Tfoot_grid), len(Pgrid)))
+
+        for ind, Tfoot in enumerate(Tfoot_grid):
+            iVad, iTad = self.adiabatic_path(Tfoot, Pgrid)
+            Vgrid[ind] = iVad
+            Tgrid[ind] = iTad
+
+        return Vgrid, Tgrid
+
+    def thermal_exp(self, V_a, T_a):
+        gamma_a = self.gamma(V_a, T_a)
+        KT_a = self.bulk_mod(V_a, T_a)
+        CV_a = self.heat_capacity(V_a, T_a)
+
+        alpha_a = core.CONSTS['PV_ratio']*gamma_a/V_a * CV_a/KT_a
+        return alpha_a
+
+    def _calc_adiabatic_derivs_fun(self, VT, P):
+        """
+        Calculate adiabatic derivatives (dTdP_S, dVdP_S)
+        """
+
+        V, T = VT
+        gamma = self.gamma(V, T)
+        KT = self.bulk_mod(V, T)
+        CV = self.heat_capacity(V, T)
+
+        alpha = core.CONSTS['PV_ratio']*gamma/V * CV/KT
+        KS = KT*(1+alpha*gamma*T)
+
+        dVdP_S = -V/KS
+        # dTdP_S = 1/(alpha*KS)
+        dTdP_S = T/KS*gamma
+
+        return [np.squeeze(dVdP_S), np.squeeze(dTdP_S)]
+
     def _calc_thermal_press_S(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
 
