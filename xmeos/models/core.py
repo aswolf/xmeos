@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, print_function, division
+# from __future__ import absolute_import, print_function, division
 from future.utils import with_metaclass
 
 import numpy as np
@@ -45,10 +45,10 @@ class Eos(with_metaclass(ABCMeta)):
         param_values = self._overwrite_param_values(param_names, param_defaults,
                                                     model_state)
 
-        self._param_names = param_names
-        self._param_units = param_units
-        self._param_scales = param_scales
-        self._param_values = param_values
+        self._param_names = np.array(param_names)
+        self._param_units = np.array(param_units)
+        self._param_scales = np.array(param_scales, dtype=float)
+        self._param_values = np.array(param_values, dtype=float)
 
         pass
 
