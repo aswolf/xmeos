@@ -459,7 +459,7 @@ class TestRTPressEos(test_models.BaseTestEos):
 
         gamma_a = eos_mod.gamma(Vmod_a, T)
         CV_a = eos_mod.heat_capacity(Vmod_a,T)
-        KT_a = eos_mod.bulk_modulus(Vmod_a,T)
+        KT_a = eos_mod.bulk_mod(Vmod_a,T)
 
         alpha_a = models.CONSTS['PV_ratio']*gamma_a/Vmod_a*CV_a/KT_a
         dPdT_a = alpha_a*KT_a
