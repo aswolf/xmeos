@@ -23,7 +23,7 @@ _ref_energy_type_opts = ['E0', 'F0', 'H0', 'G0']
 def validate_refstate_opt(refstate, refstate_opts):
     assert refstate in refstate_opts, (
         refstate + ' is not a valid reference state. '+
-        'You must select one of: ' +  refstate_opts)
+        'You must select one of: ' +  str(refstate_opts))
     pass
 #====================================================================
 def set_calculator(eos_mod, ref_compress_state='P0', ref_thermal_state='T0',

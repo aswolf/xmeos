@@ -20,9 +20,9 @@ __all__ = ['ElectronicEos','ElectronicCalc']
 #====================================================================
 # Base Classes
 #====================================================================
-def set_calculator(eos_mod, kind, kind_opts, external_bcoef=False):
+def set_calculator(eos_mod, kind, kind_opts):
     assert kind in kind_opts, (
-        kind + ' is not a valid thermal calculator. '+
+        kind + ' is not a valid electronic calculator. '+
         'You must select one of: ' + str(kind_opts))
 
     if   kind=='CvPowLaw':

@@ -19,7 +19,7 @@ __all__ = ['GammaEos','GammaCalc']
 def set_calculator(eos_mod, kind, kind_opts):
     assert kind in kind_opts, (
         kind + ' is not a valid thermal calculator. '+
-        'You must select one of: ' +  kind_opts)
+        'You must select one of: ' +  str(kind_opts))
 
     eos_mod._kind = kind
 

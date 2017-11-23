@@ -23,7 +23,7 @@ __all__ = ['ThermalEos','ThermalCalc']
 def set_calculator(eos_mod, kind, kind_opts, external_bcoef=False):
     assert kind in kind_opts, (
         kind + ' is not a valid thermal calculator. '+
-        'You must select one of: ' +  kind_opts)
+        'You must select one of: ' +  str(kind_opts))
 
     if   kind=='Debye':
         calc = _Debye(eos_mod)

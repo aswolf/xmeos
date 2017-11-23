@@ -17,7 +17,7 @@ __all__ = ['CompressEos','CompressCalc']
 def set_calculator(eos_mod, kind, kind_opts, path_const, order=3):
     assert kind in kind_opts, (
         kind + ' is not a valid thermal calculator. '+
-        'You must select one of: ' +  kind_opts)
+        'You must select one of: ' +  str(kind_opts))
 
     if   kind=='Vinet':
         calc = _Vinet(eos_mod, path_const=path_const, order=order)
