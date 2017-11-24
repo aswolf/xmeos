@@ -12,6 +12,7 @@ from . import core
 from . import refstate
 from . import compress
 from . import thermal
+from . import electronic
 from . import gamma
 
 __all__ = ['CompositeEos','MieGruneisenEos','RTPolyEos','RTPressEos']
@@ -616,11 +617,12 @@ class RTPressEos(CompositeEos):
     _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
                            'GenFiniteStrain','Tait','PolyRho']
+    _kind_electronic_opts = ['None','CvPowLaw']
 
     def __init__(self, kind_compress='Vinet', compress_path_const='T',
-                 kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
-                 RTpoly_order=5, natom=1, ref_energy_type='F0',
-                 model_state={}):
+                 kind_gamma='GammaFiniteStrain', kind_electronic='None',
+                 apply_electronic=False, kind_RTpoly='V', RTpoly_order=5,
+                 natom=1, ref_energy_type='F0', model_state={}):
 
         assert compress_path_const=='T', (
             'Only isothermal compress models supported now.')
@@ -636,6 +638,9 @@ class RTPressEos(CompositeEos):
         gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
         thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts,
                                external_bcoef=True)
+        electronic.set_calculator(self, kind_electronic,
+                                  self._kind_electronic_opts,
+                                  apply_correction=apply_electronic)
 
         refstate.set_calculator(self, ref_compress_state=ref_compress_state,
                                 ref_thermal_state=ref_thermal_state,
@@ -650,34 +655,50 @@ class RTPressEos(CompositeEos):
 
     def __repr__(self):
         calc_compress = self.calculators['compress']
-
-        # kind_compress='Vinet', compress_order=None,
-        #          compress_path_const='T', kind_RTpoly='V', RTpoly_order=5,
-        #          natom=1, model_state={}):
+        calc_gamma = self.calculators['gamma']
+        calc_electronic = self.calculators['electronic']
         return ("RTPressEos(kind_compress={kind_compress}, "
                 "compress_path_const={compress_path_const}, "
+                "kind_gamma={kind_gamma}, "
+                "kind_electronic={kind_electronic}, "
+                "apply_electronic={apply_electronic}, "
                 "kind_RTpoly={kind_RTpoly}, "
                 "RTpoly_order={RTpoly_order}, "
                 "natom={natom}, "
                 "model_state={model_state}, "
                 ")"
                 .format(kind_compress=repr(calc_compress.name),
-                        compress_order=repr(calc_compress.order),
+                        compress_path_const=repr(calc_compress.path_const),
+                        kind_gamma=repr(calc_gamma.name),
+                        kind_electronic=repr(calc_electronic.name),
+                        apply_electronic=repr(calc_electronic.apply_correction),
                         kind_RTpoly=repr(self._kind_RTpoly),
                         RTpoly_order=repr(self._RTpoly_order),
-                        compress_path_const=repr(calc_compress.path_const),
                         natom=repr(self.natom),
                         model_state=self.model_state
                         )
                 )
 
+    @property
+    def apply_electronic(self):
+        calc = self.calculators['electronic']
+        return calc.apply_correction
+
+    @apply_electronic.setter
+    def apply_electronic(self, apply_electronic):
+        calc = self.calculators['electronic']
+        calc.apply_correction = apply_electronic
+
     def heat_capacity(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
 
+        electronic_calc = self.calculators['electronic']
         thermal_calc = self.calculators['thermal']
         b_V = self.calc_RTcoefs(V_a)
 
-        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
+        heat_capacity_a = (thermal_calc._calc_heat_capacity(T_a, bcoef=b_V) +
+                           electronic_calc._calc_heat_capacity(V_a, T_a))
+
         return heat_capacity_a
 
     def ref_temp_adiabat(self, V_a):
@@ -840,10 +861,13 @@ class RTPressEos(CompositeEos):
         V_a, T_a = core.fill_array(V_a, T_a)
         P0 = self.refstate.ref_press()
 
+        electronic_calc = self.calculators['electronic']
+
         P_compress_a = self.compress_press(V_a)
         P_therm_a = self.thermal_press(V_a, T_a)
+        P_electronic_a = electronic_calc._calc_press(V_a, T_a)
 
-        press_a = P0 + P_compress_a + P_therm_a
+        press_a = P0 + P_compress_a + P_therm_a + P_electronic_a
         return press_a
 
     def compress_press(self, V_a):
@@ -862,6 +886,8 @@ class RTPressEos(CompositeEos):
     def internal_energy(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
         compress_calc = self.calculators['compress']
+        electronic_calc = self.calculators['electronic']
+
         compress_path_const = compress_calc.path_const
         assert compress_path_const=='T', (
             'Only isothermal compress models supported now.')
@@ -888,10 +914,11 @@ class RTPressEos(CompositeEos):
         Sref = self.entropy(V_a, T0)
         E_compress = F_compress + T0*Sref
 
+        E_electronic_a = electronic_calc._calc_energy(V_a, T_a)
 
         thermal_energy_a = self.thermal_energy(V_a, T_a)
 
-        internal_energy_a = E0 + E_compress + thermal_energy_a
+        internal_energy_a = E0 + E_compress + thermal_energy_a + E_electronic_a
         return internal_energy_a
 
     def helmholtz_energy(self, V_a, T_a):
@@ -907,9 +934,12 @@ class RTPressEos(CompositeEos):
         V_a, T_a = core.fill_array(V_a, T_a)
         S0 = self.refstate.ref_entropy()
 
+        electronic_calc = self.calculators['electronic']
+
         thermal_entropy_a = self.thermal_entropy(V_a, T_a)
 
-        entropy_a = S0 + thermal_entropy_a
+        entropy_a = (S0 + thermal_entropy_a +
+                     electronic_calc._calc_entropy(V_a, T_a))
         return entropy_a
 
     def gamma(self, V_a, T_a):
@@ -917,6 +947,7 @@ class RTPressEos(CompositeEos):
 
         gamma_calc = self.calculators['gamma']
         thermal_calc = self._calculators['thermal']
+        electronic_calc = self.calculators['electronic']
 
         T0S = self.ref_temp_adiabat(V_a)
 
@@ -934,7 +965,8 @@ class RTPressEos(CompositeEos):
         term1 = gamma0S/V_a*CV_0S
         term2 = bcoef_deriv/bcoef*entropy_pot_a
         # dSdV_T =  gamma0S/V_a*CV_0S + bcoef/bcoef_deriv*entropy_pot_a
-        dSdV_T =  term1 + term2
+        term_electronic = electronic_calc._calc_dSdV_T(V_a, T_a)
+        dSdV_T =  term1 + term2 + term_electronic
 
         # This ONLY works if T is const
         # dV = np.diff(V_a)[0]

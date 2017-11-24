@@ -20,13 +20,15 @@ __all__ = ['ElectronicEos','ElectronicCalc']
 #====================================================================
 # Base Classes
 #====================================================================
-def set_calculator(eos_mod, kind, kind_opts):
+def set_calculator(eos_mod, kind, kind_opts, apply_correction=False):
     assert kind in kind_opts, (
         kind + ' is not a valid electronic calculator. '+
         'You must select one of: ' + str(kind_opts))
 
-    if   kind=='CvPowLaw':
-        calc = _CvPowLaw(eos_mod)
+    if   kind=='None':
+        calc = _None(eos_mod, apply_correction=apply_correction)
+    elif kind=='CvPowLaw':
+        calc = _CvPowLaw(eos_mod, apply_correction=apply_correction)
     else:
         raise NotImplementedError(kind+' is not a valid '+\
                                   'Electronic Calculator.')
@@ -43,23 +45,35 @@ class ElectronicEos(with_metaclass(ABCMeta, core.Eos)):
 
     """
 
-    _kind_opts = ['CvPowLaw']
+    _kind_opts = ['None','CvPowLaw']
 
-    def __init__(self, kind='CvPowLaw', natom=1, model_state={}):
+    def __init__(self, kind='None', natom=1, apply_correction=True, model_state={}):
         self._pre_init(natom=natom)
-        set_calculator(self, kind, self._kind_opts)
+        set_calculator(self, kind, self._kind_opts,
+                       apply_correction=apply_correction)
         self._post_init(model_state=model_state)
         pass
+
+    @property
+    def apply_correction(self):
+        calc = self.calculators['electronic']
+        return calc.apply_correction
+
+    @apply_correction.setter
+    def apply_correction(self, apply_correction):
+        calc = self.calculators['electronic']
+        calc.apply_correction = apply_correction
 
     def __repr__(self):
         calc = self.calculators['electronic']
         return ("ElectronicEos(kind={kind}, natom={natom}, "
-                "model_state={model_state}, "
-                ")"
-                .format(kind=repr(calc.name),
-                        natom=repr(self.natom),
-                        model_state=self.model_state
-                        )
+                "apply_correction={apply_correction}, "
+                "model_state={model_state}, )".format(
+                    kind=repr(calc.name),
+                    natom=repr(self.natom),
+                    apply_correction=repr(calc.apply_correction),
+                    model_state=self.model_state
+                    )
                 )
 
     def heat_capacity(self, V_a, T_a):
@@ -81,7 +95,6 @@ class ElectronicEos(with_metaclass(ABCMeta, core.Eos)):
         calculator = self.calculators['electronic']
         energy_a =  calculator._calc_press(V_a, T_a)
         return energy_a
-
 #====================================================================
 
 #====================================================================
@@ -94,19 +107,29 @@ class ElectronicCalc(with_metaclass(ABCMeta, core.Calculator)):
     """
 
 
-    def __init__(self, eos_mod):
+    def __init__(self, eos_mod, apply_correction=True):
         # assert path_const in self.path_opts, path_const + ' is not a valid ' + \
         #     'path const. You must select one of: ' + path_opts
 
         self._eos_mod = eos_mod
         self._init_params()
         self._required_calculators = None
+        self.apply_correction = apply_correction
         pass
 
 
     @property
     def ndof(self):
         return self._ndof
+
+    @property
+    def apply_correction(self):
+        return self._apply_correction
+
+    @apply_correction.setter
+    def apply_correction(self, apply_correction):
+        assert apply_correction in [True, False], 'apply_correction must be a boolean'
+        self._apply_correction = apply_correction
 
     ####################
     # Required Methods #
@@ -123,20 +146,56 @@ class ElectronicCalc(with_metaclass(ABCMeta, core.Calculator)):
         return Cv_scale
 
     @abstractmethod
+    def _do_calc_heat_capacity(self, V_a, T_a):
+        pass
+
+    @abstractmethod
+    def _do_calc_entropy(self, V_a, T_a):
+        pass
+
+    @abstractmethod
+    def _do_calc_dSdV_T(self, V_a, T_a):
+        pass
+
+    @abstractmethod
+    def _do_calc_energy(self, V_a, T_a):
+        pass
+
+    @abstractmethod
+    def _do_calc_press(self, V_a, T_a):
+        pass
+
     def _calc_heat_capacity(self, V_a, T_a):
-        pass
+        if self.apply_correction:
+            return self._do_calc_heat_capacity(V_a, T_a)
+        else:
+            return 0
 
-    @abstractmethod
     def _calc_entropy(self, V_a, T_a):
+        if self.apply_correction:
+            return self._do_calc_entropy(V_a, T_a)
+        else:
+            return 0
         pass
 
-    @abstractmethod
+    def _calc_dSdV_T(self, V_a, T_a):
+        if self.apply_correction:
+            return self._do_calc_dSdV_T(V_a, T_a)
+        else:
+            return 0
+        pass
+
     def _calc_energy(self, V_a, T_a):
-        pass
+        if self.apply_correction:
+            return self._do_calc_energy(V_a, T_a)
+        else:
+            return 0
 
-    @abstractmethod
     def _calc_press(self, V_a, T_a):
-        pass
+        if self.apply_correction:
+            return self._do_calc_press(V_a, T_a)
+        else:
+            return 0
 
     ####################
     # Optional Methods #
@@ -202,8 +261,9 @@ class _CvPowLaw(ElectronicCalc):
 
     """
 
-    def __init__(self, eos_mod):
-        super(_CvPowLaw, self).__init__(eos_mod)
+    def __init__(self, eos_mod, apply_correction=True):
+        super(_CvPowLaw, self).__init__(
+            eos_mod, apply_correction=apply_correction)
         pass
 
     def _init_params(self):
@@ -268,7 +328,7 @@ class _CvPowLaw(ElectronicCalc):
         vals[T_a <= Tel] = 0
         return vals
 
-    def _calc_heat_capacity(self, V_a, T_a):
+    def _do_calc_heat_capacity(self, V_a, T_a):
         """Returns electronic heat capacity."""
 
         V_a, T_a = core.fill_array(V_a, T_a)
@@ -280,7 +340,7 @@ class _CvPowLaw(ElectronicCalc):
         Cv_values = self._apply_electron_threshold(V_a, T_a, Cv_values)
         return Cv_values
 
-    def _calc_energy(self, V_a, T_a):
+    def _do_calc_energy(self, V_a, T_a):
         """Returns electronic energy."""
 
         V_a, T_a = core.fill_array(V_a, T_a)
@@ -292,7 +352,7 @@ class _CvPowLaw(ElectronicCalc):
         energy = self._apply_electron_threshold(V_a, T_a, energy)
         return energy
 
-    def _calc_entropy(self, V_a, T_a):
+    def _do_calc_entropy(self, V_a, T_a):
         """Returns electronic entropy."""
 
         V_a, T_a = core.fill_array(V_a, T_a)
@@ -304,7 +364,27 @@ class _CvPowLaw(ElectronicCalc):
         entropy = self._apply_electron_threshold(V_a, T_a, entropy)
         return entropy
 
-    def _calc_press(self, V_a, T_a):
+    def _do_calc_dSdV_T(self, V_a, T_a):
+        """Returns electronic entropy."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        CvFac = self._calc_CvFac(V_a)
+        CvFac_deriv = self._calc_CvFac(V_a, deriv=1)
+
+        Tel = self._calc_Tel(V_a)
+        Tel_deriv = self._calc_Tel(V_a, deriv=1)
+
+        dSdV_T = (CvFac_deriv*(T_a - Tel - Tel*np.log(T_a/Tel))
+                  +GCvFac*(0-Tel_deriv-Tel_deriv*np.log(T_a/Tel) +Tel_deriv))
+
+        # -Tel*np.log(T_a/Tel) = -Tel*np.log(T_a)+Tel*np.log(Tel)
+        # -Tel_deriv*np.log(T_a)+Tel_deriv*np.log(Tel)+Tel/Tel*Tel_deriv
+
+        dSdV_T = self._apply_electron_threshold(V_a, T_a, dSdV_T)
+        return dSdV_T
+
+    def _do_calc_press(self, V_a, T_a):
         """Returns electronic press."""
 
         PV_ratio, = core.get_consts(['PV_ratio'])
@@ -322,4 +402,61 @@ class _CvPowLaw(ElectronicCalc):
 
         press = self._apply_electron_threshold(V_a, T_a, press)
         return press
+#====================================================================
+class _None(ElectronicCalc):
+    """
+    Implimentation copied from Burnman.
+
+    """
+
+    def __init__(self, eos_mod, apply_correction=True):
+        super(_None, self).__init__(
+            eos_mod, apply_correction=apply_correction)
+        pass
+
+    def _init_params(self):
+        """Initialize list of calculator parameter names."""
+
+        V0 = 100.0
+        CvelFac0, CvelFacExp = 3.0e-4, +0.6
+        Tel0, TelExp = 3000.0, -0.3
+
+        param_names = []
+        param_units = []
+        param_defaults = []
+        param_scales = []
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales)
+        pass
+
+    def _do_calc_heat_capacity(self, V_a, T_a):
+        """Returns electronic heat capacity."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return np.zeros(V_a.shape)
+
+    def _do_calc_energy(self, V_a, T_a):
+        """Returns electronic energy."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return np.zeros(V_a.shape)
+
+    def _do_calc_entropy(self, V_a, T_a):
+        """Returns electronic entropy."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return np.zeros(V_a.shape)
+
+    def _do_calc_dSdV_T(self, V_a, T_a):
+        """Returns electronic entropy derivative dSdV_T."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return np.zeros(V_a.shape)
+
+    def _do_calc_press(self, V_a, T_a):
+        """Returns electronic press."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return np.zeros(V_a.shape)
 #====================================================================

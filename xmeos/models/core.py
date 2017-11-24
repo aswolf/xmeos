@@ -135,10 +135,12 @@ class Eos(with_metaclass(ABCMeta)):
             Type of calculator object.
 
         """
-        assert isinstance(calc,Calculator), \
-            'calc must be a valid Calculator object instance.'
+        if calc is not None:
+            assert isinstance(calc,Calculator), \
+                'calc must be a valid Calculator object instance.'
 
-        self._calculators[calc_type] = calc
+            self._calculators[calc_type] = calc
+
         pass
 
     #####################
