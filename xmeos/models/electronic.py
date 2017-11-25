@@ -376,7 +376,7 @@ class _CvPowLaw(ElectronicCalc):
         Tel_deriv = self._calc_Tel(V_a, deriv=1)
 
         dSdV_T = (CvFac_deriv*(T_a - Tel - Tel*np.log(T_a/Tel))
-                  +GCvFac*(0-Tel_deriv-Tel_deriv*np.log(T_a/Tel) +Tel_deriv))
+                  +CvFac*(0-Tel_deriv-Tel_deriv*np.log(T_a/Tel) +Tel_deriv))
 
         # -Tel*np.log(T_a/Tel) = -Tel*np.log(T_a)+Tel*np.log(Tel)
         # -Tel_deriv*np.log(T_a)+Tel_deriv*np.log(Tel)+Tel/Tel*Tel_deriv
