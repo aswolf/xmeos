@@ -166,6 +166,138 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
         props['therm_exp'] = alpha
         props['gamma'] = gamma
         return props
+
+    def adiabatic_path(self, Tfoot, P_a):
+        Pfoot = P_a[0]
+        Vfoot = self.volume(Pfoot, Tfoot)
+
+        VTfoot = [Vfoot, Tfoot]
+        soln = integrate.odeint(self._calc_adiabatic_derivs_fun,
+                                VTfoot, P_a)
+        # yvals = soln[0]
+        V_adiabat = soln[:,0]
+        T_adiabat = soln[:,1]
+        return V_adiabat, T_adiabat
+
+    def adiabatic_path_grid(self, Tfoot_grid, Pgrid):
+        Vgrid = np.zeros((len(Tfoot_grid), len(Pgrid)))
+        Tgrid = np.zeros((len(Tfoot_grid), len(Pgrid)))
+
+        for ind, Tfoot in enumerate(Tfoot_grid):
+            iVad, iTad = self.adiabatic_path(Tfoot, Pgrid)
+            Vgrid[ind] = iVad
+            Tgrid[ind] = iTad
+
+        return Vgrid, Tgrid
+
+    def hugoniot(self, rhofaclims, rhoinit, Tinit, Etrans=0, Ttrans=None,
+                 isobar_trans=True, Nsamp=30, Pshift=0):
+
+        rho_a = rhoinit*np.linspace(rhofaclims[0],rhofaclims[1],Nsamp)
+        T_a = np.zeros(rho_a.shape)
+        P_a = np.zeros(rho_a.shape)
+        E_a = np.zeros(rho_a.shape)
+        V_a = np.zeros(rho_a.shape)
+
+        hugoniot_d = {}
+        hugoniot_d['rhoinit'] = rhoinit
+        hugoniot_d['Tinit'] = Tinit
+        hugoniot_d['Etrans'] = Etrans
+
+        for ind,rho in enumerate(rho_a):
+            hugoniot_dev_d = self._calc_hugoniot_dev(
+                rho, rhoinit, Tinit, Etrans=Etrans, Ttrans=Ttrans,
+                isobar_trans=isobar_trans, Pshift=Pshift)
+
+            P_a[ind] = hugoniot_dev_d['Phug']
+            T_a[ind] = hugoniot_dev_d['Thug']
+            E_a[ind] = hugoniot_dev_d['Ehug']
+            V_a[ind] = hugoniot_dev_d['V']
+
+        hugoniot_d['P_a'] = P_a
+        hugoniot_d['T_a'] = T_a
+        hugoniot_d['E_a'] = E_a
+        hugoniot_d['V_a'] = V_a
+        hugoniot_d['rho_a'] = rho_a
+
+        return hugoniot_d
+
+    def _calc_hugoniot_dev(self, rho, rhoinit, Tinit, Etrans=0, Ttrans=None,
+                           isobar_trans=True, logTfaclim=[-1.5,1.5],
+                           Nsamp=3001, Pshift=0):
+
+        PV_ratio = core.CONSTS['PV_ratio']
+        molar_mass = self.molar_mass
+
+        Pinit=0
+        # rho=1/V*eos_d['param_d']['mass_avg']/const_d['Nmol']*const_d['ang3percc']
+        # rhoinit=1/Vinit*eos_d['param_d']['mass_avg']/const_d['Nmol']*const_d['ang3percc']
+
+        V=1/rho*molar_mass/core.CONSTS['Nmol']*core.CONSTS['ang3percc']
+        Vinit=1/rhoinit*molar_mass/core.CONSTS['Nmol']*core.CONSTS['ang3percc']
+
+        T_a = Tinit*np.logspace(logTfaclim[0],logTfaclim[1],Nsamp)
+
+        if Ttrans is None:
+            Ttrans = Tinit
+
+        if isobar_trans:
+            V0 = self.get_param_values(param_names='V0')
+            logVfac = optimize.fsolve(lambda logVfac: self.press(np.exp(logVfac)*V0,Ttrans)+Pshift-Pinit,0.0)
+            Vtrans = np.exp(logVfac)*V0
+        else:
+            Vtrans = Vinit
+
+        Einit = self.internal_energy(Vtrans, Ttrans)-Etrans
+        # Pinit = full_mod.press(Vinit, Tinit, eos_d)
+
+        E_a = self.internal_energy(V, T_a)
+        delE_a = E_a-Einit
+
+        P_a = self.press(V, T_a)+Pshift
+        Pavg_a = 0.5*(P_a+Pinit)
+
+        delV = V-Vinit
+
+        Eshock_a = -delV*Pavg_a/PV_ratio
+        Edev_a = delE_a-Eshock_a
+
+        indmin = np.argmin(np.abs(Edev_a))
+
+        Ploc_a = P_a[indmin-3:indmin+3]
+        Tloc_a = T_a[indmin-3:indmin+3]
+        Eloc_a = Eshock_a[indmin-3:indmin+3]
+        Edevloc_a = Edev_a[indmin-3:indmin+3]
+
+        Thug = interpolate.interp1d(Edevloc_a, Tloc_a, kind='cubic')(0)
+        Phug = interpolate.interp1d(Edevloc_a, Ploc_a, kind='cubic')(0)
+        Ehug = interpolate.interp1d(Edevloc_a, Eloc_a, kind='cubic')(0)
+
+        # optimize.fsolve(
+
+        # Phug = P_a[indmin]
+        # Thug = T_a[indmin]
+        # return delE_a-Eshock_a
+
+        hugoniot_dev_d = {}
+        hugoniot_dev_d['rho'] = rho
+        hugoniot_dev_d['rhoinit'] = rhoinit
+        hugoniot_dev_d['V'] = V
+        hugoniot_dev_d['Vinit'] = Vinit
+        hugoniot_dev_d['Tinit'] = Tinit
+        hugoniot_dev_d['Einit'] = Einit
+        hugoniot_dev_d['Etrans'] = Etrans
+        hugoniot_dev_d['T_a'] = T_a
+        hugoniot_dev_d['P_a'] = P_a
+        hugoniot_dev_d['E_a'] = E_a
+        hugoniot_dev_d['delE_a'] = delE_a
+        hugoniot_dev_d['Eshock_a'] = Eshock_a
+        hugoniot_dev_d['Phug'] = Phug
+        hugoniot_dev_d['Thug'] = Thug
+        hugoniot_dev_d['Ehug'] = Ehug
+        hugoniot_dev_d['indmin'] = indmin
+
+        return hugoniot_dev_d
 #====================================================================
 class MieGruneisenEos(CompositeEos):
     _kind_thermal_opts = ['Debye','Einstein','ConstHeatCap']
@@ -622,7 +754,7 @@ class RTPressEos(CompositeEos):
     def __init__(self, kind_compress='Vinet', compress_path_const='T',
                  kind_gamma='GammaFiniteStrain', kind_electronic='None',
                  apply_electronic=False, kind_RTpoly='V', RTpoly_order=5,
-                 natom=1, ref_energy_type='F0', model_state={}):
+                 ref_energy_type='F0', natom=1, molar_mass=20, model_state={}):
 
         assert compress_path_const=='T', (
             'Only isothermal compress models supported now.')
@@ -631,7 +763,7 @@ class RTPressEos(CompositeEos):
         ref_compress_state='P0'
         ref_thermal_state='T0'
 
-        self._pre_init(natom=natom)
+        self._pre_init(natom=natom, molar_mass=molar_mass)
 
         compress.set_calculator(self, kind_compress, self._kind_compress_opts,
                                 path_const=compress_path_const)
@@ -665,6 +797,7 @@ class RTPressEos(CompositeEos):
                 "kind_RTpoly={kind_RTpoly}, "
                 "RTpoly_order={RTpoly_order}, "
                 "natom={natom}, "
+                "molar_mass={molar_mass}, "
                 "model_state={model_state}, "
                 ")"
                 .format(kind_compress=repr(calc_compress.name),
@@ -675,6 +808,7 @@ class RTPressEos(CompositeEos):
                         kind_RTpoly=repr(self._kind_RTpoly),
                         RTpoly_order=repr(self._RTpoly_order),
                         natom=repr(self.natom),
+                        molar_mass=repr(self.molar_mass),
                         model_state=self.model_state
                         )
                 )
@@ -720,29 +854,6 @@ class RTPressEos(CompositeEos):
         Tref_adiabat, V_a = core.fill_array(Tref_adiabat, V_a)
 
         return Tref_adiabat
-
-    def adiabatic_path(self, Tfoot, P_a):
-        Pfoot = P_a[0]
-        Vfoot = self.volume(Pfoot, Tfoot)
-
-        VTfoot = [Vfoot, Tfoot]
-        soln = integrate.odeint(self._calc_adiabatic_derivs_fun,
-                                VTfoot, P_a)
-        # yvals = soln[0]
-        V_adiabat = soln[:,0]
-        T_adiabat = soln[:,1]
-        return V_adiabat, T_adiabat
-
-    def adiabatic_path_grid(self, Tfoot_grid, Pgrid):
-        Vgrid = np.zeros((len(Tfoot_grid), len(Pgrid)))
-        Tgrid = np.zeros((len(Tfoot_grid), len(Pgrid)))
-
-        for ind, Tfoot in enumerate(Tfoot_grid):
-            iVad, iTad = self.adiabatic_path(Tfoot, Pgrid)
-            Vgrid[ind] = iVad
-            Tgrid[ind] = iTad
-
-        return Vgrid, Tgrid
 
     def thermal_exp(self, V_a, T_a):
         gamma_a = self.gamma(V_a, T_a)
@@ -1428,18 +1539,18 @@ class PolyRegressEos(CompositeEos):
 
 
 #====================================================================
-class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
+class _GeneralPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
     _kind_opts = ['V','logV']
 
-    def __init__(self, eos_mod, order=6, kind='logV', coef_basename='bcoef'):
+    def __init__(self, eos_mod, order=6, kind='V', coef_basename='bcoef'):
 
         if kind not in self._kind_opts:
             raise NotImplementedError(
-                'kind '+kind+' is not valid for RTPolyCalc.')
+                'kind '+kind+' is not valid for GeneralPolyCalc.')
 
         if ((not np.isscalar(order)) | (order < 0) | (np.mod(order,0) !=0)):
             raise ValueError(
-                'order ' + str(order) +' is not valid for RTPolyCalc. '+
+                'order ' + str(order) +' is not valid for GeneralPolyCalc. '+
                 'It must be a positive integer.')
 
         self._eos_mod = eos_mod
@@ -1448,6 +1559,68 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
 
         self._init_params(order)
         self._required_calculators = None
+
+    def _get_polyval_coef(self):
+        coef_basename = self._coef_basename
+
+        param_names = self.eos_mod.get_array_param_names(coef_basename)
+        param_values = self.eos_mod.get_param_values(param_names=param_names)
+
+        coef_index = core.get_array_param_index(param_names)
+        order = np.max(coef_index)+1
+        param_full = np.zeros(order)
+        param_full[coef_index] = param_values
+
+        coefs_a = param_full[::-1]  # Reverse array for np.polyval
+        return coefs_a
+
+    def _calc_vol_dev(self, V_a):
+        kind = self._kind
+        V0 = self.eos_mod.get_param_values(param_names='V0')
+
+        if kind=='V':
+            vol_dev = V_a/V0 - 1
+        elif kind=='logV':
+            vol_dev = np.log(V_a/V0)
+        elif kind=='rho':
+            vol_dev = V0/V_a - 1
+
+        return vol_dev
+
+    def _calc_vol_dev_deriv(self, V_a):
+        kind = self._kind
+        V0 = self.eos_mod.get_param_values(param_names='V0')
+
+        if kind=='V':
+            vol_dev_deriv = 1/V0*np.ones(V_a.shape)
+        elif kind=='logV':
+            vol_dev_deriv = +1/V_a
+        elif kind=='rho':
+            vol_dev_deriv = -V0/V_a**2
+
+        return vol_dev_deriv
+
+    def calc_coef(self, V_a):
+        vol_dev = self._calc_vol_dev(V_a)
+        coefs_a = self._get_polyval_coef()
+        coef_V = np.polyval(coefs_a, vol_dev)
+        return coef_V
+
+    def calc_coef_deriv(self, V_a):
+        vol_dev = self._calc_vol_dev(V_a)
+        vol_dev_deriv = self._calc_vol_dev_deriv(V_a)
+        coefs_a = self._get_polyval_coef()
+        order = coefs_a.size-1
+        coefs_deriv_a = np.polyder(coefs_a)
+        coef_deriv_V = vol_dev_deriv * np.polyval(coefs_deriv_a, vol_dev)
+        return coef_deriv_V
+#====================================================================
+class _RTPolyCalc(with_metaclass(ABCMeta, _GeneralPolyCalc)):
+
+    def __init__(self, eos_mod, order=6, kind='V', coef_basename='bcoef'):
+        super(_RTPolyCalc, self).__init__(eos_mod, order=order, kind=kind,
+                                          coef_basename=coef_basename)
+        pass
 
     def _init_params(self, order):
         kind = self._kind
@@ -1496,8 +1669,8 @@ class _RTPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
             param_defaults[0:order+1] = coefs[0:order+1]
 
         param_scales = [1 for ind in range(0,order+1)]
-        param_units = core.make_array_param_units(param_names, base_unit='kJ/g',
-                                                  deriv_unit='(cc/g)')
+        param_units = core.make_array_param_units(
+            param_names, base_unit='kJ/g', deriv_unit='(cc/g)')
 
         param_names.append('V0')
         param_defaults.append(V0)
