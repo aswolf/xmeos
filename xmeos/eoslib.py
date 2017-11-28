@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from abc import ABCMeta, abstractmethod
 import copy
+from scipy import interpolate
+from scipy import signal
 
 __all__ = ['get_Di_melt_Thomas2013']
 
@@ -154,7 +156,7 @@ def calc_comp_details(comp_d, kind='wt'):
     comp_details['atomspermol'] = atomspermol
 
     return comp_details
-
+#====================================================================
 class CMASF_melt_Thomas2013(CompositeEos):
     def __init__(self, meltcomp, kind='endmem'):
         # self._comp_d = calc_comp_details(meltcomp, kind=kind)
@@ -360,7 +362,7 @@ class CMASF_melt_Thomas2013(CompositeEos):
         eos_mod.set_param_values([Cvlimfac], param_names=['Cvlimfac'])
 
         return eos_mod, comp_d
-
+#====================================================================
 class MgSiO3_RTPress(models.RTPressEos):
     def __init__(self):
         self.init_eos()
@@ -370,18 +372,21 @@ class MgSiO3_RTPress(models.RTPressEos):
         kind_compress='Vinet'
         compress_path_const='T'
         kind_gamma='GammaFiniteStrain'
-        kind_RTpoly='logV'
+        kind_electronic='CvPowLaw'
+        kind_RTpoly='V'
         # kind_RTpoly='V'
-        ref_energy_type='E0'
         RTpoly_order=4
+        ref_energy_type='E0'
         natom=1
+        molar_mass = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
 
         super().__init__(
             kind_compress=kind_compress,
             compress_path_const=compress_path_const,
             kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+            kind_electronic=kind_electronic, apply_electronic=True,
             ref_energy_type=ref_energy_type,
-            RTpoly_order=RTpoly_order, natom=natom )
+            RTpoly_order=RTpoly_order, natom=natom, molar_mass=molar_mass)
         pass
 
     def load_params(self):
@@ -391,17 +396,22 @@ class MgSiO3_RTPress(models.RTPressEos):
         ref_state['T0'] = T0
 
         S0 = 0.0
-        V0 = 12.970 # Ang^3/atom
+        V0 = 12.94925 # Ang^3/atom
         mexp = 0.6
-        K0 = 12.73
-        KP0 = 8.391
-        E0 = -20.5985
-        gamma0 = 0.134
-        gammap0 = -2.113
+        K0 = 13.2000
+        KP0 = 8.23837
+        E0 = -20.595341
+        gamma0 = 0.189943
+        gammap0 = -1.94024
         # NOTE: this is increasing order
-        bcoef_a = np.array([+1.0027, +0.688, +0.122, -6.39, -6.97])
+        bcoef_a = np.array([+0.982133, +0.6149976, +1.3104885,
+                            -3.04036, -4.1027947])
         Cvlimfac = 1.0
 
+        CvelFac0 = 2.271332e-4
+        CvelFacExp = 0.677736
+        Tel0 = 2466.6
+        TelExp = -0.45780
         # ndof=6
         # self.ndof = ndof
 
@@ -415,6 +425,158 @@ class MgSiO3_RTPress(models.RTPressEos):
         bcoef_names = self.get_array_param_names('bcoef')
         # print("***************")
         # print(bcoef_names)
+        # print(bcoef_a)
         # print("***************")
         self.set_param_values(bcoef_a, param_names=bcoef_names)
+
+        self.set_param_values([Tel0,TelExp], param_names=['Tel0','TelExp'])
+        self.set_param_values([CvelFac0,CvelFacExp],
+                              param_names=['CvelFac0','CvelFacExp'])
         pass
+#====================================================================
+class MgSiO3_deKoker2009_PTherm(models.PThermPolyEos):
+    def __init__(self):
+        self.init_eos()
+        self.load_params()
+
+    def init_eos(self):
+        # Equivalent to Stixrude2005, Stixrude2009
+        logscale = True
+        kind_Pth = 'V'
+        Pth_order = 5
+        kind_gamma = 'GammaPowLaw'
+        kind_compress = 'Vinet'
+
+        ref_energy_type='E0'
+        natom=1
+        molar_mass = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
+
+        super().__init__(logscale=logscale, kind_Pth=kind_Pth,
+                         Pth_order=Pth_order, kind_gamma=kind_gamma,
+                         kind_compress=kind_compress,
+                         ref_energy_type=ref_energy_type,
+                         natom=natom, molar_mass=molar_mass)
+        pass
+
+    def load_params(self, Nsamp=1001):
+        T0 = 3000
+        # self.set_refstate('T0',T0)
+        ref_state = self.refstate.ref_state
+        ref_state['T0'] = T0
+        # Natom = 5
+#
+        # Vconv = 1./Natom*core.CONSTS['ang3percc']/core.CONSTS['Nmol']
+        # # (ang^3/atom) / (cc/mol)
+        # Econv = 1./Natom/core.CONSTS['kJ_molpereV'] # (eV/atom) / (kJ/mol)
+#
+        # # Equivalent to Stixrude2005, Stixrude2009
+        # T0 = 3000
+#
+        # Vref = 38.88 # cm^3/mol
+        # V0 = Vref*Vconv
+#
+        # dirnm = 'data/'
+        # # extract data and store
+#
+        # Pref_dK09_a = np.loadtxt(
+        #     dirnm+'MgSiO3-P3000-deKoker2009.csv', skiprows=1, delimiter=',')
+        # Eref_dK09_a = np.loadtxt(
+        #     dirnm+'MgSiO3-E3000-deKoker2009.csv', skiprows=1, delimiter=',')
+        # gamma_dK09_a = np.loadtxt(
+        #     dirnm+'MgSiO3-gamma-deKoker2009.csv', skiprows=1, delimiter=',')
+        # Ptherm_dK09_a = np.loadtxt(
+        #     dirnm+'MgSiO3-Ptherm-deKoker2009.csv', skiprows=1, delimiter=',')
+#
+        # # Get data lims of ALL datasets
+        # Vfac_min = np.max((Pref_dK09_a[0,0], Eref_dK09_a[0,0],
+        #                    gamma_dK09_a[0,0], Ptherm_dK09_a[0,0]))
+        # Vfac_max = np.min((Pref_dK09_a[-1,0], Eref_dK09_a[-1,0],
+        #                    gamma_dK09_a[-1,0], Ptherm_dK09_a[-1,0]))
+#
+        # Vfac_a = np.linspace(Vfac_min, Vfac_max, Nsamp)
+        # V_a = Vfac_a*V0
+#
+        # Pref_a = interpolate.interp1d(
+        #     Pref_dK09_a[:,0], Pref_dK09_a[:,1], kind='cubic')(Vfac_a)
+        # Eref_a = interpolate.interp1d(
+        #     Eref_dK09_a[:,0], Eref_dK09_a[:,1], kind='cubic')(Vfac_a)
+        # gamma_a = interpolate.interp1d(
+        #     gamma_dK09_a[:,0], gamma_dK09_a[:,1], kind='cubic')(Vfac_a)
+        # Ptherm_a = interpolate.interp1d(
+        #     Ptherm_dK09_a[:,0], Ptherm_dK09_a[:,1], kind='cubic')(Vfac_a)
+#
+        # Pref_a = signal.savgol_filter(Pref_a, 301, 3)
+        # Eref_a = signal.savgol_filter(Eref_a, 301, 3)
+        # gamma_a = signal.savgol_filter(gamma_a, 301, 3)
+        # Ptherm_a = signal.savgol_filter(Ptherm_a, 201, 3)
+#
+        # # plt.clf()
+        # # plt.plot(Pref_dK09_a[:,0], Pref_dK09_a[:,1], 'ko', Vfac_a, Pref_a, 'r-' )
+        # # plt.clf()
+        # # plt.plot(Eref_dK09_a[:,0], Eref_dK09_a[:,1], 'ko', Vfac_a, Eref_a, 'r-' )
+#
+        # # plt.clf()
+        # # plt.plot(gamma_dK09_a[:,0], gamma_dK09_a[:,1], 'ko', Vfac_a, gamma_a, 'r-' )
+#
+        # # plt.clf()
+        # # plt.plot(Ptherm_dK09_a[:,0], Ptherm_dK09_a[:,1], 'ko', Vfac_a, Ptherm_a, 'r-' )
+#
+        # param_d = {}
+        # param_d['V0'] = V0
+        # param_d['mass_avg'] = eos_mod.molar_mass
+#
+        # miegrun_d = {}
+        # miegrun_d['const_d'] = const_d
+        # miegrun_d['Vmin'] = V_a[0]
+        # miegrun_d['Vmax'] = V_a[-1]
+        # miegrun_d['T0'] = T0
+        # miegrun_d['V'] = V_a
+#
+        # # Pref_f = interpolate.interp1d(V_a,Pref_a)
+        # # Eref_f = interpolate.interp1d(V_a,Econv*Eref_a)
+        # # gamma_f = interpolate.interp1d(V_a,gamma_a)
+        # # Ptherm_f = interpolate.interp1d(V_a,Ptherm_a)
+#
+        # # miegrun_d['Vref_T0'] = V_a
+        # # miegrun_d['Pref_T0'] = Pref_a
+        # # miegrun_d['Eref_T0'] = Eref_a*Econv
+        # # miegrun_d['gamma'] = gamma_a
+        # # miegrun_d['Ptherm'] = Ptherm_a
+#
+        # # miegrun_d['Pref_f'] = Pref_f
+        # # miegrun_d['Eref_f'] = Eref_f
+        # # miegrun_d['gamma_f'] = gamma_f
+        # # miegrun_d['Ptherm_f'] = Ptherm_f
+#
+        # # miegrun_mod = miegrun_eos_mod()
+#
+        # from IPython import embed; embed(); import ipdb as pdb; pdb.set_trace()
+        # full_mod = miegrun_eos_mod()
+        # full_mod.update_lookup_tables(miegrun_d,Vref_a=V_a, Pref_a=Pref_a,
+        #                               Eref_a=Eref_a*Econv, gamma_a=gamma_a,
+        #                               Ptherm_a=Ptherm_a)
+#
+        # modtype_d = {}
+        # modtype_d['FullMod'] = full_mod
+        # miegrun_d['modtype_d'] = modtype_d
+        # miegrun_d['param_d'] = param_d
+#
+        # # return miegrun_d
+#
+        # self.set_param_values([S0,V0,mexp,Cvlimfac],
+        #                       param_names=['S0','V0','mexp','Cvlimfac'])
+        # self.set_param_values([K0,KP0,E0], param_names=['K0','KP0','E0'])
+        # self.set_param_values([gamma0,gammap0],
+        #                          param_names=['gamma0','gammap0'])
+#
+        # bcoef_names = self.get_array_param_names('bcoef')
+        # # print("***************")
+        # # print(bcoef_names)
+        # # print("***************")
+        # self.set_param_values(bcoef_a, param_names=bcoef_names)
+#
+        # self.set_param_values([Tel0,TelExp], param_names=['Tel0','TelExp'])
+        # self.set_param_values([CvelFac0,CvelFacExp],
+        #                       param_names=['CvelFac0','CvelFacExp'])
+        pass
+#====================================================================

@@ -50,6 +50,16 @@ class RefStateCalc(with_metaclass(ABCMeta, core.Calculator)):
         # self._init_state_funcs()
         # self._init_internal_energy()
         self._init_required_calculators()
+        self.ref_energy_type = ref_energy_type
+        pass
+
+    @property
+    def ref_energy_type(self):
+        return self._ref_energy_type
+
+    @ref_energy_type.setter
+    def ref_energy_type(self, ref_energy_type):
+        self._ref_energy_type = ref_energy_type
         pass
 
     def _init_state_params(self, ref_compress_state, ref_thermal_state,

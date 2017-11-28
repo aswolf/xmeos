@@ -30,7 +30,7 @@ class Eos(with_metaclass(ABCMeta)):
         self._post_init()
         pass
 
-    def _pre_init(self, natom=1, molar_mass=100):
+    def _pre_init(self, natom=1, molar_mass=20):
         # self._init_all_calculators()
         self._calculators = {}
         self._natom=natom
