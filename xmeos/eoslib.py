@@ -369,22 +369,22 @@ class MgSiO3_RTPress(models.RTPressEos):
         self.load_params()
 
     def init_eos(self):
-        kind_compress='Vinet'
-        compress_path_const='T'
-        kind_gamma='GammaFiniteStrain'
-        kind_electronic='CvPowLaw'
-        kind_RTpoly='V'
-        # kind_RTpoly='V'
-        RTpoly_order=4
-        ref_energy_type='E0'
-        natom=1
+        kind_compress = 'Vinet'
+        compress_path_const = 'T'
+        kind_gamma = 'GammaFiniteStrain'
+        kind_electronic = 'CvPowLaw'
+        apply_electronic = True
+        kind_RTpoly = 'V'
+        RTpoly_order = 4
+        ref_energy_type = 'E0'
+        natom = 1
         molar_mass = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
 
         super().__init__(
             kind_compress=kind_compress,
             compress_path_const=compress_path_const,
             kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
-            kind_electronic=kind_electronic, apply_electronic=True,
+            kind_electronic=kind_electronic, apply_electronic=apply_electronic,
             ref_energy_type=ref_energy_type,
             RTpoly_order=RTpoly_order, natom=natom, molar_mass=molar_mass)
         pass
