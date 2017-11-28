@@ -15,7 +15,8 @@ from . import thermal
 from . import electronic
 from . import gamma
 
-__all__ = ['CompositeEos','MieGruneisenEos','RTPolyEos','RTPressEos']
+__all__ = ['CompositeEos','MieGruneisenEos','PThermPolyEos',
+           'RTPolyEos','RTPressEos']
 
 # class RTPolyEos(with_metaclass(ABCMeta, core.Eos)):
 # class RTPressEos(with_metaclass(ABCMeta, core.Eos)):
@@ -300,7 +301,7 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
         return hugoniot_dev_d
 #====================================================================
 class MieGruneisenEos(CompositeEos):
-    _kind_thermal_opts = ['Debye','Einstein','ConstHeatCap']
+    _kind_thermal_opts = ['Debye','Einstein','PThermPoly','ConstHeatCap']
     _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
                            'GenFiniteStrain','Tait']
@@ -543,10 +544,190 @@ class MieGruneisenEos(CompositeEos):
         internal_energy_a = E0 + E_compress_a + E_therm_a
         return internal_energy_a
 #====================================================================
+class PThermPolyEos(CompositeEos):
+    _kind_thermal_opts = ['PTherm']
+    _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
+    _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
+                           'GenFiniteStrain','Tait']
+
+    def __init__(self, logscale=True, kind_Pth='V', Pth_order=5,
+                 kind_gamma='GammaPowLaw', kind_compress='Vinet', natom=1,
+                 ref_energy_type='E0', molar_mass=20, model_state={}):
+
+        kind_thermal='PTherm'
+        compress_path_const='T'
+        # _logPThermPolyCalc
+        # _logPThermPolyCalc(self, order=5, kind='V')
+
+        ref_compress_state='P0'
+        ref_thermal_state='T0'
+
+        self._pre_init(natom=natom, molar_mass=molar_mass)
+
+        compress.set_calculator(self, kind_compress, self._kind_compress_opts,
+                                path_const=compress_path_const)
+        refstate.set_calculator(self, ref_compress_state=ref_compress_state,
+                                ref_thermal_state=ref_thermal_state,
+                                ref_energy_type=ref_energy_type)
+        gamma.set_calculator(self, kind_gamma, self._kind_gamma_opts)
+        thermal.set_calculator(self, kind_thermal, self._kind_thermal_opts)
+
+        self.logscale = logscale
+
+        # set poly calcs
+        Pth_calc = _logPThermPolyCalc(self, order=Pth_order, kind=kind_Pth)
+
+        self._add_calculator(Pth_calc, calc_type='Pth_coef')
+        self._kind_Pth = kind_Pth
+        self._Pth_order = Pth_order
+
+        self._post_init(model_state=model_state)
+        pass
+
+    def __repr__(self):
+        calc_compress = self.calculators['compress']
+        calc_gamma = self.calculators['gamma']
+        calc_thermal = self.calculators['thermal']
+        calc_refstate = self.calculators['refstate']
+        # kind_compress='Vinet', compress_order=None,
+        #          compress_path_const='T', kind_RTpoly='V', RTpoly_order=5,
+        #          natom=1, model_state={}):
+        return ("ThermalEos(kind_gamma={kind_gamma}, "
+                "kind_compress={kind_compress}, "
+                "ref_energy_type={ref_energy_type}, "
+                "logscale={logscale}, "
+                "kind_Pth={kind_Pth}, "
+                "Pth_order={Pth_order}, "
+                "natom={natom}, "
+                "molar_mass={molar_mass}, "
+                "model_state={model_state}, "
+                ")"
+                .format(kind_gamma=repr(calc_gamma.name),
+                        kind_compress=repr(calc_compress.name),
+                        ref_energy_type=repr(calc_refstate.ref_energy_type),
+                        logscale=repr(self.logscale),
+                        kind_Pth=repr(self._kind_Pth),
+                        Pth_order=repr(self._Pth_order),
+                        natom=repr(self.natom),
+                        molar_mass=repr(self.molar_mass),
+                        model_state=self.model_state
+                        )
+                )
+
+    def press(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        compress_calc = self.calculators['compress']
+
+        P_therm_a = self.thermal_press(V_a, T_a)
+        P_ref_a = compress_calc._calc_press(V_a)
+
+        press_a = P_ref_a + P_therm_a
+        return press_a
+
+    def thermal_press(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        compress_calc = self.calculators['compress']
+        thermal_calc = self.calculators['thermal']
+
+        Pth_coef = self.calc_Pth_coefs(V_a)
+
+        P_therm_a = thermal_calc._calc_press(T_a, Pth=Pth_coef)
+        return P_therm_a
+
+    def thermal_energy(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        compress_calc = self.calculators['compress']
+        gamma_calc = self.calculators['gamma']
+        thermal_calc = self.calculators['thermal']
+
+        Pth_coef = self.calc_Pth_coefs(V_a)
+        gamma_a = gamma_calc.gamma(V_a)
+
+        E_therm_a = thermal_calc._calc_energy(T_a, gamma=gamma_a, Pth=Pth_coef)
+        return E_therm_a
+
+    def compress_energy(self, V_a):
+        V_a = core.fill_array(V_a)
+        compress_calc = self.calculators['compress']
+        F_compress = compress_calc._calc_energy(V_a)
+
+
+        return F_compress
+
+    def internal_energy(self, V_a, T_a):
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        try:
+            E0, = self.get_param_values(param_names=['E0'])
+
+        except:
+            raise NotImplementedError('path const must be E0.')
+
+
+        E_compress_a = self.compress_energy(V_a)
+        E_therm_a = self.thermal_energy(V_a, T_a)
+
+        internal_energy_a = E0 + E_compress_a + E_therm_a
+        return internal_energy_a
+
+    # def heat_capacity(self, V_a, T_a):
+    #     V_a, T_a = core.fill_array(V_a, T_a)
+#
+    #     thermal_calc = self.calculators['thermal']
+    #     a_V, b_V = self.calc_RTcoefs(V_a)
+#
+    #     heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
+    #     return heat_capacity_a
+
+
+    def _set_ref_state(self):
+        compress_calc = self.calculators['compress']
+        compress_path_const = compress_calc.path_const
+
+        V0, K0 = compress_calc.get_param_defaults(['V0','K0'])
+        # redundant T0 declaration
+        T0_scale = 300
+        Cv_scale = 3*self.natom*core.CONSTS['kboltz']
+        S0_scale = Cv_scale*T0_scale
+        energy_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
+
+        if   compress_path_const=='T':
+            param_ref_names = ['T0', 'F0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [T0_scale, 0.0, S0_scale]
+            param_ref_scales = [T0_scale, energy_scale, S0_scale]
+
+        elif compress_path_const=='S':
+            param_ref_names = ['T0', 'E0', 'S0']
+            param_ref_units = ['K', 'eV', 'eV/K']
+            param_ref_defaults = [300, 0.0, S0_scale]
+            param_ref_scales = [300, energy_scale, S0_scale]
+
+        else:
+            raise NotImplementedError(
+                'path_const '+path_const+' is not valid for CompressEos.')
+
+        self._param_ref_names = param_ref_names
+        self._param_ref_units = param_ref_units
+        self._param_ref_defaults = param_ref_defaults
+        self._param_ref_scales = param_ref_scales
+        pass
+
+    def calc_Pth_coefs(self, V_a):
+        Pth_calc = self._calculators['Pth_coef']
+        logPth_V = Pth_calc.calc_coef(V_a)
+        Pth_V = np.exp(logPth_V)
+        return Pth_V
+#====================================================================
     # def bulk_mod(self, V_a, T_a):
     #     calculator = self.calculators['thermal']
     #     energy_a =  calculator._calc_energy(T_a)
     #     return energy_a
+#====================================================================
 class RTPolyEos(CompositeEos):
     _kind_thermal_opts = ['GenRosenfeldTarazona']
     _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
@@ -1679,59 +1860,58 @@ class _RTPolyCalc(with_metaclass(ABCMeta, _GeneralPolyCalc)):
 
         self._set_params(param_names, param_units,
                          param_defaults, param_scales, order=order)
+#====================================================================
+class _logPThermPolyCalc(with_metaclass(ABCMeta, _GeneralPolyCalc)):
+    def __init__(self, eos_mod, order=5, kind='V'):
+        coef_basename='logPth_coef'
+        super(_logPThermPolyCalc, self).__init__(
+            eos_mod, order=order, kind=kind, coef_basename=coef_basename)
+        pass
 
-    def _get_polyval_coef(self):
+    def _init_params(self, order):
+        kind = self._kind
         coef_basename = self._coef_basename
 
-        param_names = self.eos_mod.get_array_param_names(coef_basename)
-        param_values = self.eos_mod.get_param_values(param_names=param_names)
-
-        coef_index = core.get_array_param_index(param_names)
-        order = np.max(coef_index)+1
-        param_full = np.zeros(order)
-        param_full[coef_index] = param_values
-
-        coefs_a = param_full[::-1]  # Reverse array for np.polyval
-        return coefs_a
-
-    def _calc_vol_dev(self, V_a):
-        kind = self._kind
-        V0 = self.eos_mod.get_param_values(param_names='V0')
+        Vref = 38.88 # cm^3/mol
+        Natom = 5
+        Vconv = 1./Natom*core.CONSTS['ang3percc']/core.CONSTS['Nmol']
+        V0 = Vref*Vconv
+        # units on Pth = [GPa/K]
+        base_unit='GPa/K'
 
         if kind=='V':
-            vol_dev = V_a/V0 - 1
+            # Defaults from deKoker2009
+            coefs = np.array([-5.96440829, -1.68059219,  1.12415712,
+                              -0.6361655 ,  1.58385018, -0.34339286])
+            deriv_unit='(ang^3)'
+
         elif kind=='logV':
-            vol_dev = np.log(V_a/V0)
-        elif kind=='rho':
-            vol_dev = V0/V_a - 1
+            # Defaults from deKoker2009
+            coefs = np.array([-5.96467796, -1.66870847,  0.32322974,
+                              -0.04433057, -0.07772874, -0.00781603])
+            deriv_unit='(1)'
 
-        return vol_dev
+        else:
+            raise NotImplemented('This is not a valid Pth_coef kind')
 
-    def _calc_vol_dev_deriv(self, V_a):
-        kind = self._kind
-        V0 = self.eos_mod.get_param_values(param_names='V0')
+        param_names = core.make_array_param_names(
+            coef_basename, order, skipzero=False)
+        param_defaults = [0 for ind in range(0,order+1)]
+        if order>5:
+            param_defaults[0:6] = coefs
+        else:
+            param_defaults[0:order+1] = coefs[0:order+1]
 
-        if kind=='V':
-            vol_dev_deriv = 1/V0*np.ones(V_a.shape)
-        elif kind=='logV':
-            vol_dev_deriv = +1/V_a
-        elif kind=='rho':
-            vol_dev_deriv = -V0/V_a**2
+        param_scales = [1 for ind in range(0,order+1)]
+        param_units = core.make_array_param_units(
+            param_names, base_unit=base_unit, deriv_unit=deriv_unit)
 
-        return vol_dev_deriv
+        # Add V0 to array param lists
+        param_names.append('V0')
+        param_defaults.append(V0)
+        param_scales.append(V0/10)
+        param_units.append('ang^3')
 
-    def calc_coef(self, V_a):
-        vol_dev = self._calc_vol_dev(V_a)
-        coefs_a = self._get_polyval_coef()
-        coef_V = np.polyval(coefs_a, vol_dev)
-        return coef_V
-
-    def calc_coef_deriv(self, V_a):
-        vol_dev = self._calc_vol_dev(V_a)
-        vol_dev_deriv = self._calc_vol_dev_deriv(V_a)
-        coefs_a = self._get_polyval_coef()
-        order = coefs_a.size-1
-        coefs_deriv_a = np.polyder(coefs_a)
-        coef_deriv_V = vol_dev_deriv * np.polyval(coefs_deriv_a, vol_dev)
-        return coef_deriv_V
+        self._set_params(param_names, param_units, param_defaults,
+                         param_scales, order=order)
 #====================================================================

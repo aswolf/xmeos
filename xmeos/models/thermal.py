@@ -29,6 +29,8 @@ def set_calculator(eos_mod, kind, kind_opts, external_bcoef=False):
         calc = _Debye(eos_mod)
     elif kind=='Einstein':
         calc = _Einstein(eos_mod)
+    elif kind=='PTherm':
+        calc = _PTherm(eos_mod)
     elif kind=='GenRosenfeldTarazona':
         calc = _GenRosenfeldTarazona(eos_mod, external_bcoef=external_bcoef)
     elif kind=='ConstHeatCap':
@@ -662,6 +664,91 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
     def _calc_dEdV_S(self, V_a, T_a, theta_a, gamma_a):
         return np.nan
+#====================================================================
+class _PTherm(ThermalCalc):
+    """
+
+    """
+
+    _path_opts=['V']
+    _ndof = 6
+
+    def __init__(self, eos_mod):
+        super(_PTherm, self).__init__(eos_mod, path_const='V')
+        pass
+
+    def _init_params(self):
+        """Initialize list of calculator parameter names."""
+
+        T0 = 300
+        T0_scale = 300
+        Pth0 = 3e-3 # GPa/K
+        gamma0 = 1 # GPa/K
+
+        param_names = ['Pth0', 'gamma0']
+        param_units = ['GPa/K', '1']
+        param_defaults = [Pth0, gamma0]
+        param_scales = [1e-3, 1]
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales)
+
+        pass
+
+    def _calc_press(self, T_a, Pth=None, T0=None):
+        T_a = core.fill_array(T_a)
+
+        if T0 is None:
+            T0 = self.eos_mod.refstate.ref_temp()
+        if Pth is None:
+            Pth, = self.eos_mod.get_param_values(param_names=['Pth0'])
+
+        dPtherm = (T_a-T0)*Pth
+        return dPtherm
+
+    def _calc_energy(self, T_a, gamma=None, Pth=None, T0=None):
+        T_a = core.fill_array(T_a)
+
+        if gamma is None:
+            gamma, = self.eos_mod.get_param_values(param_names=['gamma0'])
+
+        dPtherm = self._calc_press(T_a, Pth=Pth, T0=T0)
+        dEtherm = dPtherm/(core.CONSTS['PV_ratio']*gamma/V)
+        return dEtherm
+
+    def _calc_heat_capacity(self, T_a, gamma=None, V=None, Pth=None, T0=None):
+        """Returns heat capacity as a function of temperature."""
+        T_a = core.fill_array(T_a)
+
+        if gamma is None:
+            gamma, = self.eos_mod.get_param_values(param_names=['gamma0'])
+        if T0 is None:
+            T0 = self.eos_mod.refstate.ref_temp()
+        if V is None:
+            V = self.eos_mod.refstate.ref_volume()
+        if Pth is None:
+            Pth, = self.eos_mod.get_param_values(param_names=['Pth0'])
+
+        V_a, T_a = core.fill_array(V, T_a)
+        Cv = Pth/(core.CONSTS['PV_ratio']*gamma/V_a)
+
+        return Cv
+
+    def _calc_entropy(self, T_a, gamma=None, V=None, Pth=None, T0=None):
+        """Returns heat capacity as a function of temperature."""
+
+        T_a = core.fill_array(T_a)
+
+        Cv_const = self._calc_heat_capacity(T_a, gamma=gamma, V=V,
+                                            Pth=Pth, T0=T0)
+        entropy = Cv_const*np.log(T_a/T0)
+        return entropy
+
+    def _calc_dEdV_T(self, T_a):
+        return None
+
+    def _calc_dEdV_S(self, T_a):
+        return None
 #====================================================================
 class _ConstHeatCap(ThermalCalc):
 

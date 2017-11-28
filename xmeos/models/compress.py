@@ -942,3 +942,85 @@ class _PolyRho(CompressCalc):
 
         pass
 #====================================================================
+class _PolyV(CompressCalc):
+    _name='PolyV'
+
+    def _init_params(self, order):
+        """Initialize list of calculator parameter names."""
+
+        order = 3 # ignore order input
+
+        V0, K0, KP0 = 100, 150, 4
+        param_names = ['V0','K0','KP0']
+        param_units = ['ang^3','GPa','1']
+        param_defaults = [V0,K0,KP0]
+        param_scales = [V0,K0,KP0]
+
+        self._set_params(param_names, param_units,
+                         param_defaults, param_scales, order=order)
+
+        pass
+
+    def _calc_press(self, V_a):
+        V0, K0, KP0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0'])
+
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1/3)
+
+        press_a = 3*K0*(1-x_a)*x_a**(-2)*np.exp(eta*(1-x_a))
+
+        return press_a
+
+    def _calc_energy(self, V_a):
+        V0, K0, KP0 = self.eos_mod.get_param_values(
+            param_names=['V0','K0','KP0'])
+        PV_ratio, = core.get_consts(['PV_ratio'])
+
+        eta = 3/2*(KP0-1)
+        vratio_a = V_a/V0
+        x_a = vratio_a**(1/3)
+
+
+        energy_a = 9*K0*V0/PV_ratio/eta**2*\
+            (1 + (eta*(1-x_a)-1)*np.exp(eta*(1-x_a)))
+
+        return energy_a
+
+    # def get_param_scale_sub(self):
+    #     """Return scale values for each parameter"""
+    #     V0, K0, KP0 = core.get_params(['V0','K0','KP0'])
+    #     PV_ratio, = core.get_consts(['PV_ratio'])
+
+    #     paramkey_a = np.array(['V0','K0','KP0','E0'])
+    #     scale_a = np.array([V0,K0,KP0,K0*V0/PV_ratio])
+
+    #     return scale_a, paramkey_a
+
+    # def _calc_energy_perturb(self, V_a):
+    #     """Returns Energy pertubation basis functions resulting from fractional changes to EOS params."""
+
+    #     V0, K0, KP0, E0 = core.get_params(['V0','K0','KP0','E0'])
+    #     PV_ratio, = core.get_consts(['PV_ratio'])
+
+    #     eta = 3/2*(KP0-1)
+    #     vratio_a = V_a/V0
+    #     x = vratio_a**(1/3)
+
+    #     scale_a, paramkey_a = self.get_param_scale_sub()
+
+    #     # NOTE: CHECK UNITS (PV_RATIO) here
+    #     dEdp_a = 1/PV_ratio*np.vstack\
+    #         ([-3*K0*(eta**2*x*(x-1) + 3*eta*(x-1) - 3*np.exp(eta*(x-1)) + 3)\
+    #           *np.exp(-eta*(x-1))/eta**2,
+    #           -9*V0*(eta*(x-1) - np.exp(eta*(x-1)) + 1)*np.exp(-eta*(x-1))/eta**2,
+    #           27*K0*V0*(2*eta*(x-1) + eta*(-x + (x-1)*(eta*(x-1) + 1) + 1)
+    #                     -2*np.exp(eta*(x-1)) + 2)*np.exp(-eta*(x-1))/(2*eta**3),
+    #           PV_ratio*np.ones(V_a.shape)])
+
+    #     Eperturb_a = np.expand_dims(scale_a,1)*dEdp_a
+    #     #Eperturb_a = np.expand_dims(scale_a)*dEdp_a
+
+    #     return Eperturb_a, scale_a, paramkey_a
+#====================================================================
