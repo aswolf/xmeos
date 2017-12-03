@@ -384,7 +384,7 @@ class MgSiO3_RTPress(models.RTPressEos):
             kind_compress=kind_compress,
             compress_path_const=compress_path_const,
             kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
-            kind_electronic=kind_electronic, apply_electronic=apply_electronic,
+            kind_electronic=kind_electronic, apply_electronic=True,
             ref_energy_type=ref_energy_type,
             RTpoly_order=RTpoly_order, natom=natom, molar_mass=molar_mass)
         pass
