@@ -56,16 +56,17 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
         compress_calc = self.calculators['compress']
         compress_path_const = compress_calc.path_const
 
-        if   compress_path_const=='T':
-            F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
-            E0 = F0 + T0*S0
+        E0 = self.refstate.ref_internal_energy()
+        # if   compress_path_const=='T':
+        #     F0, T0, S0 = self.get_param_values(param_names=['F0','T0','S0'])
+        #     E0 = F0 + T0*S0
 
-        elif (compress_path_const=='S')|(compress_path_const=='0K'):
-            E0, = self.get_param_values(param_names=['E0'])
+        # elif (compress_path_const=='S')|(compress_path_const=='0K'):
+        #     E0, = self.get_param_values(param_names=['E0'])
 
-        else:
-            raise NotImplementedError(
-                'path_const '+path_const+' is not valid for CompressEos.')
+        # else:
+        #     raise NotImplementedError(
+        #         'path_const '+path_const+' is not valid for CompressEos.')
 
         E_compress_a = self.compress_energy(V_a)
         E_therm_a = self.thermal_energy(V_a, T_a)
@@ -147,6 +148,14 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
 
         V = iV
         return V
+
+    def gamma(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        gamma_calc = self.calculators['gamma']
+        gamma0S = gamma_calc._calc_gamma(V_a)
+        gamma = gamma0S
+        return gamma
 
     def material_properties(self, Pref, Tref, Vref=None):
         if Vref is None:
@@ -299,6 +308,25 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
         hugoniot_dev_d['indmin'] = indmin
 
         return hugoniot_dev_d
+
+    def _calc_adiabatic_derivs_fun(self, VT, P):
+        """
+        Calculate adiabatic derivatives (dTdP_S, dVdP_S)
+        """
+
+        V, T = VT
+        gamma = self.gamma(V, T)
+        KT = self.bulk_mod(V, T)
+        CV = self.heat_capacity(V, T)
+
+        alpha = core.CONSTS['PV_ratio']*gamma/V * CV/KT
+        KS = KT*(1+alpha*gamma*T)
+
+        dVdP_S = -V/KS
+        # dTdP_S = 1/(alpha*KS)
+        dTdP_S = T/KS*gamma
+
+        return [np.squeeze(dVdP_S), np.squeeze(dTdP_S)]
 #====================================================================
 class MieGruneisenEos(CompositeEos):
     _kind_thermal_opts = ['Debye','Einstein','PThermPoly','ConstHeatCap']
@@ -310,6 +338,7 @@ class MieGruneisenEos(CompositeEos):
                  kind_compress='Vinet', compress_path_const='T', natom=1,
                  ref_energy_type='F0',
                  model_state={}):
+
         self._pre_init(natom=natom)
 
         ref_compress_state='P0'
@@ -347,45 +376,6 @@ class MieGruneisenEos(CompositeEos):
                         model_state=self.model_state
                         )
                 )
-
-    def _set_ref_state(self):
-        compress_calc = self.calculators['compress']
-        compress_path_const = compress_calc.path_const
-
-        V0, K0 = compress_calc.get_param_defaults(['V0','K0'])
-        # redundant T0 declaration
-        T0_scale = 300
-        Cv_scale = 3*self.natom*core.CONSTS['kboltz']
-        S0_scale = Cv_scale*T0_scale
-        energy_scale = np.round(V0*K0/core.CONSTS['PV_ratio'],decimals=2)
-
-        if   compress_path_const=='T':
-            param_ref_names = ['T0', 'F0', 'S0']
-            param_ref_units = ['K', 'eV', 'eV/K']
-            param_ref_defaults = [T0_scale, 0.0, S0_scale]
-            param_ref_scales = [T0_scale, energy_scale, S0_scale]
-
-        elif compress_path_const=='S':
-            param_ref_names = ['T0', 'E0', 'S0']
-            param_ref_units = ['K', 'eV', 'eV/K']
-            param_ref_defaults = [300, 0.0, S0_scale]
-            param_ref_scales = [300, energy_scale, S0_scale]
-
-        elif compress_path_const=='0K':
-            param_ref_names = []
-            param_ref_units = []
-            param_ref_defaults = []
-            param_ref_scales = []
-
-        else:
-            raise NotImplementedError(
-                'path_const '+path_const+' is not valid for CompressEos.')
-
-        self._param_ref_names = param_ref_names
-        self._param_ref_units = param_ref_units
-        self._param_ref_defaults = param_ref_defaults
-        self._param_ref_scales = param_ref_scales
-        pass
 
     def _calc_theta(self, V_a):
         gamma_calc = self.calculators['gamma']

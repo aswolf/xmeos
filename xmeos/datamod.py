@@ -258,6 +258,7 @@ def calc_resid(datamodel, detail_output=False):
             resid_all.append(residalpha)
 
     resid_a = np.concatenate(resid_all)
+    # from IPython import embed;embed();import ipdb as pdb; pdb.set_trace()
 
     if detail_output==True:
         return output
@@ -278,6 +279,8 @@ def get_fit_params(datamodel):
 def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5):
     if not datamodel['fit_params']:
         assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
+
+    # from IPython import embed;embed();import ipdb as pdb;pdb.set_trace()
 
     param0_a = get_fit_params(datamodel)
 

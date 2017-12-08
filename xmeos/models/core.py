@@ -755,9 +755,9 @@ def fill_array(*arg):
 
     array_list = []
     for var in arg:
-        var_a = np.asarray(var)
+        var_a = np.asarray(1.0*var)
         if var_a.shape==():
-            var_a = np.asarray([var_a])
+            var_a = np.asarray([1.0*var_a])
 
         array_list.append(var_a)
 
