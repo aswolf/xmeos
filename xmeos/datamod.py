@@ -159,7 +159,7 @@ def set_exp_constraint(data, V, T, P, KT=None, alpha=None, wt=1e3):
     data['exp_constraint'] = exp_constraint
     pass
 #====================================================================
-def calc_resid(datamodel, detail_output=False):
+def calc_resid(datamodel, detail_output=False, apply_prior_wt=False):
     """
     Calculate model residuals
 
@@ -257,6 +257,13 @@ def calc_resid(datamodel, detail_output=False):
             residalpha = wt*np.log(alpha_mod/alphaexp)*err_scale['T']/1e4
             resid_all.append(residalpha)
 
+
+    # if apply_prior_wt:
+    #     prior = datamodel['prior']
+    #     corr = prior['corr']
+    #     param_err = prior['param_err']
+    #     cov = np.dot(param_err[:,np.newaxis],param_err[np.newaxis,:])*corr
+
     resid_a = np.concatenate(resid_all)
     # from IPython import embed;embed();import ipdb as pdb; pdb.set_trace()
 
@@ -276,7 +283,8 @@ def get_fit_params(datamodel):
     fit_params = datamodel['fit_params']
     return eos_mod.get_param_values(param_names=fit_params)
 #====================================================================
-def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5):
+def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5,
+        apply_prior_wt=False):
     if not datamodel['fit_params']:
         assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
 
@@ -290,9 +298,10 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5):
         datamodel['bulk_mod_wt'] = None
 
     for i in np.arange(nrepeat):
-        def resid_fun(param_a, datamodel=datamodel):
+        def resid_fun(param_a, datamodel=datamodel,
+                      apply_prior_wt=apply_prior_wt):
             set_fit_params(param_a, datamodel)
-            resid_a = calc_resid(datamodel, )
+            resid_a = calc_resid(datamodel, apply_prior_wt=apply_prior_wt)
             return resid_a
 
         fit_tup = optimize.leastsq(resid_fun, param0_a, full_output=True)

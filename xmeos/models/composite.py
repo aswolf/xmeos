@@ -157,6 +157,14 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
         gamma = gamma0S
         return gamma
 
+    def thermal_exp(self, V_a, T_a):
+        gamma_a = self.gamma(V_a, T_a)
+        KT_a = self.bulk_mod(V_a, T_a)
+        CV_a = self.heat_capacity(V_a, T_a)
+
+        alpha_a = core.CONSTS['PV_ratio']*gamma_a/V_a * CV_a/KT_a
+        return alpha_a
+
     def material_properties(self, Pref, Tref, Vref=None):
         if Vref is None:
             Vref = self.volume(Pref, Tref, Vinit=12.8)[0]
@@ -1025,14 +1033,6 @@ class RTPressEos(CompositeEos):
         Tref_adiabat, V_a = core.fill_array(Tref_adiabat, V_a)
 
         return Tref_adiabat
-
-    def thermal_exp(self, V_a, T_a):
-        gamma_a = self.gamma(V_a, T_a)
-        KT_a = self.bulk_mod(V_a, T_a)
-        CV_a = self.heat_capacity(V_a, T_a)
-
-        alpha_a = core.CONSTS['PV_ratio']*gamma_a/V_a * CV_a/KT_a
-        return alpha_a
 
     def _calc_adiabatic_derivs_fun(self, VT, P):
         """
