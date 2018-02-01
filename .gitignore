@@ -1,9 +1,19 @@
+*.cache
+*.egg-info
+*.egg
+*.EGG
+*.EGG-INFO
+
 #compiled python
 *.pyc
 __pycache__
 #temp vim files
 .*.swp
 .*.swo
+
+# futurize python backup files
+*py.bak
+
 #database binary files
 *.db
 #temp ipython notebook files
@@ -18,3 +28,5 @@ __pycache__
 *.blg
 *.bbl
 *.gz
+
+*.DS_Store
