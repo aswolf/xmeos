@@ -91,6 +91,11 @@ class ElectronicEos(with_metaclass(ABCMeta, core.Eos)):
         energy_a =  calculator._calc_energy(V_a, T_a)
         return energy_a
 
+    def helmholtz_energy(self, V_a, T_a):
+        calculator = self.calculators['electronic']
+        helmholtz_energy_a =  calculator._calc_helmholtz_energy(V_a, T_a)
+        return helmholtz_energy_a
+
     def press(self, V_a, T_a):
         calculator = self.calculators['electronic']
         energy_a =  calculator._calc_press(V_a, T_a)
@@ -162,6 +167,10 @@ class ElectronicCalc(with_metaclass(ABCMeta, core.Calculator)):
         pass
 
     @abstractmethod
+    def _do_calc_helmholtz_energy(self, V_a, T_a):
+        pass
+
+    @abstractmethod
     def _do_calc_press(self, V_a, T_a):
         pass
 
@@ -188,6 +197,12 @@ class ElectronicCalc(with_metaclass(ABCMeta, core.Calculator)):
     def _calc_energy(self, V_a, T_a):
         if self.apply_correction:
             return self._do_calc_energy(V_a, T_a)
+        else:
+            return 0
+
+    def _calc_helmholtz_energy(self, V_a, T_a):
+        if self.apply_correction:
+            return self._do_calc_helmholtz_energy(V_a, T_a)
         else:
             return 0
 
@@ -352,6 +367,22 @@ class _CvPowLaw(ElectronicCalc):
         energy = self._apply_electron_threshold(V_a, T_a, energy)
         return energy
 
+    def _do_calc_helmholtz_energy(self, V_a, T_a):
+        """Returns electronic entropy."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        CvFac = self._calc_CvFac(V_a)
+        Tel = self._calc_Tel(V_a)
+
+        F1 = -CvFac*(.5*(T_a**2 - Tel**2))
+        F2 = +CvFac*T_a*Tel*np.log(T_a/Tel)
+        helmholtz_energy = F1 + F2
+
+        helmholtz_energy = self._apply_electron_threshold( V_a, T_a, helmholtz_energy)
+
+        return helmholtz_energy
+
     def _do_calc_entropy(self, V_a, T_a):
         """Returns electronic entropy."""
 
@@ -396,9 +427,25 @@ class _CvPowLaw(ElectronicCalc):
         Tel = self._calc_Tel(V_a)
         Tel_deriv = self._calc_Tel(V_a, deriv=1)
 
-        press = PV_ratio*(
-            + CvFac_deriv*(0.5*(T_a**2-Tel**2) - T_a*Tel*np.log(T_a/Tel))
-            + CvFac*Tel_deriv*(T_a -Tel -T_a*np.log(T_a/Tel)))
+        # press = -PV_ratio*(
+        #     + CvFac_deriv*(0.5*(T_a**2-Tel**2) - T_a*Tel*np.log(T_a/Tel))
+        #     + CvFac*Tel_deriv*(T_a -Tel -T_a*np.log(T_a/Tel))
+        #     )
+
+        # P1 = -PV_ratio*( -CvFac_deriv*(.5*(T_a**2 - Tel**2)) + CvFac*Tel*Tel_deriv)
+        # P2 = -PV_ratio*( CvFac_deriv*T_a*Tel*np.log(T_a/Tel) + CvFac*T_a*Tel_deriv*np.log(T_a/Tel) - CvFac*T_a*Tel_deriv)
+
+        P1 = -PV_ratio*(
+            -CvFac_deriv*(.5*(T_a**2 - Tel**2))
+            +CvFac*Tel*Tel_deriv
+            )
+        P2 = -PV_ratio*(
+            +CvFac_deriv*T_a*Tel*np.log(T_a/Tel)
+            +CvFac*T_a*Tel_deriv*np.log(T_a/Tel)
+            -CvFac*T_a*Tel_deriv
+            )
+
+        press = P1 + P2
 
         press = self._apply_electron_threshold(V_a, T_a, press)
         return press
@@ -438,6 +485,12 @@ class _None(ElectronicCalc):
 
     def _do_calc_energy(self, V_a, T_a):
         """Returns electronic energy."""
+
+        V_a, T_a = core.fill_array(V_a, T_a)
+        return np.zeros(V_a.shape)
+
+    def _do_calc_helmholtz_energy(self, V_a, T_a):
+        """Returns electronic helmholtz energy."""
 
         V_a, T_a = core.fill_array(V_a, T_a)
         return np.zeros(V_a.shape)

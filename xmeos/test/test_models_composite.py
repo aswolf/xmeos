@@ -387,19 +387,56 @@ class TestRTPolyEos(test_models.BaseTestEos):
 class TestRTPressEos(test_models.BaseTestEos):
     def load_eos(self, kind_compress='Vinet', compress_path_const='T',
                  kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
-                 RTpoly_order=5, natom=1):
+                 RTpoly_order=5, natom=1, kind_electronic='None',
+                 apply_electronic=False):
+
 
         eos_mod = models.RTPressEos(
             kind_compress=kind_compress,
             compress_path_const=compress_path_const,
             kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+            apply_electronic=apply_electronic, kind_electronic=kind_electronic,
             RTpoly_order=RTpoly_order, natom=natom)
 
         return eos_mod
 
+    def test_apply_elec(self, kind_compress='Vinet', compress_path_const='T',
+                     kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
+                     RTpoly_order=5, natom=1):
+
+        Nsamp = 10001
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+                                RTpoly_order=RTpoly_order, natom=natom)
+
+        eos_mod_elec = self.load_eos(kind_compress=kind_compress,
+                                     compress_path_const=compress_path_const,
+                                     kind_gamma=kind_gamma,
+                                     kind_RTpoly=kind_RTpoly,
+                                     RTpoly_order=RTpoly_order, natom=natom,
+                                     kind_electronic='CvPowLaw',
+                                     apply_electronic=True)
+
+
+
+        V0, = eos_mod.get_param_values(param_names='V0')
+        Vmod_a = np.linspace(.5,1.2,Nsamp)*V0
+
+        T= 8000
+
+        dS_elec = eos_mod_elec.entropy(Vmod_a, T) - eos_mod.entropy(Vmod_a, T)
+
+        assert np.all(dS_elec > 0), (
+            'Electronic contribution to entropy must be positive at high temp.'
+        )
+
     def test_RTcoefs(self, kind_compress='Vinet', compress_path_const='T',
                      kind_gamma='GammaFiniteStrain',
                      RTpoly_order=5, natom=1):
+
+
+
 
         self.calc_test_RTcoefs(kind_compress=kind_compress,
                                 compress_path_const=compress_path_const,
@@ -411,12 +448,21 @@ class TestRTPressEos(test_models.BaseTestEos):
                                 kind_gamma=kind_gamma, kind_RTpoly='logV',
                                 RTpoly_order=RTpoly_order, natom=natom)
 
+        self.calc_test_RTcoefs(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly='V',
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic='CvPowLaw',
+                                apply_electronic=True)
+
+
         pass
 
     def calc_test_RTcoefs(self, kind_compress='Vinet',
                            compress_path_const='T',
                            kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
-                           RTpoly_order=5, natom=1):
+                           RTpoly_order=5, natom=1, kind_electronic='None',
+                           apply_electronic=False):
 
         TOL = 1e-3
 
@@ -424,7 +470,9 @@ class TestRTPressEos(test_models.BaseTestEos):
         eos_mod = self.load_eos(kind_compress=kind_compress,
                                 compress_path_const=compress_path_const,
                                 kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
-                                RTpoly_order=RTpoly_order, natom=natom)
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic=kind_electronic,
+                                apply_electronic=apply_electronic)
 
         V0, = eos_mod.get_param_values(param_names='V0')
         Vmod_a = np.linspace(.5,1.2,Nsamp)*V0
@@ -441,6 +489,42 @@ class TestRTPressEos(test_models.BaseTestEos):
 
     def test_heat_capacity_T(self):
         self._calc_test_heat_capacity(compress_path_const='T', RTpoly_order=5)
+        self._calc_test_heat_capacity(compress_path_const='T', RTpoly_order=5,
+                                      kind_electronic='CvPowLaw',
+                                      apply_electronic=True)
+
+    def _calc_test_heat_capacity(self, kind_compress='Vinet',
+                                 compress_path_const='T',
+                                 kind_gamma='GammaFiniteStrain',
+                                 kind_RTpoly='V', RTpoly_order=5, natom=1,
+                                 kind_electronic='None',
+                                 apply_electronic=False):
+
+        TOL = 1e-3
+        Nsamp = 10001
+
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic=kind_electronic,
+                                apply_electronic=apply_electronic)
+
+        Tmod_a = np.linspace(3000.0, 8000.0, Nsamp)
+
+        V0, = eos_mod.get_param_values(param_names=['V0'])
+        # Vmod = V0*(0.6+.5*np.random.rand(Nsamp))
+        Vmod = V0*0.7
+
+        thermal_energy_a = eos_mod.thermal_energy(Vmod, Tmod_a)
+        heat_capacity_a = eos_mod.heat_capacity(Vmod, Tmod_a)
+
+        abs_err, rel_err, range_err = self.numerical_deriv(
+            Tmod_a, thermal_energy_a, heat_capacity_a, scale=1)
+
+        Cvlimfac = eos_mod.calculators['thermal']._get_Cv_limit()
+        assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
+            ', must be less than TOL, ' + np.str(TOL)
 
     def test_gamma(self, kind_compress='Vinet', compress_path_const='T',
                    kind_gamma='GammaFiniteStrain', kind_RTpoly='logV',
@@ -478,36 +562,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         # alpha*K_T
         pass
 
-    def _calc_test_heat_capacity(self, kind_compress='Vinet',
-                                 compress_path_const='T',
-                                 kind_gamma='GammaFiniteStrain', kind_RTpoly='V',
-                                 RTpoly_order=5, natom=1):
-
-        TOL = 1e-3
-        Nsamp = 10001
-
-        eos_mod = self.load_eos(kind_compress=kind_compress,
-                                compress_path_const=compress_path_const,
-                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
-                                RTpoly_order=RTpoly_order, natom=natom)
-
-        Tmod_a = np.linspace(300.0, 3000.0, Nsamp)
-
-        V0, = eos_mod.get_param_values(param_names=['V0'])
-        # Vmod = V0*(0.6+.5*np.random.rand(Nsamp))
-        Vmod = V0*0.7
-
-        thermal_energy_a = eos_mod.thermal_energy(Vmod, Tmod_a)
-        heat_capacity_a = eos_mod.heat_capacity(Vmod, Tmod_a)
-
-        abs_err, rel_err, range_err = self.numerical_deriv(
-            Tmod_a, thermal_energy_a, heat_capacity_a, scale=1)
-
-        Cvlimfac = eos_mod.calculators['thermal']._get_Cv_limit()
-        assert rel_err < TOL, 'rel-error in Cv, ' + np.str(rel_err) + \
-            ', must be less than TOL, ' + np.str(TOL)
-
-    def test_press_T(self):
+    def _test_press_T(self):
         self._calc_test_press(kind_RTpoly='V')
         self._calc_test_press(kind_RTpoly='logV')
 
@@ -516,19 +571,28 @@ class TestRTPressEos(test_models.BaseTestEos):
 
         self._calc_test_press(kind_RTpoly='V', kind_gamma='GammaPowLaw' )
         self._calc_test_press(kind_RTpoly='logV', kind_gamma='GammaPowLaw')
+
+
+        self._calc_test_press(kind_RTpoly='V', kind_gamma='GammaPowLaw',
+                              kind_electronic='CvPowLaw', apply_electronic=True)
         pass
 
     def _calc_test_press(self, kind_compress='Vinet',
                          compress_path_const='T',
                          kind_gamma='GammaFiniteStrain',
-                         kind_RTpoly='V', RTpoly_order=5, natom=1):
+                         kind_RTpoly='V', RTpoly_order=5, natom=1,
+                         kind_electronic='None',
+                         apply_electronic=False):
 
         TOL = 1e-3
         Nsamp = 10001
         eos_mod = self.load_eos(kind_compress=kind_compress,
                                 compress_path_const=compress_path_const,
                                 kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
-                                RTpoly_order=RTpoly_order, natom=natom)
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic=kind_electronic,
+                                apply_electronic=apply_electronic)
+
         refstate_calc = eos_mod.calculators['refstate']
         T0 = refstate_calc.ref_temp()
         V0 = refstate_calc.ref_volume()
@@ -536,7 +600,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         # V0, T0, S0 = eos_mod.get_param_values(param_names=['V0','T0','S0'])
 
         Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
-        T = 4000
+        T = 7000
         dV = Vmod_a[1] - Vmod_a[0]
 
         Tref_path = eos_mod.ref_temp_adiabat(Vmod_a)
@@ -599,6 +663,42 @@ class TestRTPressEos(test_models.BaseTestEos):
 
         # assert False, 'nope'
         assert abs_err < TOL, ('abs error in Press, ' + np.str(range_err) +
+                                 ', must be less than TOL, ' + np.str(TOL))
+
+    def test_press_simple(self, kind_compress='Vinet',
+                         compress_path_const='T',
+                         kind_gamma='GammaFiniteStrain',
+                         kind_RTpoly='V', RTpoly_order=5, natom=1,
+                         kind_electronic='CvPowLaw', apply_electronic=True):
+
+        TOL = 1e-3
+        Nsamp = 10001
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic=kind_electronic,
+                                apply_electronic=apply_electronic)
+
+        refstate_calc = eos_mod.calculators['refstate']
+        T0 = refstate_calc.ref_temp()
+        V0 = refstate_calc.ref_volume()
+        S0 = refstate_calc.ref_entropy()
+        # V0, T0, S0 = eos_mod.get_param_values(param_names=['V0','T0','S0'])
+
+        Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
+        T = 10000
+        dV = Vmod_a[1] - Vmod_a[0]
+
+        P_a = eos_mod.press(Vmod_a, T)
+        F_a = eos_mod.helmholtz_energy(Vmod_a, T)
+        abs_err, rel_err, range_err = self.numerical_deriv(
+              Vmod_a, F_a, P_a, scale=-core.CONSTS['PV_ratio'])
+
+        S_a = eos_mod.entropy(Vmod_a, T)
+
+
+        assert abs_err < TOL, ('abs error in Press, ' + np.str(abs_err) +
                                  ', must be less than TOL, ' + np.str(TOL))
 #====================================================================
 

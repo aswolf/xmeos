@@ -926,7 +926,7 @@ class RTPolyEos(CompositeEos):
 class RTPressEos(CompositeEos):
     _kind_thermal_opts = ['GenRosenfeldTarazona']
     _kind_gamma_opts = ['GammaPowLaw','GammaShiftedPowLaw','GammaFiniteStrain']
-    _kind_compress_opts = ['Vinet','BirchMurn3','BirchMurn4',
+    _kind_compress_opts =['Vinet','BirchMurn3','BirchMurn4',
                            'GenFiniteStrain','Tait','PolyRho']
     _kind_electronic_opts = ['None','CvPowLaw']
 
@@ -1108,9 +1108,13 @@ class RTPressEos(CompositeEos):
         return P_therm_E
 
     def thermal_press(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+        electronic_calc = self.calculators['electronic']
+
+        P_therm_elec = electronic_calc._calc_press(V_a, T_a)
         P_therm_E = self._calc_thermal_press_E(V_a, T_a)
         P_therm_S = self._calc_thermal_press_S(V_a, T_a)
-        P_therm_a = P_therm_E + P_therm_S
+        P_therm_a = P_therm_E + P_therm_S + P_therm_elec
         return P_therm_a
 
     def thermal_energy(self, V_a, T_a):
@@ -1123,33 +1127,39 @@ class RTPressEos(CompositeEos):
 
         b_V = self.calc_RTcoefs(V_a)
         thermal_calc = self.calculators['thermal']
+        electronic_calc = self.calculators['electronic']
         # T0, = self.get_param_values(param_names=['T0',])
 
-        thermal_energy_a = thermal_calc._calc_energy(T_a, bcoef=b_V, Tref=T0)
+        thermal_energy_a = (
+            thermal_calc._calc_energy(T_a, bcoef=b_V, Tref=T0) +
+            electronic_calc._calc_energy(V_a, T_a) )
+
         return  thermal_energy_a
 
     def thermal_entropy(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
 
+        electronic_calc = self.calculators['electronic']
+
         Tref_adiabat = self.ref_temp_adiabat(V_a)
         thermal_calc = self._calculators['thermal']
         b_V = self.calc_RTcoefs(V_a)
 
-        thermal_entropy_a = thermal_calc._calc_entropy(
-            T_a, bcoef=b_V, Tref=Tref_adiabat)
+        thermal_entropy_a = (
+            thermal_calc._calc_entropy(
+                T_a, bcoef=b_V, Tref=Tref_adiabat) +
+            electronic_calc._calc_entropy(V_a, T_a) )
+
         return  thermal_entropy_a
 
     def press(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
         P0 = self.refstate.ref_press()
 
-        electronic_calc = self.calculators['electronic']
-
         P_compress_a = self.compress_press(V_a)
         P_therm_a = self.thermal_press(V_a, T_a)
-        P_electronic_a = electronic_calc._calc_press(V_a, T_a)
 
-        press_a = P0 + P_compress_a + P_therm_a + P_electronic_a
+        press_a = P0 + P_compress_a + P_therm_a
         return press_a
 
     def compress_press(self, V_a):
@@ -1216,12 +1226,9 @@ class RTPressEos(CompositeEos):
         V_a, T_a = core.fill_array(V_a, T_a)
         S0 = self.refstate.ref_entropy()
 
-        electronic_calc = self.calculators['electronic']
-
         thermal_entropy_a = self.thermal_entropy(V_a, T_a)
 
-        entropy_a = (S0 + thermal_entropy_a +
-                     electronic_calc._calc_entropy(V_a, T_a))
+        entropy_a = (S0 + thermal_entropy_a)
         return entropy_a
 
     def gamma(self, V_a, T_a):
