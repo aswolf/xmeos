@@ -1178,7 +1178,7 @@ class RTPressEos(CompositeEos):
     def internal_energy(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
         compress_calc = self.calculators['compress']
-        electronic_calc = self.calculators['electronic']
+        # electronic_calc = self.calculators['electronic']
 
         compress_path_const = compress_calc.path_const
         assert compress_path_const=='T', (
@@ -1206,11 +1206,12 @@ class RTPressEos(CompositeEos):
         Sref = self.entropy(V_a, T0)
         E_compress = F_compress + T0*Sref
 
-        E_electronic_a = electronic_calc._calc_energy(V_a, T_a)
+        # E_electronic_a = electronic_calc._calc_energy(V_a, T_a)
 
         thermal_energy_a = self.thermal_energy(V_a, T_a)
 
-        internal_energy_a = E0 + E_compress + thermal_energy_a + E_electronic_a
+        # internal_energy_a = E0 + E_compress + thermal_energy_a + E_electronic_a
+        internal_energy_a = E0 + E_compress + thermal_energy_a
         return internal_energy_a
 
     def helmholtz_energy(self, V_a, T_a):

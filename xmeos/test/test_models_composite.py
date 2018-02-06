@@ -687,7 +687,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         # V0, T0, S0 = eos_mod.get_param_values(param_names=['V0','T0','S0'])
 
         Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
-        T = 10000
+        T = 8000
         dV = Vmod_a[1] - Vmod_a[0]
 
         P_a = eos_mod.press(Vmod_a, T)
