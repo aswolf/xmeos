@@ -666,10 +666,10 @@ class TestRTPressEos(test_models.BaseTestEos):
                                  ', must be less than TOL, ' + np.str(TOL))
 
     def test_press_simple(self, kind_compress='Vinet',
-                         compress_path_const='T',
-                         kind_gamma='GammaFiniteStrain',
-                         kind_RTpoly='V', RTpoly_order=5, natom=1,
-                         kind_electronic='CvPowLaw', apply_electronic=True):
+                          compress_path_const='T',
+                          kind_gamma='GammaFiniteStrain',
+                          kind_RTpoly='V', RTpoly_order=5, natom=1,
+                          kind_electronic='CvPowLaw', apply_electronic=True):
 
         TOL = 1e-3
         Nsamp = 10001
@@ -700,6 +700,46 @@ class TestRTPressEos(test_models.BaseTestEos):
 
         assert abs_err < TOL, ('abs error in Press, ' + np.str(abs_err) +
                                  ', must be less than TOL, ' + np.str(TOL))
+
+    def test_adiabatic_path(self):
+        self._calc_test_adiabatic_path()
+        self._calc_test_adiabatic_path(kind_electronic='CvPowLaw',
+                                       apply_electronic=True)
+
+    def _calc_test_adiabatic_path(self, kind_compress='Vinet',
+                                  compress_path_const='T',
+                                  kind_gamma='GammaFiniteStrain',
+                                  kind_RTpoly='V', RTpoly_order=5, natom=1,
+                                  kind_electronic='None',
+                                  apply_electronic=False):
+
+        TOL = 1e-3
+        # Nsamp = 10001
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic=kind_electronic,
+                                apply_electronic=apply_electronic)
+
+        V0, = eos_mod.get_param_values(param_names=['V0'])
+        # Vmod = V0*(0.6+.5*np.random.rand(Nsamp))
+        # Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
+        P_a = np.linspace(0,150,101)
+
+        Tfoot = 10000
+        # dV = Vmod_a[1] - Vmod_a[0]
+
+        V_ad, T_ad = eos_mod.adiabatic_path(Tfoot, P_a)
+
+        S = eos_mod.entropy(V_ad, T_ad)
+        dS = S - np.mean(S)
+
+        assert np.all(np.abs(dS)<TOL), (
+            'The entropy must be constant along an adiabat to within TOL.'
+        )
+
+
 #====================================================================
 
 
