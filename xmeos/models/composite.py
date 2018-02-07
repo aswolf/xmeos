@@ -1269,7 +1269,7 @@ class RTPressEos(CompositeEos):
 
     def _set_poly_calculators(self, kind_RTpoly, RTpoly_order):
         bcoef_calc = _RTPolyCalc(self, order=RTpoly_order, kind=kind_RTpoly,
-                                 coef_basename='bcoef')
+                                 coef_basename='bcoef', RTpress=True)
 
         self._add_calculator(bcoef_calc, calc_type='bcoef')
         self._kind_RTpoly = kind_RTpoly
@@ -1796,12 +1796,15 @@ class _GeneralPolyCalc(with_metaclass(ABCMeta, core.Calculator)):
 #====================================================================
 class _RTPolyCalc(with_metaclass(ABCMeta, _GeneralPolyCalc)):
 
-    def __init__(self, eos_mod, order=6, kind='V', coef_basename='bcoef'):
+    def __init__(self, eos_mod, order=6, kind='V', coef_basename='bcoef',
+                 RTpress=False):
+        self.RTpress=RTpress
         super(_RTPolyCalc, self).__init__(eos_mod, order=order, kind=kind,
                                           coef_basename=coef_basename)
         pass
 
     def _init_params(self, order):
+        RTpress = self.RTpress
         kind = self._kind
         coef_basename = self._coef_basename
 
@@ -1809,19 +1812,27 @@ class _RTPolyCalc(with_metaclass(ABCMeta, _GeneralPolyCalc)):
             # Defaults from Spera2011
             # NOTE switch units cc/g -> ang3,  kJ/g -> eV
 
+            V0 = 0.408031
+
             if coef_basename == 'bcoef':
-                shifted_coefs = np.array([-.371466, 7.09542, -45.7362, 139.020,
-                                          -201.487, 112.513])
+
+                if RTpress:
+                    coefs = np.array([+0.9821, +0.615, +1.31,
+                                      -3.0, -4.1,0])
+                else:
+                    shifted_coefs = np.array([-.371466, 7.09542, -45.7362,
+                                              139.020, -201.487, 112.513])
+                    coefs = core.shift_poly(shifted_coefs, xscale=V0)
 
             elif coef_basename == 'acoef':
                 shifted_coefs = np.array([127.116, -3503.98, 20724.4, -60212.0,
                                           86060.5, -48520.4])
 
+                coefs = core.shift_poly(shifted_coefs, xscale=V0)
+
             else:
                 raise NotImplemented('This is not a valid RTcoef type')
 
-            V0 = 0.408031
-            coefs = core.shift_poly(shifted_coefs, xscale=V0)
 
         elif kind=='logV':
             # Defaults from Spera2011

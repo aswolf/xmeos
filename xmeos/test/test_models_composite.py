@@ -739,6 +739,48 @@ class TestRTPressEos(test_models.BaseTestEos):
             'The entropy must be constant along an adiabat to within TOL.'
         )
 
+    def test_adiabatic_path_grid(self):
+        self._calc_test_adiabatic_path_grid()
+        self._calc_test_adiabatic_path_grid(kind_electronic='CvPowLaw',
+                                            apply_electronic=True)
+
+    def _calc_test_adiabatic_path_grid(self, kind_compress='Vinet',
+                                       compress_path_const='T',
+                                       kind_gamma='GammaFiniteStrain',
+                                       kind_RTpoly='V', RTpoly_order=5, natom=1,
+                                       kind_electronic='None',
+                                       apply_electronic=False):
+
+        TOL = 1e-3
+        # Nsamp = 10001
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic=kind_electronic,
+                                apply_electronic=apply_electronic)
+
+        V0, = eos_mod.get_param_values(param_names=['V0'])
+        # Vmod = V0*(0.6+.5*np.random.rand(Nsamp))
+        # Vmod_a = np.linspace(.7,1.2,Nsamp)*V0
+        Pgrid = np.linspace(0,150,31)
+
+        Tfoot_grid = np.array([3000,4000,5000,6000,8000,10000])
+
+        V_ad_grid, T_ad_grid = eos_mod.adiabatic_path_grid(Tfoot_grid, Pgrid)
+
+        S_ad_grid = np.zeros(V_ad_grid.shape)
+        for ind, (iV_ad, iT_ad) in enumerate(zip(V_ad_grid, T_ad_grid)):
+            iS = eos_mod.entropy(iV_ad, iT_ad)
+            S_ad_grid[ind] = iS
+
+        dS_ad_grid = S_ad_grid - np.tile(
+            np.mean(S_ad_grid, axis=1)[:,np.newaxis],(1,Pgrid.size))
+
+        assert np.all(np.abs(dS_ad_grid)<TOL), (
+            'The entropy must be constant along an adiabat to within TOL.'
+        )
+
 
 #====================================================================
 
