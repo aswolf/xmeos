@@ -199,10 +199,10 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
         """Initialize list of calculator parameter names."""
         pass
 
-    # @abstractmethod
-    # def _calc_heat_capacity(self, T_a):
-    #     """Returns heat capacity as a function of temperature."""
-    #     pass
+    @abstractmethod
+    def _calc_heat_capacity(self, T_a, opt_args=None):
+        """Returns heat capacity as a function of temperature."""
+        pass
 
     def _get_Cv_limit(self):
         Cvlimfac, = self.eos_mod.get_param_values(param_names=['Cvlimfac'])
@@ -214,13 +214,13 @@ class ThermalCalc(with_metaclass(ABCMeta, core.Calculator)):
         Cvlim = Cvlimfac*ndof/2*natom*core.CONSTS['kboltz']
         return Cvlim
 
-    # @abstractmethod
-    # def _calc_energy(self, T_a):
-    #     """Returns thermal energy as a function of temperature."""
-    #     pass
+    @abstractmethod
+    def _calc_energy(self, T_a, opt_args=None):
+        """Returns thermal energy as a function of temperature."""
+        pass
 
     @abstractmethod
-    def _calc_entropy(self, T_a):
+    def _calc_entropy(self, T_a, opt_args=None):
         pass
 
     @abstractmethod
@@ -320,8 +320,9 @@ class _Debye(ThermalCalc):
 
         pass
 
-    def _calc_heat_capacity(self, T_a, theta=None):
+    def _calc_heat_capacity(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+        theta, = core.get_opt_args(opt_args, ['theta'])
 
         T_a = core.fill_array(T_a)
         Cvlim = self._get_Cv_limit()
@@ -333,8 +334,10 @@ class _Debye(ThermalCalc):
         Cv_values = Cvlim*_debye.debye_heat_capacity_fun(x)
         return Cv_values
 
-    def _calc_energy(self, T_a, theta=None, T0=None):
+    def _calc_energy(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+
+        theta, T0 = core.get_opt_args(opt_args, ['theta','T0'])
 
         T_a = core.fill_array(T_a)
         Cvlim = self._get_Cv_limit()
@@ -352,9 +355,10 @@ class _Debye(ThermalCalc):
 
         return energy
 
-    def _calc_entropy(self, T_a, theta=None, T0=None, theta0=None):
+    def _calc_entropy(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
 
+        theta, T0, theta0 = core.get_opt_args(opt_args, ['theta','T0','theta0'])
         T_a = core.fill_array(T_a)
         Cvlim = self._get_Cv_limit()
 
@@ -436,8 +440,9 @@ class _Einstein(ThermalCalc):
 
         return flogf
 
-    def _calc_heat_capacity(self, T_a, theta=None):
+    def _calc_heat_capacity(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+        theta, = core.get_opt_args(opt_args, ['theta'])
 
         theta0, = self.eos_mod.get_param_values(param_names=['theta0'])
         Cvlim = self._get_Cv_limit()
@@ -453,8 +458,10 @@ class _Einstein(ThermalCalc):
 
         return Cv_a
 
-    def _calc_energy(self, T_a, theta=None, T0=None):
+    def _calc_energy(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+
+        theta, T0 = core.get_opt_args(opt_args, ['theta', 'T0'])
 
         T_a = core.fill_array(T_a)
         Cvlim = self._get_Cv_limit()
@@ -472,9 +479,10 @@ class _Einstein(ThermalCalc):
             self._calc_energy_factor(x)-self._calc_energy_factor(xref))
         return energy
 
-    def _calc_entropy(self, T_a, theta=None, T0=None, theta0=None):
+    def _calc_entropy(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
 
+        theta, T0, theta0 = core.get_opt_args(opt_args, ['theta','T0','theta0'])
         T_a = core.fill_array(T_a)
         Cvlim = self._get_Cv_limit()
 
@@ -567,8 +575,9 @@ class _GenRosenfeldTarazona(ThermalCalc):
         self._set_params(param_names, param_units,
                          param_defaults, param_scales)
 
-    def _calc_heat_capacity(self, T_a, bcoef=None):
+    def _calc_heat_capacity(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+        bcoef, = core.get_opt_args(opt_args, ['bcoef'])
 
         T_a = core.fill_array(T_a)
         Cvlim = self._get_Cv_limit()
@@ -600,8 +609,10 @@ class _GenRosenfeldTarazona(ThermalCalc):
         dtherm_dev_a = (mexp/T0)*(T_a/T0)**(mexp-1)
         return dtherm_dev_a
 
-    def _calc_energy(self, T_a, bcoef=None, Tref=None):
+    def _calc_energy(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+
+        bcoef, Tref = core.get_opt_args(opt_args, ['bcoef', 'Tref'])
 
         T_a = core.fill_array(T_a)
         Cvlim = self._get_Cv_limit()
@@ -619,8 +630,10 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
         return energy
 
-    def _calc_entropy(self, T_a, bcoef=None, Tref=None):
+    def _calc_entropy(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+
+        bcoef, Tref = core.get_opt_args(opt_args, ['bcoef','Tref'])
 
         Cvlim = self._get_Cv_limit()
 
@@ -640,9 +653,10 @@ class _GenRosenfeldTarazona(ThermalCalc):
 
         return entropy
 
-    def _calc_entropy_pot(self, T_a, bcoef=None, Tref=None):
+    def _calc_entropy_pot(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
 
+        bcoef, Tref = core.get_opt_args(opt_args, ['bcoef','Tref'])
         Cvlim = self._get_Cv_limit()
 
         if bcoef is None:
@@ -706,7 +720,8 @@ class _PTherm(ThermalCalc):
         dPtherm = (T_a-T0)*Pth
         return dPtherm
 
-    def _calc_energy(self, T_a, gamma=None, Pth=None, T0=None):
+    def _calc_energy(self, T_a, opt_args=None):
+        gamma, Pth, T0 = core.get_opt_args(opt_args, ['gamma', 'Pth', 'T0'])
         T_a = core.fill_array(T_a)
 
         if gamma is None:
@@ -716,8 +731,12 @@ class _PTherm(ThermalCalc):
         dEtherm = dPtherm/(core.CONSTS['PV_ratio']*gamma/V)
         return dEtherm
 
-    def _calc_heat_capacity(self, T_a, gamma=None, V=None, Pth=None, T0=None):
+    def _calc_heat_capacity(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+
+        gamma, V, Pth, T0 = core.get_opt_args(
+            opt_args, ['gamma', 'V', 'Pth', 'T0'])
+
         T_a = core.fill_array(T_a)
 
         if gamma is None:
@@ -734,13 +753,16 @@ class _PTherm(ThermalCalc):
 
         return Cv
 
-    def _calc_entropy(self, T_a, gamma=None, V=None, Pth=None, T0=None):
+    def _calc_entropy(self, T_a, opt_args=None):
         """Returns heat capacity as a function of temperature."""
+
+        gamma, V, Pth, T0 = core.get_opt_args(
+            opt_args, ['gamma','V','Pth','T0'])
 
         T_a = core.fill_array(T_a)
 
-        Cv_const = self._calc_heat_capacity(T_a, gamma=gamma, V=V,
-                                            Pth=Pth, T0=T0)
+        opt_args = {'gamma':gamma, 'V':V, 'Pth':Pth, 'T0':T0}
+        Cv_const = self._calc_heat_capacity(T_a, opt_args=opt_args)
         entropy = Cv_const*np.log(T_a/T0)
         return entropy
 
@@ -788,13 +810,14 @@ class _ConstHeatCap(ThermalCalc):
 
         pass
 
-    def _calc_heat_capacity(self, T_a, theta=None, T0=None):
+    def _calc_heat_capacity(self, T_a, opt_args=None):
         """
         Returns heat capacity as a function of temperature.
 
         T0, theta included for compatibility with MieGruneisenEos.
         """
 
+        theta, T0 = core.get_opt_args(opt_args, ['theta','T0'])
         T_a = core.fill_array(T_a)
 
         Cvlimfac, = self.eos_mod.get_param_values(param_names=['Cvlimfac'])
@@ -804,12 +827,14 @@ class _ConstHeatCap(ThermalCalc):
         Cv_a, T_a = core.fill_array(Cv, T_a)
         return Cv_a
 
-    def _calc_energy(self, T_a, theta=None, T0=None):
+    def _calc_energy(self, T_a, opt_args=None):
         """
         Returns heat capacity as a function of temperature.
 
         theta included for compatibility with MieGruneisenEos.
         """
+
+        theta, T0 = core.get_opt_args(opt_args, ['theta', 'T0'])
 
         T_a = core.fill_array(T_a)
         if T0 is None:
@@ -818,23 +843,25 @@ class _ConstHeatCap(ThermalCalc):
         # print(T0)
         # print(theta)
 
-        Cv_a = self._calc_heat_capacity(T_a, T0=T0)
+        Cv_a = self._calc_heat_capacity(T_a, opt_args={'T0':T0})
         energy = Cv_a*(T_a-T0)
 
         return energy
 
-    def _calc_entropy(self, T_a, T0=None, theta=None, theta0=None):
+    def _calc_entropy(self, T_a, opt_args=None):
         """
         Returns heat capacity as a function of temperature.
 
         theta & theta0 included for compatibility with MieGruneisenEos.
         """
 
+        T0, theta, theta0 = core.get_opt_args(opt_args, ['T0','theta','theta0'])
+
         T_a = core.fill_array(T_a)
         if T0 is None:
             T0 = self.eos_mod.refstate.ref_temp()
 
-        Cv_a = self._calc_heat_capacity(T_a, T0=T0)
+        Cv_a = self._calc_heat_capacity(T_a, opt_args={'T0':T0})
         S_a = Cv_a*np.log(T_a/T0)
 
         return S_a

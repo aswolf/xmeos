@@ -450,8 +450,8 @@ class MieGruneisenEos(CompositeEos):
         Tref_path, theta_ref = self.ref_temp_path(V_a)
         thermal_calc = self.calculators['thermal']
 
-        S_compress = thermal_calc._calc_entropy(Tref_path, theta=theta_ref,
-                                                T0=T0, theta0=theta0)
+        opt_args = {'theta':theta_ref, 'T0':T0, 'theta0':theta0}
+        S_compress = thermal_calc._calc_entropy(Tref_path, opt_args=opt_args)
         return S_compress
 
     def thermal_energy(self, V_a, T_a):
@@ -459,8 +459,8 @@ class MieGruneisenEos(CompositeEos):
         Tref_path, theta_ref = self.ref_temp_path(V_a)
         thermal_calc = self.calculators['thermal']
 
-        E_therm_a = thermal_calc._calc_energy(T_a, theta=theta_ref,
-                                              T0=Tref_path)
+        opt_args = {'theta':theta_ref, 'T0':Tref_path}
+        E_therm_a = thermal_calc._calc_energy(T_a, opt_args=opt_args)
         return E_therm_a
 
     def thermal_entropy(self, V_a, T_a):
@@ -468,8 +468,8 @@ class MieGruneisenEos(CompositeEos):
         Tref_path, theta_ref = self.ref_temp_path(V_a)
         thermal_calc = self.calculators['thermal']
 
-        S_therm_a = thermal_calc._calc_entropy(T_a, theta=theta_ref,
-                                               T0=Tref_path, theta0=theta_ref)
+        opt_args = {'theta':theta_ref, 'T0':Tref_path, 'theta0':theta_ref}
+        S_therm_a = thermal_calc._calc_entropy(T_a, opt_args=opt_args)
         return S_therm_a
 
     def thermal_press(self, V_a, T_a):
@@ -487,7 +487,8 @@ class MieGruneisenEos(CompositeEos):
         thermal_calc = self.calculators['thermal']
         Tref_path, theta_ref = self.ref_temp_path(V_a)
 
-        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_ref)
+        heat_capacity_a = thermal_calc._calc_heat_capacity(
+            T_a, opt_args={'theta':theta_ref})
         return heat_capacity_a
 
     def press(self, V_a, T_a):
@@ -644,7 +645,8 @@ class PThermPolyEos(CompositeEos):
         Pth_coef = self.calc_Pth_coefs(V_a)
         gamma_a = gamma_calc.gamma(V_a)
 
-        E_therm_a = thermal_calc._calc_energy(T_a, gamma=gamma_a, Pth=Pth_coef)
+        opt_args = {'gamma':gamma_a, 'Pth':Pth_coef}
+        E_therm_a = thermal_calc._calc_energy(T_a, opt_args=opt_args)
         return E_therm_a
 
     def compress_energy(self, V_a):
@@ -816,7 +818,9 @@ class RTPolyEos(CompositeEos):
 
         # Tref_path, theta_ref = self.ref_temp_path(V_a)
 
-        thermal_energy_a = a_V + thermal_calc._calc_energy(T_a, bcoef=b_V)
+        opt_args = {'bcoef':b_V}
+        thermal_energy_a = a_V + thermal_calc._calc_energy(
+            T_a, opt_args=opt_args)
         return thermal_energy_a
 
     def internal_energy(self, V_a, T_a):
@@ -847,8 +851,17 @@ class RTPolyEos(CompositeEos):
         thermal_calc = self.calculators['thermal']
         a_V, b_V = self.calc_RTcoefs(V_a)
 
-        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
+        heat_capacity_a = thermal_calc._calc_heat_capacity(
+            T_a, opt_args={'bcoef':b_V})
         return heat_capacity_a
+
+    # def heat_capacity(self, V_a, T_a):
+    #     V_a, T_a = core.fill_array(V_a, T_a)
+    #     thermal_calc = self.calculators['thermal']
+    #     Tref_path, theta_ref = self.ref_temp_path(V_a)
+#
+    #     heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, theta=theta_ref)
+    #     return heat_capacity_a
 
     def press(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
@@ -1009,8 +1022,10 @@ class RTPressEos(CompositeEos):
         thermal_calc = self.calculators['thermal']
         b_V = self.calc_RTcoefs(V_a)
 
-        heat_capacity_a = (thermal_calc._calc_heat_capacity(T_a, bcoef=b_V) +
-                           electronic_calc._calc_heat_capacity(V_a, T_a))
+        heat_capacity_a = (
+            +thermal_calc._calc_heat_capacity(T_a, opt_args={'bcoef':b_V})
+            +electronic_calc._calc_heat_capacity(V_a, T_a)
+            )
 
         return heat_capacity_a
 
@@ -1069,7 +1084,7 @@ class RTPressEos(CompositeEos):
         Tref_adiabat = self.ref_temp_adiabat(V_a)
 
         heat_capacity_0S_a = thermal_calc._calc_heat_capacity(
-            Tref_adiabat, bcoef=b_V)
+            Tref_adiabat, opt_args={'bcoef':b_V})
 
         dtherm_dev_deriv_T = (
             thermal_calc._calc_therm_dev_deriv(T_a)
@@ -1130,8 +1145,9 @@ class RTPressEos(CompositeEos):
         electronic_calc = self.calculators['electronic']
         # T0, = self.get_param_values(param_names=['T0',])
 
+        opt_args = {'bcoef':b_V, 'Tref':T0}
         thermal_energy_a = (
-            thermal_calc._calc_energy(T_a, bcoef=b_V, Tref=T0) +
+            thermal_calc._calc_energy(T_a, opt_args=opt_args) +
             electronic_calc._calc_energy(V_a, T_a) )
 
         return  thermal_energy_a
@@ -1145,9 +1161,9 @@ class RTPressEos(CompositeEos):
         thermal_calc = self._calculators['thermal']
         b_V = self.calc_RTcoefs(V_a)
 
+        opt_args = {'bcoef':b_V, 'Tref':Tref_adiabat}
         thermal_entropy_a = (
-            thermal_calc._calc_entropy(
-                T_a, bcoef=b_V, Tref=Tref_adiabat) +
+            thermal_calc._calc_entropy(T_a, opt_args=opt_args) +
             electronic_calc._calc_entropy(V_a, T_a) )
 
         return  thermal_entropy_a
@@ -1250,7 +1266,7 @@ class RTPressEos(CompositeEos):
         bcoef_deriv = self.calc_RTcoefs_deriv(V_a)
 
         entropy_pot_a = thermal_calc._calc_entropy_pot(
-            T_a, bcoef=bcoef, Tref=T0S)
+            T_a, opt_args={'bcoef':bcoef, 'Tref':T0S})
 
         term1 = gamma0S/V_a*CV_0S
         term2 = bcoef_deriv/bcoef*entropy_pot_a
@@ -1389,7 +1405,8 @@ class PolyRegressEos(CompositeEos):
         thermal_calc = self.calculators['thermal']
         b_V = self.calc_RTcoefs(V_a)
 
-        heat_capacity_a = thermal_calc._calc_heat_capacity(T_a, bcoef=b_V)
+        heat_capacity_a = thermal_calc._calc_heat_capacity(
+            T_a, opt_args={'bcoef':b_V})
         return heat_capacity_a
 
     def ref_temp_adiabat(self, V_a):
@@ -1478,7 +1495,7 @@ class PolyRegressEos(CompositeEos):
         Tref_adiabat = self.ref_temp_adiabat(V_a)
 
         heat_capacity_0S_a = thermal_calc._calc_heat_capacity(
-            Tref_adiabat, bcoef=b_V)
+            Tref_adiabat, opt_args={'bcoef':b_V})
 
         dtherm_dev_deriv_T = (
             thermal_calc._calc_therm_dev_deriv(T_a)
@@ -1534,7 +1551,8 @@ class PolyRegressEos(CompositeEos):
         thermal_calc = self.calculators['thermal']
         # T0, = self.get_param_values(param_names=['T0',])
 
-        thermal_energy_a = thermal_calc._calc_energy(T_a, bcoef=b_V, Tref=T0)
+        opt_args = {'bcoef':b_V, 'Tref':T0}
+        thermal_energy_a = thermal_calc._calc_energy(T_a, opt_args=opt_args)
         return  thermal_energy_a
 
     def thermal_entropy(self, V_a, T_a):
@@ -1544,8 +1562,8 @@ class PolyRegressEos(CompositeEos):
         thermal_calc = self._calculators['thermal']
         b_V = self.calc_RTcoefs(V_a)
 
-        thermal_entropy_a = thermal_calc._calc_entropy(
-            T_a, bcoef=b_V, Tref=Tref_adiabat)
+        opt_args = {'bcoef':b_V, 'Tref':Tref_adiabat}
+        thermal_entropy_a = thermal_calc._calc_entropy(T_a, opt_args=opt_args)
         return  thermal_entropy_a
 
     def press(self, V_a, T_a):
@@ -1641,7 +1659,7 @@ class PolyRegressEos(CompositeEos):
         bcoef_deriv = self.calc_RTcoefs_deriv(V_a)
 
         entropy_pot_a = thermal_calc._calc_entropy_pot(
-            T_a, bcoef=bcoef, Tref=T0S)
+            T_a, opt_args={'bcoef':bcoef, 'Tref':T0S})
 
         term1 = gamma0S/V_a*CV_0S
         term2 = bcoef_deriv/bcoef*entropy_pot_a

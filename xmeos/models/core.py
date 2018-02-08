@@ -7,7 +7,7 @@ import scipy as sp
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 
-__all__ = ['Eos','Calculator','CONSTS','fill_array']
+__all__ = ['Eos','Calculator','CONSTS','fill_array','get_opt_args']
 
 
 # xmeos.models.Calculator
@@ -696,6 +696,16 @@ def get_consts( keys ):
     #     'That is not a valid CONST name. Valid names are '+str(CONSTS.keys()) )
 
     return tuple(CONSTS[key] for key in keys)
+#====================================================================
+def get_opt_args(opt_args, keys):
+    if opt_args is None:
+        opt_args = {}
+
+    for key in keys:
+        if key not in opt_args:
+            opt_args[key] = None
+
+    return (opt_args[key] for key in keys)
 #====================================================================
 # def set_array_params( basename, param_arr_a, eos_d ):
 #     name_l = []
