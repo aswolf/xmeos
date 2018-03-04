@@ -363,6 +363,173 @@ class CMASF_melt_Thomas2013(CompositeEos):
 
         return eos_mod, comp_d
 #====================================================================
+class MgPv_Mosenfelder2009(models.MieGruneisenEos):
+    def __init__(self):
+        self.init_eos()
+        self.load_params()
+
+    # def init_solid_params(eos_d):
+    #     """
+    #     Set EOS parameters for solid MgSiO3 perovskite (bridgmanite)
+    #     Corresponds to BM3S model from Mosenfelder(2009)
+    #     """
+    #     # All units must be per atom (to make sense for arbitrary composition)
+
+    #     models.Control.set_consts( [], [], eos_d )
+
+    #     const_d = eos_d['const_d']
+
+    #     Nat_cell = 20
+    #     Nat_formula = 5
+
+    #     T0 = 300 # K
+
+    #     # EOS Parameter values initially set by Mosenfelder2009
+    #     # Set model parameter values
+    #     mass_avg = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
+    #     S0 = 0.0 # must adjust
+    #     param_key_a = ['T0','S0','mass_avg']
+    #     param_val_a = np.array([T0,S0,mass_avg])
+    #     models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+    #     # V0 = (38.575*1e-5)*mass_avg/eos_d['const_d']['Nmol']/1e3*1e30 # ang^3/atom
+    #     V0 = 162.35/Nat_cell # ang^3/atom
+    #     K0 = 254.7 # GPa
+    #     KP0= 4.26
+    #     E0 = 0.0
+    #     param_key_a = ['V0','K0','KP0','E0']
+    #     param_val_a = np.array([V0,K0,KP0,E0])
+    #     models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+    #     VR = V0
+    #     thetaR = 736 # K
+    #     gammaR = 2.23
+    #     qR     = 1.83
+    #     param_key_a = ['VR','thetaR','gammaR','qR']
+    #     param_val_a = np.array([VR,thetaR,gammaR,qR])
+    #     models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+    #     # NOTE: Mosenfelder(2009) has mislabeled units as J/K/g
+    #     #     -> units are actually J/K/kg  ???
+    #     # The measured 1000K heat capacity of MgSiO3 is ~125 J/K/mol
+    #     #      (equal to Dulong Petit value for 5 atom basis)
+    #     #     -> This value is thus ~65% of that nominal value,
+    #     #        balancing the 30 to 40% values of gamma that are higher than other
+    #     #        studies  (static compression only constrains Gamma*Cv
+    #     #
+    #     # Max const-vol heat capacity:
+    #     Cvmax = (806.0/1e3)*mass_avg/const_d['kJ_molpereV']/1e3 # J/mol atoms/K -> eV/K/atom
+
+    #     param_key_a = ['Cvmax']
+    #     param_val_a = np.array([Cvmax])
+    #     models.Control.set_params( param_key_a, param_val_a, eos_d )
+
+
+
+
+    #     # # Must convert energy units from kJ/g to eV/atom
+    #     energy_conv_fac = mass_avg/eos_d['const_d']['kJ_molpereV']
+    #     models.Control.set_consts( ['energy_conv_fac'], [energy_conv_fac], eos_d )
+
+
+    #     compress_path_mod = models.BirchMurn3(path_const='S',level_const=T0,
+    #                                           supress_energy=False,
+    #                                           supress_press=False,
+    #                                           expand_adj=False)
+    #     models.Control.set_modtypes( ['CompressPathMod'], [compress_path_mod],
+    #                                 eos_d )
+
+    #     gamma_mod = models.GammaPowLaw(V0ref=False)
+    #     models.Control.set_modtypes( ['GammaMod'], [gamma_mod], eos_d )
+
+    #     thermal_mod = models.MieGrunDebye()
+    #     models.Control.set_modtypes( ['ThermalMod'], [thermal_mod], eos_d )
+
+    #     full_mod = models.ThermalPressMod()
+    #     models.Control.set_modtypes( ['FullMod'], [full_mod], eos_d )
+
+
+    #     return eos_d
+
+    def init_eos(self):
+        kind_thermal = 'Debye'
+        kind_gamma = 'GammaPowLaw'
+        kind_compress = 'BirchMurn3'
+        compress_path_const = 'S'
+        natom = 1
+
+        apply_electronic = False
+        ref_energy_type = 'E0'
+
+        molar_mass = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
+
+        super().__init__(
+            kind_thermal=kind_thermal, kind_gamma=kind_gamma,
+            kind_compress=kind_compress,
+            compress_path_const=compress_path_const, natom=natom,
+            ref_energy_type=ref_energy_type, molar_mass=molar_mass)
+
+        pass
+
+    def load_params(self):
+        T0 = 300 # K
+
+        self.refstate.ref_state['T0'] = T0
+
+        mass_avg = (24.31+28.09+3*16.0)/5.0 # g/(mol atom)
+        S0 = 0.0 # must adjust
+
+        Nat_cell = 20
+        Nat_formula = 5
+
+        V0 = 162.35/Nat_cell # ang^3/atom
+        K0 = 254.7 # GPa
+        KP0= 4.26
+        E0 = 0.0
+
+        # VR = V0
+        theta0 = 736 # K
+        gamma0 = 2.23
+        q     = 1.83
+
+        # EOS Parameter values initially set by Mosenfelder2009
+        # Set model parameter values
+
+        # NOTE: Mosenfelder(2009) has mislabeled units as J/K/g
+        #     -> units are actually J/K/kg  ???
+        # The measured 1000K heat capacity of MgSiO3 is ~125 J/K/mol
+        #      (equal to Dulong Petit value for 5 atom basis)
+        #     -> This value is thus ~65% of that nominal value,
+        #        balancing the 30 to 40% values of gamma that are higher than other
+        #        studies  (static compression only constrains Gamma*Cv
+        #
+        # Max const-vol heat capacity:
+        # core.CONSTS['kJ_molpereV']
+        Cvmax = (806.0/1e3)*mass_avg/core.CONSTS['kJ_molpereV']/1e3 # J/mol atoms/K -> eV/K/atom
+
+        # # Must convert energy units from kJ/g to eV/atom
+        # energy_conv_fac = mass_avg/eos_d['const_d']['kJ_molpereV']
+
+
+        # compress_path_mod = models.BirchMurn3(
+        #     path_const='S', level_const=T0, supress_energy=False,
+        #     supress_press=False, expand_adj=False)
+
+        self.set_param_values([S0, V0], param_names=['S0', 'V0'])
+        self.set_param_values([K0, KP0, E0], param_names=['K0', 'KP0', 'E0'])
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace();
+
+        thermal_calc = self.calculators['thermal']
+        Cvlim_default = thermal_calc._get_Cv_limit()
+        Cvlimfac = Cvmax/Cvlim_default
+
+        self.set_param_values(
+            [Cvlimfac, theta0, gamma0, q],
+            param_names=['Cvlimfac', 'theta0', 'gamma0', 'q'])
+
+        pass
+#====================================================================
 class MgSiO3_RTPress(models.RTPressEos):
     def __init__(self):
         self.init_eos()

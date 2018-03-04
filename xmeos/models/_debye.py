@@ -175,15 +175,30 @@ def debye3_fun(x_array):
     of the same function (Itself adapted from Collected Algorithms from ACM).
     Should give the same result as debye_fn(x) to near machine-precision.
     """
-    TOL = 1e-10
-    SLOPE = 0.375
 
-    values = np.zeros(len(x_array))
-    for ind, x in enumerate(x_array):
+    def approx_fun(x):
+        TOL = 1e-10
+        SLOPE = 0.375
+
         if x > TOL:
-            values[ind] = _calc_debye3_fun(x)
+            value = _calc_debye3_fun(x)
         else:
-            values[ind] = 1.0 - x*SLOPE
+            value = 1.0 - x*SLOPE
+
+        return value
+
+    values = np.zeros(np.array(x_array).shape)
+    if x_array.ndim==1:
+        for ind, x in enumerate(x_array):
+            values[ind] = approx_fun(x)
+
+    elif x_array.ndim==2:
+        for i, ix in enumerate(x_array):
+            for j, ijx in enumerate(ix):
+                values[i][j] = approx_fun(ijx)
+
+    else:
+        assert False
 
     return values
 

@@ -81,72 +81,41 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
 
         return K_a
 
-    def _volume_old(self, P_a, T_a, TOL=1e-3, step=0.1, Kmin=1):
-        V0, K0, KP0 = self.get_param_values(param_names=['V0','K0','KP0'])
-
-        Kapprox = K0 + KP0*P_a
-
-        Kscl = 0.5*(K0+Kapprox)
-        iV_a = V0*np.exp(-step*P_a/Kscl)
-        # iV_a = V0*np.exp(-step*P_a/Kapprox)
-
-        # from IPython import embed;embed();import ipdb as pdb;pdb.set_trace()
-        while True:
-            #print('V = ', iV_a)
-            iK_a = self.bulk_mod(iV_a, T_a)
-            # print('K = ', iK_a)
-            iP_a = self.press(iV_a, T_a)
-            # print('P = ', iP_a)
-            idelP = P_a-iP_a
-            # print(idelP/iK_a)
-            #print(P_a)
-
-            Kapprox = iK_a + .3*0.5*KP0*idelP
-
-            # iKscl = np.maximum(iK_a,Kmin)
-            idelV = np.exp(-idelP/Kapprox)
-            # print('idelV = ',idelV)
-            iV_a = iV_a*idelV
-            if np.all(np.abs(idelV-1) < TOL):
-                break
-
-        V_a = iV_a
-        return V_a
-
-    def volume(self, P, T, Vinit=None, TOL=1e-3, step=0.1):
+    def volume(self, P, T, Vinit=None, TOL=1e-3, bounds_error=True):
         if Vinit is None:
             V0 = self.get_param_values(param_names='V0')
             Vinit = 0.8*V0
 
-        # Kapprox = K0 + KP0*P_a
-        # Kscl = 0.5*(K0+Kapprox)
-        KT = self.bulk_mod(Vinit,T)
+        Vinit = V0
+        def press_diff(V, P=P, T=T):
+            return self.press(V, T) - P
 
-        iV = Vinit*np.exp(-step*P/KT)
-        # iV_a = V0*np.exp(-step*P_a/Kapprox)
+        def press_diff_sqr(V, P=P, T=T):
+            return (self.press(V, T) - P)**2
 
-        # from IPython import embed;embed();import ipdb as pdb;pdb.set_trace()
-        while True:
-            #print('V = ', iV_a)
-            iK = self.bulk_mod(iV, T)
-            # print('K = ', iK_a)
-            iP = self.press(iV, T)
-            # print('P = ', iP_a)
-            idelP = P-iP
-            # print(idelP/iK_a)
-            #print(P_a)
+        def press_deriv(V, P=P, T=T):
+            K = self.bulk_mod(V, T)
+            dPdV = -K/V
+            return dPdV
 
-            # Kapprox = iK + step*0.5*KP0*idelP
+        # V = sp.optimize.fsolve(press_diff, Vinit, fprime=press_deriv)
+        V_min = sp.optimize.fmin(press_diff, Vinit, disp=False)
 
-            # iKscl = np.maximum(iK_a,Kmin)
-            # idelV = np.exp(-idelP/Kapprox)
-            idelV = np.exp(-idelP/iK)
-            # print('idelV = ',idelV)
-            iV = iV*idelV
-            if np.all(np.abs(idelV-1) < TOL):
-                break
+        if +press_diff(V_min) > +TOL:
+            if bounds_error:
+                raise ValueError(
+                    'The EOS is being sampled at an unphysical '
+                    'location! The target pressure is not accesible '
+                    'at this temperature.'
+                )
+            V = np.nan
 
-        V = iV
+        else:
+            output = sp.optimize.minimize(
+                press_diff_sqr, [0.8*V_min], bounds=[(None, V_min)],
+                options={'disp':False})
+            V, = output.x
+
         return V
 
     def gamma(self, V_a, T_a):
@@ -187,7 +156,7 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
 
     def adiabatic_path(self, Tfoot, P_a):
         Pfoot = P_a[0]
-        Vfoot = self.volume(Pfoot, Tfoot)
+        Vfoot = self.volume(Pfoot, Tfoot, bounds_error=True)
 
         VTfoot = [Vfoot, Tfoot]
         soln = integrate.odeint(self._calc_adiabatic_derivs_fun,
@@ -343,8 +312,8 @@ class MieGruneisenEos(CompositeEos):
                            'GenFiniteStrain','Tait']
 
     def __init__(self, kind_thermal='Debye', kind_gamma='GammaPowLaw',
-                 kind_compress='Vinet', compress_path_const='T', natom=1,
-                 ref_energy_type='F0',
+                 kind_compress='Vinet', compress_path_const='T',
+                 ref_energy_type='F0', natom=1, molar_mass=20,
                  model_state={}):
 
         self._pre_init(natom=natom)
@@ -447,6 +416,7 @@ class MieGruneisenEos(CompositeEos):
         T0 = self.refstate.ref_temp()
 
         theta0 = self.get_param_values(param_names=['theta0'])
+
         Tref_path, theta_ref = self.ref_temp_path(V_a)
         thermal_calc = self.calculators['thermal']
 
