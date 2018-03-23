@@ -83,10 +83,11 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
 
     def volume(self, P, T, Vinit=None, TOL=1e-3, bounds_error=True):
         if Vinit is None:
-            V0 = self.get_param_values(param_names='V0')
+            V0, = self.get_param_values(param_names='V0')
             Vinit = 0.8*V0
 
-        Vinit = V0
+        assert np.isscalar(Vinit), 'Vinit must be a scalar val.'
+
         def press_diff(V, P=P, T=T):
             return self.press(V, T) - P
 
@@ -176,6 +177,38 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
             Tgrid[ind] = iTad
 
         return Vgrid, Tgrid
+
+    def material_properties(self, V_a, T_a):
+        V_a, T_a = core.fill_array(V_a, T_a)
+
+        S_a = self.entropy(V_a,T_a)
+        P_a = self.press(V_a,T_a)
+        Cv = self.heat_capacity(V_a,T_a)
+        alpha = self.thermal_exp(V_a,T_a)
+        gamma = self.gamma(V_a, T_a)
+        KT = self.bulk_mod(V_a, T_a)
+
+        Cp = Cv*(1+alpha*gamma*T_a)
+        KS = KT*(1+alpha*gamma*T_a)
+        dTdPs = gamma*T_a/KS
+        rho = (self.molar_mass/V_a*
+               core.CONSTS['ang3percc']/core.CONSTS['Nmol'])
+
+        props = OrderedDict()
+        props['V'] = V_a
+        props['T'] = T_a
+        props['rho'] = rho
+        props['alpha'] = alpha
+        props['gamma'] = gamma
+        props['S'] = S_a
+        props['P'] = P_a
+        props['C_V'] = Cv
+        props['C_P'] = Cp
+        props['K_T'] = KT
+        props['K_S'] = KS
+        props['dTdP_S'] = dTdPs
+
+        return props
 
     def hugoniot(self, rhofaclims, rhoinit, Tinit, Etrans=0, Ttrans=None,
                  isobar_trans=True, Nsamp=30, Pshift=0):
