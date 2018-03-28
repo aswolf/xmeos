@@ -380,6 +380,35 @@ def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol):
 
     return model_error, R2fit
 #====================================================================
+def draw_from_posterior(datamodel, Ndraw=100):
+    posterior = datamodel['posterior']
+    param_names = posterior['param_names']
+    param_val = posterior['param_val']
+    param_err = posterior['param_err']
+    corr = posterior['corr']
+    cov= corr*(param_err*np.expand_dims(param_err,1))
+    param_draw = sp.random.multivariate_normal(param_val, cov, Ndraw)
+
+    return param_draw, param_names
+#====================================================================
+def posterior_prediction(V, T, fun_name, datamodel, Ndraw=100,
+                         percentile=[16, 50, 84]):
+    eos_draw = copy.deepcopy(datamodel['eos_mod'])
+    param_draw, param_names = draw_from_posterior(datamodel, Ndraw=Ndraw)
+
+    V, T = models.fill_array(V, T)
+
+    val = np.zeros((Ndraw, V.size))
+    fun = eos_draw.__getattribute__(fun_name)
+    for ind, iparam_draw in enumerate(param_draw):
+        eos_draw.set_param_values(iparam_draw, param_names=param_names)
+        val[ind, :] = fun(V, T)
+
+
+    bounds = np.percentile(val, percentile, axis=0)
+
+    return bounds, val
+#====================================================================
 def model_eval_list( V_a, T_a, param_a, datamod_d ):
     """
     Error is a fraction of peak-to-peak difference
@@ -443,23 +472,6 @@ def eval_cost_fun( param_a, datamod_d, err_d ):
 #====================================================================
 def lnprob( param_a, datamod_d, err_d ):
     return -0.5*eval_cost_fun( param_a , datamod_d, err_d )
-#====================================================================
-def eos_posterior_draw( datamod_d ):
-
-    eos_draw_d = copy.deepcopy(datamod_d['eos_d'])
-    posterior_d = datamod_d['posterior_d']
-    param_val_a = posterior_d['param_val']
-    param_err_a = posterior_d['param_err']
-    corr_a = posterior_d['corr']
-
-    cov_a= corr_a*(param_err_a*np.expand_dims(param_err_a,1))
-    param_draw_a = sp.random.multivariate_normal(param_val_a,cov_a)
-
-
-    param_key = posterior_d['param_key']
-    models.Control.set_params( param_key, param_draw_a, eos_draw_d )
-
-    return eos_draw_d
 #====================================================================
 def runmcmc( datamod_d, nwalkers_fac=3 ):
     from IPython import embed; embed(); import ipdb; ipdb.set_trace()
@@ -665,39 +677,4 @@ class ModFit(object):
         return wrap_eos_fun
 #====================================================================
 # SECT N: Code Utility Functions
-#====================================================================
-def fill_array( var1, var2 ):
-    """
-    fix fill_array such that it returns two numpy arrays of equal size
-
-    use numpy.full_like
-
-    """
-    var1_a = np.asarray( var1 )
-    var2_a = np.asarray( var2 )
-
-    if var1_a.shape==():
-        var1_a = np.asarray( [var1] )
-    if var2_a.shape==():
-        var2_a = np.asarray( [var2] )
-
-    # Begin try/except block to handle all cases for filling an array
-    while True:
-        try:
-            assert var1_a.shape == var2_a.shape
-            break
-        except: pass
-        try:
-            var1_a = np.full_like( var2_a, var1_a )
-            break
-        except: pass
-        try:
-            var2_a = np.full_like( var1_a, var2_a )
-            break
-        except: pass
-
-        # If none of the cases properly handle it, throw error
-        assert False, 'var1 and var2 must both be equal shape or size=1'
-
-    return var1_a, var2_a
 #====================================================================
