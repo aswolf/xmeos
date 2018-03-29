@@ -21,9 +21,9 @@ from collections import OrderedDict
 # SECT 0: Admin functions
 #====================================================================
 def load_data(title=None, datasource=None,
-              V=None, T=None, P=None, E=None,
-              Verr=None, Terr=None, Perr=None, Eerr=None,
-              Vconv=1, Tconv=1, Pconv=1, Econv=1,
+              V=None, T=None, P=None, E=None, Cv=None,
+              Verr=None, Terr=None, Perr=None, Eerr=None, Cverr=None,
+              Vconv=1, Tconv=1, Pconv=1, Econv=1, Cvconv=1,
               mass_avg=None, groupID=None, trust=None):
     data = {}
     data['table'] = pd.DataFrame()
@@ -41,6 +41,8 @@ def load_data(title=None, datasource=None,
         data['table']['T'] = T*Tconv
     if P is not None:
         data['table']['P'] = P*Pconv
+    if Cv is not None:
+        data['table']['Cv'] = Cv*Cvconv
     if E is not None:
         data['table']['E'] = E*Econv
     if trust is not None:
@@ -58,6 +60,8 @@ def load_data(title=None, datasource=None,
         data['table']['Perr'] = Perr*Pconv
     if Eerr is not None:
         data['table']['Eerr'] = Eerr*Econv
+    if Cverr is not None:
+        data['table']['Cverr'] = Cverr*Cvconv
 
     if groupID is not None:
         data['groupID'] = groupID
@@ -68,17 +72,22 @@ def load_data(title=None, datasource=None,
 #====================================================================
 def _get_err_scale(data):
     err_scale = {}
-    err_scale['V'] = np.std(data['table']['V'])
-    err_scale['P'] = np.std(data['table']['P'])
+
     err_scale['PV'] = None
-    if 'E' in data['table'].columns:
-        err_scale['E'] = np.std(data['table']['E'])
-    else:
-        err_scale['E'] = 1
-    if 'T' in data['table'].columns:
-        err_scale['T'] = np.std(data['table']['T'])
-    else:
-        err_scale['T'] = 1
+
+    def calc_err_scale(prop_key, data, err_scale):
+        if prop_key in data['table'].columns:
+            err_scale[prop_key] = np.std(data['table'][prop_key])
+        else:
+            err_scale[prop_key] = 1
+        return
+
+    calc_err_scale('V', data, err_scale)
+    calc_err_scale('P', data, err_scale)
+    calc_err_scale('E', data, err_scale)
+    calc_err_scale('T', data, err_scale)
+    calc_err_scale('Cv', data, err_scale)
+
     return err_scale
 #====================================================================
 def init_datamodel(data, eos_mod):
@@ -169,37 +178,48 @@ def calc_resid(datamodel, detail_output=False, apply_prior_wt=False):
     """
 
     output = {}
+    resid_all = []
 
+    _calc_resid_P(datamodel, resid_all, output)
+    _calc_resid_E(datamodel, resid_all, output)
+    _calc_resid_Cv(datamodel, resid_all, output)
+    _calc_resid_exp_constraint(datamodel, resid_all, output)
+    _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output)
+
+    resid_a = np.concatenate(resid_all)
+    # from IPython import embed;embed();import ipdb as pdb; pdb.set_trace()
+
+    if detail_output==True:
+        return output
+    else:
+        return resid_a
+#====================================================================
+def _calc_resid_P(datamodel, resid_all, output):
     tbl = datamodel['data']['table']
     eos_mod = datamodel['eos_mod']
     err_scale = datamodel['err_scale']
-    exp_constraint = datamodel['data']['exp_constraint']
-
-    # mask = np.array(tbl['P']>0)
     trust = tbl['trust']
+
+    if 'P' not in tbl.columns:
+        return
+
     V_a = np.array(tbl['V'][trust])
     P_a = np.array(tbl['P'][trust])
 
-    if datamodel['isthermal']:
-        T_a = np.array(tbl['T'][trust])
-
-    if 'E' in tbl.columns:
-        hasenergy = True
-        E_a = np.array(tbl['E'][trust])
-    else:
-        hasenergy = False
-
     # Perr_a = np.array(tbl['Perr'])
-    # Eerr_a = np.array(tbl['Eerr'])
+
     if datamodel['bulk_mod_wt'] is None:
         bulk_mod_wt = None
     else:
         bulk_mod_wt = datamodel['bulk_mod_wt'][trust]
 
-    if datamodel['isthermal']:
+    if 'T' in tbl.columns:
+        T_a = np.array(tbl['T'][trust])
         Pmod = eos_mod.press(V_a, T_a)
     else:
         Pmod = eos_mod.press(V_a)
+
+    # if datamodel['isthermal']:
 
     delP = Pmod - P_a
     output['P'] = delP
@@ -214,63 +234,125 @@ def calc_resid(datamodel, detail_output=False, apply_prior_wt=False):
         # Vadj_a = V_a
         resid_P = delP/err_scale['P']
 
-    delE = np.zeros(V_a.shape)
-    resid_E = np.zeros(V_a.shape)
-    if hasenergy:
-        try:
-            if datamodel['isthermal']:
-                Emod = eos_mod.internal_energy(V_a, T_a)
-            else:
-                Emod = eos_mod.internal_energy(V_a)
+    resid_all.append(resid_P)
+    return
+#====================================================================
+def _calc_resid_E(datamodel, resid_all, output):
+    tbl = datamodel['data']['table']
+    eos_mod = datamodel['eos_mod']
+    err_scale = datamodel['err_scale']
+    trust = tbl['trust']
 
-            delE = Emod - E_a
-            resid_E = delE/err_scale['E']
-            resid_E[np.isnan(E_a)] = 0
-        except:
-            pass
+    if 'E' not in tbl.columns:
+        return
 
+    V_a = np.array(tbl['V'][trust])
+    E_a = np.array(tbl['E'][trust])
 
+    # Eerr_a = np.array(tbl['Eerr'])
+
+    if 'T' in tbl.columns:
+        T_a = np.array(tbl['T'][trust])
+        Emod = eos_mod.internal_energy(V_a, T_a)
+    else:
+        Emod = eos_mod.internal_energy(V_a)
+
+    # if datamodel['isthermal']:
+
+    delE = Emod - E_a
+    resid_E = delE/err_scale['E']
+    resid_E[np.isnan(E_a)] = 0
 
     output['E'] = delE
-    resid_all = [resid_P,resid_E]
 
-    if exp_constraint is not None:
-        Vexp = exp_constraint['V']
-        Texp = exp_constraint['T']
-        Pexp = exp_constraint['P']
+    resid_all.append(resid_E)
+    return
+#====================================================================
+def _calc_resid_Cv(datamodel, resid_all, output):
+    tbl = datamodel['data']['table']
+    eos_mod = datamodel['eos_mod']
+    err_scale = datamodel['err_scale']
+    trust = tbl['trust']
+
+    if 'Cv' not in tbl.columns:
+        return
+
+    T_a = np.array(tbl['T'][trust])
+    Cv_a = np.array(tbl['Cv'][trust])
+
+    if 'V' in tbl.columns:
+        V_a = np.array(tbl['V'][trust])
+        Cvmod = eos_mod.heat_capacity(V_a, T_a)
+    else:
+        Cvmod = eos_mod.heat_capacity(T_a)
+
+
+    delCv = Cvmod - Cv_a
+    resid_Cv = delCv/err_scale['Cv']
+    resid_Cv[np.isnan(Cv_a)] = 0
+
+    output['Cv'] = delCv
+    resid_all.append(resid_Cv)
+    return
+#====================================================================
+def _calc_resid_exp_constraint(datamodel, resid_all, output):
+    exp_constraint = datamodel['data']['exp_constraint']
+    if exp_constraint is None:
+        return
+
+    try:
         wt = exp_constraint['wt']
+    except:
+        wt = None
+    if wt is None:
+        wt = 1
+
+    assert 'V' in exp_constraint, (
+        'exp_constraint assumes that V is defined'
+    )
+    assert 'T' in exp_constraint, (
+        'exp_constraint assumes that T is defined'
+    )
+    Vexp = exp_constraint['V']
+    Texp = exp_constraint['T']
+
+
+    if 'P' in exp_constraint:
+        Pexp = exp_constraint['P']
+        if Pexp is not None:
+            Pexp_mod = eos_mod.press(Vexp, Texp)
+            residPexp = wt*(Pexp_mod-Pexp)/err_scale['P']
+            resid_all.append(residPexp)
+
+    if 'KT' in exp_constraint:
         KTexp = exp_constraint['KT']
-        alphaexp = exp_constraint['alpha']
-        Pexp_mod = eos_mod.press(Vexp, Texp)
-
-
-        residPexp = wt*(Pexp_mod-Pexp)/err_scale['P']
-        resid_all.append(residPexp)
-
         if KTexp is not None:
             KT_mod = eos_mod.bulk_mod(Vexp, Texp)
             residKT = wt*(KT_mod-KTexp)/err_scale['P']
             resid_all.append(residKT)
 
+    if 'alpha' in exp_constraint:
+        alphaexp = exp_constraint['alpha']
         if alphaexp is not None:
             alpha_mod = eos_mod.thermal_exp(Vexp, Texp)
             residalpha = wt*np.log(alpha_mod/alphaexp)*err_scale['T']/1e4
             resid_all.append(residalpha)
 
+    return
+#====================================================================
+def _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output):
+    if not apply_prior_wt:
+        return
 
-    # if apply_prior_wt:
-    #     prior = datamodel['prior']
-    #     corr = prior['corr']
-    #     param_err = prior['param_err']
-    #     cov = np.dot(param_err[:,np.newaxis],param_err[np.newaxis,:])*corr
+    prior = datamodel['prior']
+    corr = prior['corr']
+    param_err = prior['param_err']
+    cov = np.dot(param_err[:,np.newaxis],param_err[np.newaxis,:])*corr
 
-    resid_a = np.concatenate(resid_all)
-    # from IPython import embed;embed();import ipdb as pdb; pdb.set_trace()
-
-    if detail_output==True:
-        return output
-    else:
-        return resid_a
+    # hess = np.linalg.inv(cov)
+    # output['prior'] = prior_wt
+    # resid_all.append(resid_Cv)
+    return
 #====================================================================
 def set_fit_params(param_a, datamodel):
     eos_mod = datamodel['eos_mod']
@@ -363,16 +445,23 @@ def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol):
     Nparam = len(datamodel['fit_params'])
     # calculate unweighted residuals
 
-    Ndat = output['V'].size
-    # Ndat = datamodel['data']['table'].shape[0]
-    # Ndat = resid_a.size/2
-    Ndof = Ndat - Nparam/2 # free parameters are shared between 2 data types
+    Ndat = []
+    for datatype in output:
+        abs_resid = output[datatype]
+        Ndat.append(len(abs_resid))
+
+    Ndat = np.array(Ndat)
+    data_frac = Ndat/np.sum(Ndat)
+
 
     model_error = {}
     R2fit = {}
-    for datatype in output:
+    for datatype, data_frac_i in zip(output, data_frac):
         abs_resid = output[datatype]
-        model_error[datatype] = np.sqrt(np.sum(abs_resid**2)/Ndof)
+        Ndat_i = len(abs_resid)
+        Ndof_i = Ndat_i - data_frac_i*Nparam # free parameters are shared between all data types
+
+        model_error[datatype] = np.sqrt(np.sum(abs_resid**2)/Ndof_i)
         R2fit[datatype] = 1 - np.var(abs_resid)/err_scale[datatype]**2
 
     if not apply_bulk_mod_wt:
@@ -678,3 +767,144 @@ class ModFit(object):
 #====================================================================
 # SECT N: Code Utility Functions
 #====================================================================
+#====================================================================
+def calc_resid_old(datamodel, detail_output=False, apply_prior_wt=False):
+    """
+    Calculate model residuals
+
+    - By default, return P and E residuals (at given V and T)
+    - if bulk_mod_wt is set, then return approximate V and E residuals (at given P and T)
+        - this uses approximate reweighting by bulk modulus to transform P residuals into volume residuals
+    """
+
+    output = {}
+
+    tbl = datamodel['data']['table']
+    eos_mod = datamodel['eos_mod']
+    err_scale = datamodel['err_scale']
+    exp_constraint = datamodel['data']['exp_constraint']
+
+    # mask = np.array(tbl['P']>0)
+    trust = tbl['trust']
+
+
+    V_a = np.array(tbl['V'][trust])
+    if datamodel['isthermal']:
+        T_a = np.array(tbl['T'][trust])
+
+
+
+    P_a = np.array(tbl['P'][trust])
+
+
+    if 'E' in tbl.columns:
+        hasenergy = True
+        E_a = np.array(tbl['E'][trust])
+    else:
+        hasenergy = False
+
+    if 'Cv' in tbl.columns:
+        hasheatcap = True
+        Cv_a = np.array(tbl['Cv'][trust])
+    else:
+        hasheatcap = False
+
+    # Perr_a = np.array(tbl['Perr'])
+    # Eerr_a = np.array(tbl['Eerr'])
+    if datamodel['bulk_mod_wt'] is None:
+        bulk_mod_wt = None
+    else:
+        bulk_mod_wt = datamodel['bulk_mod_wt'][trust]
+
+    if datamodel['isthermal']:
+        Pmod = eos_mod.press(V_a, T_a)
+    else:
+        Pmod = eos_mod.press(V_a)
+
+    delP = Pmod - P_a
+    output['P'] = delP
+
+    if bulk_mod_wt is not None:
+        delV = - V_a*delP/bulk_mod_wt
+        output['V'] = delV
+        # Vadj_a = V_a - delV
+        # resid_P = delV/err_scale['V']
+        resid_P = delP/err_scale['PV'][trust]
+    else:
+        # Vadj_a = V_a
+        resid_P = delP/err_scale['P']
+
+    delE = np.zeros(V_a.shape)
+    resid_E = np.zeros(V_a.shape)
+    if hasenergy:
+        try:
+            if datamodel['isthermal']:
+                Emod = eos_mod.internal_energy(V_a, T_a)
+            else:
+                Emod = eos_mod.internal_energy(V_a)
+
+            delE = Emod - E_a
+            resid_E = delE/err_scale['E']
+            resid_E[np.isnan(E_a)] = 0
+        except:
+            pass
+
+    output['E'] = delE
+
+    resid_all = [resid_P,resid_E]
+
+
+    if hasheatcap:
+        try:
+            Cvmod = eos_mod.heat_capacity(V_a, T_a)
+
+            delCv = Cvmod - Cv_a
+            resid_Cv = Cv/err_scale['Cv']
+            resid_Cv[np.isnan(Cv_a)] = 0
+
+            output['Cv'] = delCv
+            resid_all.append(resid_Cv)
+        except:
+            pass
+
+
+
+
+
+    if exp_constraint is not None:
+        Vexp = exp_constraint['V']
+        Texp = exp_constraint['T']
+        Pexp = exp_constraint['P']
+        wt = exp_constraint['wt']
+        KTexp = exp_constraint['KT']
+        alphaexp = exp_constraint['alpha']
+        Pexp_mod = eos_mod.press(Vexp, Texp)
+
+
+        residPexp = wt*(Pexp_mod-Pexp)/err_scale['P']
+        resid_all.append(residPexp)
+
+        if KTexp is not None:
+            KT_mod = eos_mod.bulk_mod(Vexp, Texp)
+            residKT = wt*(KT_mod-KTexp)/err_scale['P']
+            resid_all.append(residKT)
+
+        if alphaexp is not None:
+            alpha_mod = eos_mod.thermal_exp(Vexp, Texp)
+            residalpha = wt*np.log(alpha_mod/alphaexp)*err_scale['T']/1e4
+            resid_all.append(residalpha)
+
+
+    # if apply_prior_wt:
+    #     prior = datamodel['prior']
+    #     corr = prior['corr']
+    #     param_err = prior['param_err']
+    #     cov = np.dot(param_err[:,np.newaxis],param_err[np.newaxis,:])*corr
+
+    resid_a = np.concatenate(resid_all)
+    # from IPython import embed;embed();import ipdb as pdb; pdb.set_trace()
+
+    if detail_output==True:
+        return output
+    else:
+        return resid_a
