@@ -168,7 +168,8 @@ def set_exp_constraint(data, V, T, P, KT=None, alpha=None, wt=1e3):
     data['exp_constraint'] = exp_constraint
     pass
 #====================================================================
-def calc_resid(datamodel, detail_output=False, apply_prior_wt=False):
+def calc_resid(datamodel, ignore_datatypes=None,
+               detail_output=False, apply_prior_wt=False):
     """
     Calculate model residuals
 
@@ -180,11 +181,15 @@ def calc_resid(datamodel, detail_output=False, apply_prior_wt=False):
     output = {}
     resid_all = []
 
-    _calc_resid_P(datamodel, resid_all, output)
-    _calc_resid_E(datamodel, resid_all, output)
-    _calc_resid_Cv(datamodel, resid_all, output)
-    _calc_resid_exp_constraint(datamodel, resid_all, output)
-    _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output)
+    if ignore_datatypes is None:
+        ignore_datatypes = []
+
+    _calc_resid_P(datamodel, resid_all, output, ignore_datatypes)
+    _calc_resid_E(datamodel, resid_all, output, ignore_datatypes)
+    _calc_resid_Cv(datamodel, resid_all, output, ignore_datatypes)
+    _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes)
+    _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output,
+                      ignore_datatypes)
 
     resid_a = np.concatenate(resid_all)
     # from IPython import embed;embed();import ipdb as pdb; pdb.set_trace()
@@ -194,13 +199,14 @@ def calc_resid(datamodel, detail_output=False, apply_prior_wt=False):
     else:
         return resid_a
 #====================================================================
-def _calc_resid_P(datamodel, resid_all, output):
+def _calc_resid_P(datamodel, resid_all, output, ignore_datatypes):
     tbl = datamodel['data']['table']
     eos_mod = datamodel['eos_mod']
     err_scale = datamodel['err_scale']
     trust = tbl['trust']
 
-    if 'P' not in tbl.columns:
+    if (('P' not in tbl.columns) or
+        ('P' in ignore_datatypes)):
         return
 
     V_a = np.array(tbl['V'][trust])
@@ -215,8 +221,10 @@ def _calc_resid_P(datamodel, resid_all, output):
 
     if 'T' in tbl.columns:
         T_a = np.array(tbl['T'][trust])
+
+    try:
         Pmod = eos_mod.press(V_a, T_a)
-    else:
+    except:
         Pmod = eos_mod.press(V_a)
 
     # if datamodel['isthermal']:
@@ -237,13 +245,14 @@ def _calc_resid_P(datamodel, resid_all, output):
     resid_all.append(resid_P)
     return
 #====================================================================
-def _calc_resid_E(datamodel, resid_all, output):
+def _calc_resid_E(datamodel, resid_all, output, ignore_datatypes):
     tbl = datamodel['data']['table']
     eos_mod = datamodel['eos_mod']
     err_scale = datamodel['err_scale']
     trust = tbl['trust']
 
-    if 'E' not in tbl.columns:
+    if (('E' not in tbl.columns) or
+        ('E' in ignore_datatypes)):
         return
 
     V_a = np.array(tbl['V'][trust])
@@ -253,8 +262,10 @@ def _calc_resid_E(datamodel, resid_all, output):
 
     if 'T' in tbl.columns:
         T_a = np.array(tbl['T'][trust])
+        
+    try:
         Emod = eos_mod.internal_energy(V_a, T_a)
-    else:
+    except:
         Emod = eos_mod.internal_energy(V_a)
 
     # if datamodel['isthermal']:
@@ -268,13 +279,14 @@ def _calc_resid_E(datamodel, resid_all, output):
     resid_all.append(resid_E)
     return
 #====================================================================
-def _calc_resid_Cv(datamodel, resid_all, output):
+def _calc_resid_Cv(datamodel, resid_all, output, ignore_datatypes):
     tbl = datamodel['data']['table']
     eos_mod = datamodel['eos_mod']
     err_scale = datamodel['err_scale']
     trust = tbl['trust']
 
-    if 'Cv' not in tbl.columns:
+    if (('Cv' not in tbl.columns) or
+        ('Cv' in ignore_datatypes)):
         return
 
     T_a = np.array(tbl['T'][trust])
@@ -295,9 +307,11 @@ def _calc_resid_Cv(datamodel, resid_all, output):
     resid_all.append(resid_Cv)
     return
 #====================================================================
-def _calc_resid_exp_constraint(datamodel, resid_all, output):
+def _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes):
     exp_constraint = datamodel['data']['exp_constraint']
-    if exp_constraint is None:
+
+    if ((exp_constraint is None) or
+        ('exp_constraint' in ignore_datatypes)):
         return
 
     try:
@@ -340,7 +354,7 @@ def _calc_resid_exp_constraint(datamodel, resid_all, output):
 
     return
 #====================================================================
-def _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output):
+def _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output, ignore_datatypes):
     if not apply_prior_wt:
         return
 
@@ -365,8 +379,8 @@ def get_fit_params(datamodel):
     fit_params = datamodel['fit_params']
     return eos_mod.get_param_values(param_names=fit_params)
 #====================================================================
-def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5,
-        apply_prior_wt=False):
+def fit(datamodel, nrepeat=6, ignore_datatypes=None,
+        apply_bulk_mod_wt=False, wt_vol=0.5, apply_prior_wt=False):
     if not datamodel['fit_params']:
         assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
 
@@ -383,7 +397,8 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5,
         def resid_fun(param_a, datamodel=datamodel,
                       apply_prior_wt=apply_prior_wt):
             set_fit_params(param_a, datamodel)
-            resid_a = calc_resid(datamodel, apply_prior_wt=apply_prior_wt)
+            resid_a = calc_resid(datamodel, ignore_datatypes=ignore_datatypes,
+                                 apply_prior_wt=apply_prior_wt)
             return resid_a
 
         fit_tup = optimize.leastsq(resid_fun, param0_a, full_output=True)
@@ -410,8 +425,9 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5,
         param_err = np.nan*paramf_a
         corr = None
 
-    model_error, R2fit = residual_model_error(datamodel,
-                                              apply_bulk_mod_wt, wt_vol)
+    model_error, R2fit = residual_model_error(
+        datamodel, apply_bulk_mod_wt, wt_vol,
+        ignore_datatypes=ignore_datatypes)
     # print(param_err)
     # print(paramf_a)
 
@@ -433,14 +449,16 @@ def fit(datamodel, nrepeat=6, apply_bulk_mod_wt=False, wt_vol=0.5,
     posterior['R2fit'] = R2fit
 
     datamodel['posterior'] = posterior
-    pass
+    return
 #====================================================================
-def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol):
+def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol,
+                         ignore_datatypes=None):
     eos_mod = datamodel['eos_mod']
     err_scale = datamodel['err_scale']
 
     update_bulk_mod_wt(datamodel, wt_vol=wt_vol)
-    output = calc_resid(datamodel, detail_output=True)
+    output = calc_resid(datamodel, detail_output=True,
+                        ignore_datatypes=ignore_datatypes)
 
     Nparam = len(datamodel['fit_params'])
     # calculate unweighted residuals
