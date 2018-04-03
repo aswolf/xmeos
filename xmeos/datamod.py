@@ -146,6 +146,28 @@ def select_fit_params(datamodel, fit_calcs, fix_params=[]):
     # datamodel['fit_param_values'] = get_fit_params(datamodel)
     pass
 #====================================================================
+def impose_prior_constraints(datamodel, param_names, param_means,
+                             param_errors):
+
+    param_names = np.array(param_names)
+    param_means = np.array(param_means)
+    param_errors = np.array(param_errors)
+
+    model_pdf = datamodel['model_pdf']
+    param_names_full = np.array(model_pdf.param_names)
+
+    ind = np.squeeze(np.array(
+        [np.where(param_names_full==name)[0]
+         for name in param_names], dtype=int))
+
+    constraint_pdf = modfit.ModelPDF(param_names_full,
+                                     param_means[ind],
+                                     param_errors[ind])
+    prior_pdf = model_pdf.constrain(constraint_pdf)
+
+    datamodel['model_pdf'] = prior_pdf
+    return
+#====================================================================
 def set_model_pdf(param_means, param_errors, param_corr=None):
     param_names = datamodel['fit_params']
     datamodel['model_pdf'] = modfit.ModelPDF(

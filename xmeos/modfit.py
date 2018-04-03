@@ -86,6 +86,14 @@ class ModelPDF():
         param_hess = np.linalg.pinv(param_cov)
         return param_cov, param_hess
 
+    def _calc_normal_correlation(self, param_cov):
+        param_errors = np.sqrt(np.diag(param_cov))
+        param_cov_scl = np.dot(param_errors[:, np.newaxis],
+                               param_errors[np.newaxis, :])
+
+        param_corr = param_cov/param_cov_scl
+        return param_errors, param_corr
+
     def _diagonalize_pdf(self, param_cov):
         u, s, vh = np.linalg.svd(param_cov)
         eig_scale = np.sqrt(s)
@@ -175,8 +183,25 @@ class ModelPDF():
     def reorder(self, param_names):
         return
 
-    def constrain(self, constraint_model):
-        return
+    def constrain(self, constraint_pdf):
+        mean_1 = self.param_values
+        hess_1 = self.param_hess
+
+        mean_2 = constraint_pdf.param_values
+        hess_2 = constraint_pdf.param_hess
+
+        hess_joint = hess_1 + hess_2
+        cov_joint = np.linalg.inv(hess_joint)
+        mean_joint = np.dot(
+            cov_joint, np.dot(hess_1, mean_1) + np.dot(hess_2, mean_2))
+
+        errors_joint, corr_joint = self._calc_normal_correlation(cov_joint)
+
+        priors = [self, constraint_pdf]
+        posterior = ModelPDF(self.param_names, mean_joint, errors_joint,
+                             param_corr=corr_joint, priors=priors)
+
+        return posterior
 
     def fit(self, fitness_fun, update_fitness_fun=None,
             fitness_metrics_fun=None, method='leastsq', nrepeat=6):
@@ -223,9 +248,9 @@ class ModelPDF():
         #     ignore_datatypes=ignore_datatypes)
         # print(param_err)
         # print(paramf_a)
-
+        priors = [self]
         posterior = ModelPDF(self.param_names, param_fit, param_errors,
-                          param_corr=corr, priors=None)
+                          param_corr=corr, priors=priors)
 
         if fitness_metrics_fun is not None:
             posterior._fitness_metrics = fitness_metrics_fun(param_fit)
