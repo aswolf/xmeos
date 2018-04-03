@@ -7,6 +7,7 @@ import scipy.interpolate as interpolate
 import matplotlib.pyplot as plt
 from scipy import optimize
 from xmeos import models
+from xmeos import modfit
 import copy
 
 from scipy import optimize
@@ -134,8 +135,22 @@ def select_fit_params(datamodel, fit_calcs, fix_params=[]):
 
     datamodel['param_isfree'] = param_isfree
     datamodel['fit_params'] = fit_params
+
+
+    # Assume a non-informative (wide-flat) prior
+    Nparam = len(fit_params)
+    param_values = get_fit_params(datamodel)
+    param_errors = 1e16*np.ones(Nparam)
+    datamodel['prior'] = modfit.ModelPDF(fit_params, param_values,
+                                         param_errors)
     # datamodel['fit_param_values'] = get_fit_params(datamodel)
     pass
+#====================================================================
+def set_prior(param_means, param_errors, param_corr=None):
+    param_names = datamodel['fit_params']
+    datamodel['prior'] = modfit.ModelPDF(
+        param_names, param_means, param_errors, param_corr=param_corr)
+    return
 #====================================================================
 def update_bulk_mod_wt(datamodel, wt_vol=0.5):
     eos_mod = datamodel['eos_mod']
@@ -262,7 +277,7 @@ def _calc_resid_E(datamodel, resid_all, output, ignore_datatypes):
 
     if 'T' in tbl.columns:
         T_a = np.array(tbl['T'][trust])
-        
+
     try:
         Emod = eos_mod.internal_energy(V_a, T_a)
     except:
@@ -380,6 +395,50 @@ def get_fit_params(datamodel):
     return eos_mod.get_param_values(param_names=fit_params)
 #====================================================================
 def fit(datamodel, nrepeat=6, ignore_datatypes=None,
+        apply_bulk_mod_wt=False, wt_vol=0.5):
+
+    if not datamodel['fit_params']:
+        assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
+
+    def fitness_fun(param_values, datamodel=datamodel,
+                    ignore_datatypes=ignore_datatypes, wt_vol=wt_vol):
+        set_fit_params(param_values, datamodel)
+        resid = calc_resid(datamodel, ignore_datatypes=ignore_datatypes)
+        return resid
+
+    def update_fitness_fun(param_values, datamodel=datamodel,
+                           wt_vol=wt_vol):
+        update_bulk_mod_wt(datamodel, wt_vol=wt_vol)
+        return fitness_fun
+
+    def fitness_metrics_fun(param_values, datamodel=datamodel,
+                            ignore_datatypes=ignore_datatypes,
+                            wt_vol=wt_vol,
+                            apply_bulk_mod_wt=apply_bulk_mod_wt):
+        set_fit_params(param_values, datamodel)
+        model_error, R2fit = residual_model_error(
+            datamodel, apply_bulk_mod_wt, wt_vol,
+            ignore_datatypes=ignore_datatypes)
+
+        fitness_metrics = {}
+        fitness_metrics['model_error'] = model_error
+        fitness_metrics['R2fit'] = R2fit
+
+        return fitness_metrics
+
+    if not apply_bulk_mod_wt:
+        update_fitness_fun = None
+
+    prior = datamodel['prior']
+
+    posterior = prior.fit(
+        fitness_fun, update_fitness_fun=update_fitness_fun,
+        fitness_metrics_fun=fitness_metrics_fun)
+
+    datamodel['posterior'] = posterior
+    return
+#====================================================================
+def fit_old(datamodel, nrepeat=6, ignore_datatypes=None,
         apply_bulk_mod_wt=False, wt_vol=0.5, apply_prior_wt=False):
     if not datamodel['fit_params']:
         assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
@@ -432,22 +491,10 @@ def fit(datamodel, nrepeat=6, ignore_datatypes=None,
     # print(paramf_a)
 
 
-
-    param_tbl = pd.DataFrame(columns=['name','value','error'])
-    for ind,(name, value, error) in enumerate(
-        zip(datamodel['fit_params'], paramf_a, param_err)):
-        param_tbl.loc[ind] = [name, value, error]
-
-
-    posterior = OrderedDict()
-    posterior['param_names'] = datamodel['fit_params']
-    posterior['param_val'] = paramf_a
-    posterior['param_err'] = param_err
-    posterior['param_tbl'] = param_tbl
-    posterior['corr'] = corr
-    posterior['fit_err'] = model_error
-    posterior['R2fit'] = R2fit
-
+    posterior = make_model_pdf(datamodel['fit_params'],
+                              paramf_a, param_err,
+                              param_corr=corr, fit_error=model_error,
+                              R2fit=R2fit)
     datamodel['posterior'] = posterior
     return
 #====================================================================
@@ -490,9 +537,9 @@ def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol,
 def draw_from_posterior(datamodel, Ndraw=100):
     posterior = datamodel['posterior']
     param_names = posterior['param_names']
-    param_val = posterior['param_val']
-    param_err = posterior['param_err']
-    corr = posterior['corr']
+    param_val = posterior['param_values']
+    param_err = posterior['param_errors']
+    corr = posterior['param_corr']
     cov= corr*(param_err*np.expand_dims(param_err,1))
     param_draw = sp.random.multivariate_normal(param_val, cov, Ndraw)
 
@@ -501,7 +548,9 @@ def draw_from_posterior(datamodel, Ndraw=100):
 def posterior_prediction(V, T, fun_name, datamodel, Ndraw=100,
                          percentile=[16, 50, 84]):
     eos_draw = copy.deepcopy(datamodel['eos_mod'])
-    param_draw, param_names = draw_from_posterior(datamodel, Ndraw=Ndraw)
+    posterior = datamodel['posterior']
+    param_names = posterior.param_names
+    param_draw = posterior.draw(Ndraw=Ndraw)
 
     V, T = models.fill_array(V, T)
 
