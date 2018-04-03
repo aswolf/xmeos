@@ -107,7 +107,7 @@ def init_datamodel(data, eos_mod):
     datamodel['param_isfree'] = np.tile(False, len(param_names))
     datamodel['fit_params'] = []
     datamodel['bulk_mod_wt'] = None
-    datamodel['posterior'] = None
+    datamodel['model_pdf'] = None
     return datamodel
 #====================================================================
 def select_fit_params(datamodel, fit_calcs, fix_params=[]):
@@ -141,14 +141,14 @@ def select_fit_params(datamodel, fit_calcs, fix_params=[]):
     Nparam = len(fit_params)
     param_values = get_fit_params(datamodel)
     param_errors = 1e16*np.ones(Nparam)
-    datamodel['prior'] = modfit.ModelPDF(fit_params, param_values,
+    datamodel['model_pdf'] = modfit.ModelPDF(fit_params, param_values,
                                          param_errors)
     # datamodel['fit_param_values'] = get_fit_params(datamodel)
     pass
 #====================================================================
-def set_prior(param_means, param_errors, param_corr=None):
+def set_model_pdf(param_means, param_errors, param_corr=None):
     param_names = datamodel['fit_params']
-    datamodel['prior'] = modfit.ModelPDF(
+    datamodel['model_pdf'] = modfit.ModelPDF(
         param_names, param_means, param_errors, param_corr=param_corr)
     return
 #====================================================================
@@ -184,7 +184,7 @@ def set_exp_constraint(data, V, T, P, KT=None, alpha=None, wt=1e3):
     pass
 #====================================================================
 def calc_resid(datamodel, ignore_datatypes=None,
-               detail_output=False, apply_prior_wt=False):
+               detail_output=False):
     """
     Calculate model residuals
 
@@ -203,8 +203,6 @@ def calc_resid(datamodel, ignore_datatypes=None,
     _calc_resid_E(datamodel, resid_all, output, ignore_datatypes)
     _calc_resid_Cv(datamodel, resid_all, output, ignore_datatypes)
     _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes)
-    _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output,
-                      ignore_datatypes)
 
     resid_a = np.concatenate(resid_all)
     # from IPython import embed;embed();import ipdb as pdb; pdb.set_trace()
@@ -369,20 +367,6 @@ def _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes):
 
     return
 #====================================================================
-def _calc_resid_prior(apply_prior_wt, datamodel, resid_all, output, ignore_datatypes):
-    if not apply_prior_wt:
-        return
-
-    prior = datamodel['prior']
-    corr = prior['corr']
-    param_err = prior['param_err']
-    cov = np.dot(param_err[:,np.newaxis],param_err[np.newaxis,:])*corr
-
-    # hess = np.linalg.inv(cov)
-    # output['prior'] = prior_wt
-    # resid_all.append(resid_Cv)
-    return
-#====================================================================
 def set_fit_params(param_a, datamodel):
     eos_mod = datamodel['eos_mod']
     fit_params = datamodel['fit_params']
@@ -429,13 +413,13 @@ def fit(datamodel, nrepeat=6, ignore_datatypes=None,
     if not apply_bulk_mod_wt:
         update_fitness_fun = None
 
-    prior = datamodel['prior']
+    prior = datamodel['model_pdf']
 
     posterior = prior.fit(
         fitness_fun, update_fitness_fun=update_fitness_fun,
         fitness_metrics_fun=fitness_metrics_fun)
 
-    datamodel['posterior'] = posterior
+    datamodel['model_pdf'] = posterior
     return
 #====================================================================
 def fit_old(datamodel, nrepeat=6, ignore_datatypes=None,
@@ -534,23 +518,12 @@ def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol,
 
     return model_error, R2fit
 #====================================================================
-def draw_from_posterior(datamodel, Ndraw=100):
-    posterior = datamodel['posterior']
-    param_names = posterior['param_names']
-    param_val = posterior['param_values']
-    param_err = posterior['param_errors']
-    corr = posterior['param_corr']
-    cov= corr*(param_err*np.expand_dims(param_err,1))
-    param_draw = sp.random.multivariate_normal(param_val, cov, Ndraw)
-
-    return param_draw, param_names
-#====================================================================
-def posterior_prediction(V, T, fun_name, datamodel, Ndraw=100,
+def model_pdf_prediction(V, T, fun_name, datamodel, Ndraw=100,
                          percentile=[16, 50, 84]):
     eos_draw = copy.deepcopy(datamodel['eos_mod'])
-    posterior = datamodel['posterior']
-    param_names = posterior.param_names
-    param_draw = posterior.draw(Ndraw=Ndraw)
+    model_pdf = datamodel['model_pdf']
+    param_names = model_pdf.param_names
+    param_draw = model_pdf.draw(Ndraw=Ndraw)
 
     V, T = models.fill_array(V, T)
 
