@@ -110,7 +110,7 @@ def init_datamodel(data, eos_mod):
     datamodel['model_pdf'] = None
     return datamodel
 #====================================================================
-def select_fit_params(datamodel, fit_calcs, fix_params=[]):
+def select_fit_params(datamodel, fit_calcs, fix_params=[], model_pdf=None):
     eos_mod = datamodel['eos_mod']
 
     if fit_calcs=='all':
@@ -168,10 +168,8 @@ def impose_prior_constraints(datamodel, param_names, param_means,
     datamodel['model_pdf'] = prior_pdf
     return
 #====================================================================
-def set_model_pdf(param_means, param_errors, param_corr=None):
-    param_names = datamodel['fit_params']
-    datamodel['model_pdf'] = modfit.ModelPDF(
-        param_names, param_means, param_errors, param_corr=param_corr)
+def set_model_pdf(datamodel, model_pdf):
+    datamodel['model_pdf'] = model_pdf
     return
 #====================================================================
 def update_bulk_mod_wt(datamodel, wt_vol=0.5):
@@ -389,10 +387,23 @@ def _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes):
 
     return
 #====================================================================
-def set_fit_params(param_a, datamodel):
+def _get_eos_fit_params(param_values, datamodel):
     eos_mod = datamodel['eos_mod']
     fit_params = datamodel['fit_params']
-    eos_mod.set_param_values(param_a, param_names=fit_params)
+    param_in_eos = np.array([name in eos_mod.param_names
+                             for name in fit_params])
+
+    eos_params = param_values[param_in_eos]
+    eos_param_names = fit_params[param_in_eos]
+
+    return eos_params, eos_param_names
+#====================================================================
+def set_fit_params(param_a, datamodel):
+    # datamodel['fit_param_values'] = param_a
+    eos_mod = datamodel['eos_mod']
+    # eos_params, eos_param_names = _get_eos_fit_params(param_a, datamodel)
+    # eos_mod.set_param_values(eos_params, param_names=eos_param_names)
+    eos_mod.set_param_values(param_a, param_names=datamodel['fit_params'])
     pass
 #====================================================================
 def get_fit_params(datamodel):
@@ -437,8 +448,10 @@ def fit(datamodel, nrepeat=6, ignore_datatypes=None,
 
     prior = datamodel['model_pdf']
 
+    fitness_params = datamodel['fit_params']
     posterior = prior.fit(
-        fitness_fun, update_fitness_fun=update_fitness_fun,
+        fitness_fun, fitness_params=fitness_params,
+        update_fitness_fun=update_fitness_fun,
         fitness_metrics_fun=fitness_metrics_fun)
 
     datamodel['model_pdf'] = posterior

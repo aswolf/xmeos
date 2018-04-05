@@ -64,9 +64,9 @@ class ModelPDF():
             zip(param_names, param_values, param_errors)):
             param_tbl.loc[ind] = [name, value, error]
 
-        self._param_names = param_names
-        self._param_values = param_values
-        self._param_errors = param_errors
+        self._param_names = np.array(param_names)
+        self._param_values = np.array(param_values)
+        self._param_errors = np.array(param_errors)
         self._param_table = param_tbl
         self._param_corr = param_corr
 
@@ -87,11 +87,17 @@ class ModelPDF():
         return param_cov, param_hess
 
     def _calc_normal_correlation(self, param_cov):
-        param_errors = np.sqrt(np.diag(param_cov))
-        param_cov_scl = np.dot(param_errors[:, np.newaxis],
-                               param_errors[np.newaxis, :])
+        if np.all(np.isnan(param_cov)):
+            Nparam = param_cov.shape[0]
+            param_errors = np.nan*np.ones(Nparam)
+            param_corr = np.nan*np.ones((Nparam, Nparam))
 
-        param_corr = param_cov/param_cov_scl
+        else:
+            param_errors = np.sqrt(np.diag(param_cov))
+            param_cov_scl = np.dot(param_errors[:, np.newaxis],
+                               param_errors[np.newaxis, :])
+            param_corr = param_cov/param_cov_scl
+
         return param_errors, param_corr
 
     def _diagonalize_pdf(self, param_cov):
@@ -177,8 +183,42 @@ class ModelPDF():
         ortho_values = np.dot(param_dev, self.ortho_vectors)/self.ortho_scales
         return ortho_values
 
-    def expand(self, model2):
-        return
+    def expand(self, model2_pdf):
+        param_names1 = self.param_names
+        param_names2 = model2_pdf.param_names
+        Nparam1 = len(param_names1)
+        Nparam2 = len(param_names2)
+
+        param_cov1 = self.param_cov
+        param_cov2 = model2_pdf.param_cov
+
+        param_means1 = self.param_values
+        param_means2 = model2_pdf.param_values
+
+        repeat_param = np.array([name2 in param_names1
+                                for name2 in param_names2])
+        assert np.all(~repeat_param), (
+                           'Currently new pdf cannot repeat any parameters (only new parameters allowed).'
+                       )
+
+        param_names_all = np.hstack((param_names1, param_names2))
+        param_means_all = np.hstack((param_means1, param_means2))
+
+        Nparam = param_names_all.size
+        param_cov_all = np.zeros((Nparam, Nparam))
+        param_cov_all[:Nparam1, :Nparam1] = param_cov1
+        param_cov_all[Nparam1:, Nparam1:] = param_cov2
+
+        param_errors_all, param_corr_all = self._calc_normal_correlation(
+            param_cov_all)
+
+        priors = [self, model2_pdf]
+
+        posterior_all = ModelPDF(param_names_all, param_means_all,
+                                 param_errors_all, param_corr=param_corr_all,
+                                 priors=priors)
+
+        return posterior_all
 
     def reorder(self, param_names):
         return
@@ -203,23 +243,47 @@ class ModelPDF():
 
         return posterior
 
-    def fit(self, fitness_fun, update_fitness_fun=None,
-            fitness_metrics_fun=None, method='leastsq', nrepeat=6):
+    def _get_fitness_param_ind(self, fitness_params):
+        if fitness_params is None:
+            fitness_params = self.param_names
+
+        fitness_params = np.array(fitness_params)
+
+        fitness_param_ind = np.squeeze(np.array(
+            [np.where(self.param_names==name)[0]
+            for name in fitness_params], dtype=int))
+
+        return fitness_param_ind
+
+    def fit(self, fitness_fun, fitness_params=None,
+            update_fitness_fun=None, fitness_metrics_fun=None,
+            method='leastsq', nrepeat=6):
+
+        fitness_param_ind = self._get_fitness_param_ind(fitness_params)
+
         assert method=='leastsq', (
             'Only leastsq method is supported for now.'
         )
 
         param_init = self.param_values
+        Nparam = len(param_init)
+        print(param_init[fitness_param_ind])
+        print(param_init)
+
+        print(self.ortho_transform(param_init))
+        # from IPython import embed;embed();import ipdb;ipdb.set_trace()
 
         for i in np.arange(nrepeat):
             if update_fitness_fun is not None:
-                fitness_fun = update_fitness_fun(param_init)
+                fitness_fun = update_fitness_fun(param_init[fitness_param_ind])
 
-            def posterior_fun(param_values):
-                likelihood_resid = fitness_fun(param_values)
+            def posterior_fun(param_values,
+                              fitness_param_ind=fitness_param_ind):
+                likelihood_resid = fitness_fun(param_values[fitness_param_ind])
                 prior_resid = self.ortho_transform(param_values)
+                print(prior_resid)
                 posterior_resid = np.hstack(
-                    (likelihood_resid,prior_resid))
+                    (likelihood_resid, prior_resid))
                 return posterior_resid
 
             fit_tup = optimize.leastsq(posterior_fun, param_init,
@@ -230,36 +294,34 @@ class ModelPDF():
             info = fit_tup[2]
             param_init = param_fit
 
+        print(posterior_fun(param_fit))
+        print(self.ortho_transform(param_fit))
 
         resid = info['fvec']
+
         resid_var = np.var(resid)
         try:
-            cov = resid_var*cov_scl
-            param_errors = np.sqrt(np.diag(cov))
-            corr = cov/(np.expand_dims(param_errors,1)*param_errors)
+            param_cov = resid_var*cov_scl
         except:
-            cov = None
-            param_errors = np.nan*param_fit
-            corr = None
+            param_cov = np.nan*np.ones((Nparam, Nparam))
 
+        param_errors, param_corr = self._calc_normal_correlation(
+            param_cov)
 
         # model_error, R2fit = residual_model_error(
         #     datamodel, apply_bulk_mod_wt, wt_vol,
         #     ignore_datatypes=ignore_datatypes)
         # print(param_err)
         # print(paramf_a)
+
         priors = [self]
         posterior = ModelPDF(self.param_names, param_fit, param_errors,
-                          param_corr=corr, priors=priors)
+                             param_corr=param_corr, priors=priors)
 
         if fitness_metrics_fun is not None:
-            posterior._fitness_metrics = fitness_metrics_fun(param_fit)
+            posterior._fitness_metrics = fitness_metrics_fun(
+                param_fit[fitness_param_ind])
 
 
-        # posterior = make_model_pdf(datamodel['fit_params'],
-        #                           paramf_a, param_err,
-        #                           param_corr=corr, fit_error=model_error,
-        #                           R2fit=R2fit)
-        # datamodel['posterior'] = posterior
         return posterior
 #====================================================================
