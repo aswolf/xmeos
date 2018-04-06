@@ -102,49 +102,46 @@ def init_datamodel(data, eos_mod):
         isthermal=False
     datamodel['isthermal'] = isthermal
     datamodel['err_scale'] = _get_err_scale(data)
-    param_names = eos_mod.param_names
-    datamodel['param_names'] = param_names
-    datamodel['param_isfree'] = np.tile(False, len(param_names))
-    datamodel['fit_params'] = []
+    eos_param_names = eos_mod.param_names
+    datamodel['eos_param_names'] = eos_param_names
+    datamodel['eos_fit_params'] = None
     datamodel['bulk_mod_wt'] = None
     datamodel['model_pdf'] = None
     return datamodel
 #====================================================================
-def select_fit_params(datamodel, fit_calcs, fix_params=[], model_pdf=None):
+def select_eos_fit_params(datamodel, fit_calcs, fix_params=[]):
     eos_mod = datamodel['eos_mod']
 
     if fit_calcs=='all':
         fit_calcs = eos_mod.calculators.keys()
 
     calc_params = eos_mod.get_calc_params()
-    fit_params = []
+    eos_fit_params = []
     for calc_name in fit_calcs:
         for param in calc_params[calc_name]:
-            if (param not in fit_params) and (param not in fix_params):
-                fit_params.append(param)
+            if (param not in eos_fit_params) and (param not in fix_params):
+                eos_fit_params.append(param)
 
-    # for param in fit_params:
-    #     if param in fix_params:
-    #         fit_params.remove(param)
-
-    param_names = eos_mod.param_names
-    param_isfree = np.tile(False, len(param_names))
-    for ind, name in enumerate(datamodel['param_names']):
-        if name in fit_params:
-            param_isfree[ind] = True
-
-    datamodel['param_isfree'] = param_isfree
-    datamodel['fit_params'] = fit_params
-
-
-    # Assume a non-informative (wide-flat) prior
-    Nparam = len(fit_params)
-    param_values = get_fit_params(datamodel)
-    param_errors = 1e16*np.ones(Nparam)
-    datamodel['model_pdf'] = modfit.ModelPDF(fit_params, param_values,
-                                         param_errors)
-    # datamodel['fit_param_values'] = get_fit_params(datamodel)
-    pass
+    return eos_fit_params
+#
+#
+#     param_names = eos_mod.param_names
+#     for ind, name in enumerate(datamodel['param_names']):
+#         if name in fit_params:
+#             param_isfree[ind] = True
+#
+#     datamodel['param_isfree'] = param_isfree
+#     datamodel['fit_params'] = fit_params
+#
+#
+#     # Assume a non-informative (wide-flat) prior
+#     Nparam = len(fit_params)
+#     param_values = get_fit_params(datamodel)
+#     param_errors = 1e16*np.ones(Nparam)
+#     datamodel['model_pdf'] = modfit.ModelPDF(fit_params, param_values,
+#                                          param_errors)
+#     # datamodel['fit_param_values'] = get_fit_params(datamodel)
+#     pass
 #====================================================================
 def impose_prior_constraints(datamodel, param_names, param_means,
                              param_errors):
@@ -170,6 +167,9 @@ def impose_prior_constraints(datamodel, param_names, param_means,
 #====================================================================
 def set_model_pdf(datamodel, model_pdf):
     datamodel['model_pdf'] = model_pdf
+    eos_param_mask = np.array([name in datamodel['eos_param_names']
+                               for name in model_pdf.param_names])
+    datamodel['eos_fit_params'] = model_pdf.param_names[eos_param_mask]
     return
 #====================================================================
 def update_bulk_mod_wt(datamodel, wt_vol=0.5):
@@ -387,52 +387,35 @@ def _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes):
 
     return
 #====================================================================
-def _get_eos_fit_params(param_values, datamodel):
+def set_eos_fit_params(param_a, datamodel):
     eos_mod = datamodel['eos_mod']
-    fit_params = datamodel['fit_params']
-    param_in_eos = np.array([name in eos_mod.param_names
-                             for name in fit_params])
-
-    eos_params = param_values[param_in_eos]
-    eos_param_names = fit_params[param_in_eos]
-
-    return eos_params, eos_param_names
-#====================================================================
-def set_fit_params(param_a, datamodel):
-    # datamodel['fit_param_values'] = param_a
-    eos_mod = datamodel['eos_mod']
-    # eos_params, eos_param_names = _get_eos_fit_params(param_a, datamodel)
-    # eos_mod.set_param_values(eos_params, param_names=eos_param_names)
-    eos_mod.set_param_values(param_a, param_names=datamodel['fit_params'])
+    eos_mod.set_param_values(
+        param_a, param_names=datamodel['eos_fit_params'])
     pass
-#====================================================================
-def get_fit_params(datamodel):
-    eos_mod = datamodel['eos_mod']
-    fit_params = datamodel['fit_params']
-    return eos_mod.get_param_values(param_names=fit_params)
 #====================================================================
 def fit(datamodel, nrepeat=6, ignore_datatypes=None,
         apply_bulk_mod_wt=False, wt_vol=0.5):
 
-    if not datamodel['fit_params']:
-        assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
+    if datamodel['eos_fit_params'] is None:
+        assert False, 'eos_fit_params is currently empty. Use select_fit_params to set the fit parameters.'
 
-    def fitness_fun(param_values, datamodel=datamodel,
+    def fitness_fun(eos_param_values, datamodel=datamodel,
                     ignore_datatypes=ignore_datatypes, wt_vol=wt_vol):
-        set_fit_params(param_values, datamodel)
+        set_eos_fit_params(eos_param_values, datamodel)
         resid = calc_resid(datamodel, ignore_datatypes=ignore_datatypes)
         return resid
 
-    def update_fitness_fun(param_values, datamodel=datamodel,
+    def update_fitness_fun(eos_param_values, datamodel=datamodel,
                            wt_vol=wt_vol):
+        set_eos_fit_params(eos_param_values, datamodel)
         update_bulk_mod_wt(datamodel, wt_vol=wt_vol)
         return fitness_fun
 
-    def fitness_metrics_fun(param_values, datamodel=datamodel,
+    def fitness_metrics_fun(eos_param_values, datamodel=datamodel,
                             ignore_datatypes=ignore_datatypes,
                             wt_vol=wt_vol,
                             apply_bulk_mod_wt=apply_bulk_mod_wt):
-        set_fit_params(param_values, datamodel)
+        set_eos_fit_params(eos_param_values, datamodel)
         model_error, R2fit = residual_model_error(
             datamodel, apply_bulk_mod_wt, wt_vol,
             ignore_datatypes=ignore_datatypes)
@@ -448,73 +431,13 @@ def fit(datamodel, nrepeat=6, ignore_datatypes=None,
 
     prior = datamodel['model_pdf']
 
-    fitness_params = datamodel['fit_params']
+    fitness_params = datamodel['eos_fit_params']
     posterior = prior.fit(
         fitness_fun, fitness_params=fitness_params,
         update_fitness_fun=update_fitness_fun,
         fitness_metrics_fun=fitness_metrics_fun)
 
     datamodel['model_pdf'] = posterior
-    return
-#====================================================================
-def fit_old(datamodel, nrepeat=6, ignore_datatypes=None,
-        apply_bulk_mod_wt=False, wt_vol=0.5, apply_prior_wt=False):
-    if not datamodel['fit_params']:
-        assert False, 'fit_params is currently empty. Use select_fit_params to set the fit parameters.'
-
-    # from IPython import embed;embed();import ipdb as pdb;pdb.set_trace()
-
-    param0_a = get_fit_params(datamodel)
-
-    if apply_bulk_mod_wt:
-        update_bulk_mod_wt(datamodel, wt_vol=wt_vol)
-    else:
-        datamodel['bulk_mod_wt'] = None
-
-    for i in np.arange(nrepeat):
-        def resid_fun(param_a, datamodel=datamodel,
-                      apply_prior_wt=apply_prior_wt):
-            set_fit_params(param_a, datamodel)
-            resid_a = calc_resid(datamodel, ignore_datatypes=ignore_datatypes,
-                                 apply_prior_wt=apply_prior_wt)
-            return resid_a
-
-        fit_tup = optimize.leastsq(resid_fun, param0_a, full_output=True)
-
-        paramf_a = fit_tup[0]
-        cov_scl = fit_tup[1]
-        info = fit_tup[2]
-
-        param0_a = paramf_a
-
-        if apply_bulk_mod_wt:
-            update_bulk_mod_wt(datamodel, wt_vol=wt_vol )
-        else:
-            datamodel['bulk_mod_wt'] = None
-
-    resid_a = info['fvec']
-    resid_var = np.var(resid_a)
-    try:
-        cov = resid_var*cov_scl
-        param_err = np.sqrt(np.diag(cov))
-        corr = cov/(np.expand_dims(param_err,1)*param_err)
-    except:
-        cov = None
-        param_err = np.nan*paramf_a
-        corr = None
-
-    model_error, R2fit = residual_model_error(
-        datamodel, apply_bulk_mod_wt, wt_vol,
-        ignore_datatypes=ignore_datatypes)
-    # print(param_err)
-    # print(paramf_a)
-
-
-    posterior = make_model_pdf(datamodel['fit_params'],
-                              paramf_a, param_err,
-                              param_corr=corr, fit_error=model_error,
-                              R2fit=R2fit)
-    datamodel['posterior'] = posterior
     return
 #====================================================================
 def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol,
@@ -526,7 +449,7 @@ def residual_model_error(datamodel, apply_bulk_mod_wt, wt_vol,
     output = calc_resid(datamodel, detail_output=True,
                         ignore_datatypes=ignore_datatypes)
 
-    Nparam = len(datamodel['fit_params'])
+    Nparam = len(datamodel['eos_fit_params'])
     # calculate unweighted residuals
 
     Ndat = []

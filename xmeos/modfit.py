@@ -267,10 +267,10 @@ class ModelPDF():
 
         param_init = self.param_values
         Nparam = len(param_init)
-        print(param_init[fitness_param_ind])
-        print(param_init)
+        # print(param_init[fitness_param_ind])
+        # print(param_init)
 
-        print(self.ortho_transform(param_init))
+        # print(self.ortho_transform(param_init))
         # from IPython import embed;embed();import ipdb;ipdb.set_trace()
 
         for i in np.arange(nrepeat):
@@ -281,7 +281,7 @@ class ModelPDF():
                               fitness_param_ind=fitness_param_ind):
                 likelihood_resid = fitness_fun(param_values[fitness_param_ind])
                 prior_resid = self.ortho_transform(param_values)
-                print(prior_resid)
+                # print(prior_resid)
                 posterior_resid = np.hstack(
                     (likelihood_resid, prior_resid))
                 return posterior_resid
@@ -294,8 +294,8 @@ class ModelPDF():
             info = fit_tup[2]
             param_init = param_fit
 
-        print(posterior_fun(param_fit))
-        print(self.ortho_transform(param_fit))
+        # print(posterior_fun(param_fit))
+        # print(self.ortho_transform(param_fit))
 
         resid = info['fvec']
 
