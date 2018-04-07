@@ -22,8 +22,9 @@ from collections import OrderedDict
 # SECT 0: Admin functions
 #====================================================================
 def load_data(title=None, datasource=None,
-              V=None, T=None, P=None, E=None, Cv=None,
+              V=None, T=None, P=None, E=None, Cv=None, P_thermal=None,
               Verr=None, Terr=None, Perr=None, Eerr=None, Cverr=None,
+              P_thermal_err = None,
               Vconv=1, Tconv=1, Pconv=1, Econv=1, Cvconv=1,
               mass_avg=None, groupID=None, trust=None):
     data = {}
@@ -42,6 +43,8 @@ def load_data(title=None, datasource=None,
         data['table']['T'] = T*Tconv
     if P is not None:
         data['table']['P'] = P*Pconv
+    if P_thermal is not None:
+        data['table']['P_thermal'] = P_thermal*Pconv
     if Cv is not None:
         data['table']['Cv'] = Cv*Cvconv
     if E is not None:
@@ -49,7 +52,7 @@ def load_data(title=None, datasource=None,
     if trust is not None:
        data['table']['trust'] = trust
     else:
-       data['table']['trust'] = np.tile(True, V.size)
+       data['table']['trust'] = np.tile(True, len(V))
 
     if Verr is not None:
         data['table']['Verr'] = Verr*Vconv
@@ -59,6 +62,8 @@ def load_data(title=None, datasource=None,
         data['table']['Terr'] = Terr*Tconv
     if Perr is not None:
         data['table']['Perr'] = Perr*Pconv
+    if P_thermal_err is not None:
+        data['table']['P_thermal_err'] = P_thermal_err*Pconv
     if Eerr is not None:
         data['table']['Eerr'] = Eerr*Econv
     if Cverr is not None:
@@ -85,6 +90,7 @@ def _get_err_scale(data):
 
     calc_err_scale('V', data, err_scale)
     calc_err_scale('P', data, err_scale)
+    calc_err_scale('P_thermal', data, err_scale)
     calc_err_scale('E', data, err_scale)
     calc_err_scale('T', data, err_scale)
     calc_err_scale('Cv', data, err_scale)
@@ -220,6 +226,7 @@ def calc_resid(datamodel, ignore_datatypes=None,
         ignore_datatypes = []
 
     _calc_resid_P(datamodel, resid_all, output, ignore_datatypes)
+    _calc_resid_P_thermal(datamodel, resid_all, output, ignore_datatypes)
     _calc_resid_E(datamodel, resid_all, output, ignore_datatypes)
     _calc_resid_Cv(datamodel, resid_all, output, ignore_datatypes)
     _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes)
@@ -276,6 +283,45 @@ def _calc_resid_P(datamodel, resid_all, output, ignore_datatypes):
         resid_P = delP/err_scale['P']
 
     resid_all.append(resid_P)
+    return
+#====================================================================
+def _calc_resid_P_thermal(datamodel, resid_all, output, ignore_datatypes):
+    tbl = datamodel['data']['table']
+    eos_mod = datamodel['eos_mod']
+    err_scale = datamodel['err_scale']
+    trust = tbl['trust']
+
+    if (('P_thermal' not in tbl.columns) or
+        ('P_thermal' in ignore_datatypes)):
+        return
+
+    V_a = np.array(tbl['V'][trust])
+    P_thermal = np.array(tbl['P_thermal'][trust])
+
+    # Perr_a = np.array(tbl['Perr'])
+
+    # if datamodel['bulk_mod_wt'] is None:
+    #     bulk_mod_wt = None
+    # else:
+    #     bulk_mod_wt = datamodel['bulk_mod_wt'][trust]
+
+    T_a = np.array(tbl['T'][trust])
+
+
+    T0 = eos_mod.refstate.ref_temp()
+
+    Pmod = eos_mod.press(V_a, T_a)
+    P_ref = eos_mod.press(V_a, T0)
+    P_thermal_mod = Pmod - P_ref
+
+    # if datamodel['isthermal']:
+
+    delP_thermal = P_thermal_mod - P_thermal
+    output['P_thermal'] = delP_thermal
+
+    resid_P_thermal = delP_thermal/err_scale['P_thermal']
+
+    resid_all.append(resid_P_thermal)
     return
 #====================================================================
 def _calc_resid_E(datamodel, resid_all, output, ignore_datatypes):
