@@ -1023,7 +1023,7 @@ class RTPressEos(CompositeEos):
 
         return heat_capacity_a
 
-    def ref_temp_adiabat(self, V_a):
+    def ref_temp_adiabat(self, V_a, refonly=False):
         """
         Calculate reference adiabatic temperature path
 
@@ -1038,8 +1038,52 @@ class RTPressEos(CompositeEos):
         """
 
         gamma_calc = self.calculators['gamma']
-        Tref_adiabat = gamma_calc._calc_temp(V_a)
+
+        if refonly or (not self.apply_electronic):
+            Tref_adiabat = gamma_calc._calc_temp(V_a)
+
+        else:
+            Tref_adiabat = self._integrate_ref_adiabat(V_a)
+
         Tref_adiabat, V_a = core.fill_array(Tref_adiabat, V_a)
+        return Tref_adiabat
+
+    def _integrate_ref_adiabat(self, V_a):
+        V0, = self.get_param_values(param_names='V0')
+        T0 = self.refstate.ref_temp()
+
+        ind_sort = np.argsort(V_a)
+        Vmin, Vmax = [V_a[ind_sort[0]], V_a[ind_sort[-1]]]
+
+        def dTdV_ad_fun(V, T, gamma_fun=self.gamma):
+            gamma = gamma_fun(V, T)
+            dTdV = -gamma*T/V
+            return dTdV
+
+        if Vmin >= V0:
+            # all expand
+            monotonic = True
+            Vspan = [V0, Vmax]
+
+        elif Vmax <= V0:
+            # all contract
+            monotonic = True
+            Vspan = [V0, Vmin]
+        else:
+            # mixed expand and contract
+            monotonic = False
+            Vspan_expand = [V0, Vmax]
+            Vspan_contract = [V0, Vmin]
+
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+        if monotonic:
+            output = sp.integrate.solve_ivp( dTdV_ad_fun, Vspan, np.array([T0]), t_eval=V_a, vectorized=True)
+            Tref_adiabat = output['y'][0]
+
+        else:
+            assert False, 'ref_temp_adiabat does not implement mixed compression/expansion for electronic correction.'
 
         return Tref_adiabat
 
@@ -1249,7 +1293,7 @@ class RTPressEos(CompositeEos):
         thermal_calc = self._calculators['thermal']
         electronic_calc = self.calculators['electronic']
 
-        T0S = self.ref_temp_adiabat(V_a)
+        T0S = self.ref_temp_adiabat(V_a, refonly=True)
 
         CV = self.heat_capacity(V_a, T_a)
         CV_0S = self.heat_capacity(V_a, T0S)

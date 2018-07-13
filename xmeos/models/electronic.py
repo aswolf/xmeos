@@ -86,6 +86,11 @@ class ElectronicEos(with_metaclass(ABCMeta, core.Eos)):
         entropy_a =  calculator._calc_entropy(V_a, T_a)
         return entropy_a
 
+    def dSdV_T(self, V_a, T_a):
+        calculator = self.calculators['electronic']
+        dSdV_T_a =  calculator._calc_dSdV_T(V_a, T_a)
+        return dSdV_T_a
+
     def energy(self, V_a, T_a):
         calculator = self.calculators['electronic']
         energy_a =  calculator._calc_energy(V_a, T_a)

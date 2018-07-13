@@ -701,6 +701,47 @@ class TestRTPressEos(test_models.BaseTestEos):
         assert abs_err < TOL, ('abs error in Press, ' + np.str(abs_err) +
                                  ', must be less than TOL, ' + np.str(TOL))
 
+    def test_ref_temp_adiabat(self):
+        self._calc_test_ref_temp_adiabat()
+        self._calc_test_ref_temp_adiabat(kind_electronic='CvPowLaw',
+                                         apply_electronic=True)
+
+    def _calc_test_ref_temp_adiabat(self, kind_compress='Vinet',
+                                    compress_path_const='T',
+                                    kind_gamma='GammaFiniteStrain',
+                                    kind_RTpoly='V', RTpoly_order=5, natom=1,
+                                    kind_electronic='None',
+                                    apply_electronic=False):
+
+        TOL = 1e-3
+        Nsamp = 10001
+        T0 = 4000.0
+
+        eos_mod = self.load_eos(kind_compress=kind_compress,
+                                compress_path_const=compress_path_const,
+                                kind_gamma=kind_gamma, kind_RTpoly=kind_RTpoly,
+                                RTpoly_order=RTpoly_order, natom=natom,
+                                kind_electronic=kind_electronic,
+                                apply_electronic=apply_electronic)
+
+        refstate = eos_mod.refstate
+        refstate.ref_state['T0'] = T0
+
+        V0, = eos_mod.get_param_values(param_names=['V0'])
+        # Vmod_a = np.linspace(.3,1.0,Nsamp)*V0
+        Vmod_a = np.linspace(1.01,1.2, Nsamp)*V0
+        Tad_a = eos_mod.ref_temp_adiabat(Vmod_a)
+
+        S = eos_mod.entropy(Vmod_a, Tad_a)
+        dS = S - np.mean(S)
+
+        assert np.all(np.abs(dS/core.CONSTS['kboltz'])<TOL), (
+            'The entropy must be constant along the ref temp adiabat.'
+        )
+
+        # from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+
+
     def test_adiabatic_path(self):
         self._calc_test_adiabatic_path()
         self._calc_test_adiabatic_path(kind_electronic='CvPowLaw',
@@ -735,7 +776,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         S = eos_mod.entropy(V_ad, T_ad)
         dS = S - np.mean(S)
 
-        assert np.all(np.abs(dS)<TOL), (
+        assert np.all(np.abs(dS/core.CONSTS['kboltz'])<TOL), (
             'The entropy must be constant along an adiabat to within TOL.'
         )
 
@@ -777,7 +818,7 @@ class TestRTPressEos(test_models.BaseTestEos):
         dS_ad_grid = S_ad_grid - np.tile(
             np.mean(S_ad_grid, axis=1)[:,np.newaxis],(1,Pgrid.size))
 
-        assert np.all(np.abs(dS_ad_grid)<TOL), (
+        assert np.all(np.abs(dS_ad_grid/core.CONSTS['kboltz'])<TOL), (
             'The entropy must be constant along an adiabat to within TOL.'
         )
 

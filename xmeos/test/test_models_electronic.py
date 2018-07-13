@@ -46,6 +46,26 @@ class TestCvPowLaw(test_models.BaseTestEos):
         assert abs_err < TOL, 'rel-error in Cv, ' + np.str(abs_err) + \
             ', must be less than TOL, ' + np.str(TOL)
 
+    def test_dSdV_T(self):
+        TOL = 1e-3
+        Nsamp = 100001
+        eos_mod = self.load_eos()
+
+        Tmod = 8000.0
+        V0, = eos_mod.get_param_values(param_names=['V0'])
+        Vmod_a = V0*np.linspace(0.4, 1.0, Nsamp)
+
+        dV = Vmod_a[1] - Vmod_a[0]
+
+        S_a = eos_mod.entropy(Vmod_a, Tmod)
+        dSdV_T_a = eos_mod.dSdV_T(Vmod_a, Tmod)
+
+        abs_err, rel_err, range_err = self.numerical_deriv(
+              Vmod_a, S_a, dSdV_T_a, scale=+1)
+
+        assert rel_err < TOL, ('rel error in entropy, ' + np.str(rel_err) +
+                                 ', must be less than TOL, ' + np.str(TOL))
+
     def test_press_simple(self):
         TOL = 1e-3
         Nsamp = 10001
