@@ -158,16 +158,16 @@ def calc_comp_details(comp_d, kind='wt'):
     return comp_details
 #====================================================================
 class CMASF_melt_Thomas2013(CompositeEos):
-    def __init__(self, meltcomp, kind='endmem'):
+    def __init__(self, meltcomp):
         # self._comp_d = calc_comp_details(meltcomp, kind=kind)
         self.endmem_comp = meltcomp
         self.load_eos(meltcomp)
 
     def load_eos(self, meltcomp):
         endmems = {}
-        for comp in meltcomp:
-            ieos, icomp_d = self.get_endmem_eos(endmem=comp)
-            endmems[comp] = ieos
+        for endmem_name in meltcomp:
+            ieos, icomp_d = self.get_endmem_eos(endmem=endmem_name)
+            endmems[endmem_name] = ieos
 
         self.endmem_eos = endmems
 

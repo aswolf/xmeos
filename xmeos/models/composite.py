@@ -81,7 +81,41 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
 
         return K_a
 
-    def volume(self, P, T, Vinit=None, TOL=1e-3, bounds_error=True):
+    def volume(self, P, T, Niter=10):
+        P, T = core.fill_array(P, T)
+
+
+        def Tait_vol(P, V0, K0, KP0, KP20=None):
+            if KP20 is None:
+                KP20 = -KP0/K0
+
+            a = (KP0 + 1)/(K0*KP20 + KP0 + 1)
+            b = -KP20/(KP0+1) + KP0/K0
+            c = (K0*KP20 + KP0 + 1)/(-K0*KP20 + KP0**2 + KP0)
+
+            V = V0*(1-a*(1-(1+b*P)**(-c)))
+            return V
+
+        V0, K0, KP0 = self.get_param_values(param_names=['V0','K0','KP0'])
+        KP20 = self.param_values[self.param_names=='KP20'] if ('KP20' in self.param_names) else None
+
+        V = Tait_vol(P, V0, K0, KP0, KP20=KP20)
+        P_mod = self.press(V, T)
+
+
+        for iter in range(Niter):
+            K = self.bulk_mod(V, T)
+            P_mod = self.press(V, T)
+            dPdV = -K/V
+            dP = P_mod-P
+            dV_frac = -dP/dPdV/V
+            V *= np.exp(dV_frac)
+
+        # P_mod = self.press(V, T)
+        return V
+
+
+
         if Vinit is None:
             V0, = self.get_param_values(param_names='V0')
             Vinit = 0.8*V0
@@ -118,6 +152,48 @@ class CompositeEos(with_metaclass(ABCMeta, core.Eos)):
             V, = output.x
 
         return V
+
+
+
+
+
+    # def volume(self, P, T, Vinit=None, TOL=1e-3, bounds_error=True):
+    #     if Vinit is None:
+    #         V0, = self.get_param_values(param_names='V0')
+    #         Vinit = 0.8*V0
+
+    #     assert np.isscalar(Vinit), 'Vinit must be a scalar val.'
+
+    #     def press_diff(V, P=P, T=T):
+    #         return self.press(V, T) - P
+
+    #     def press_diff_sqr(V, P=P, T=T):
+    #         return (self.press(V, T) - P)**2
+
+    #     def press_deriv(V, P=P, T=T):
+    #         K = self.bulk_mod(V, T)
+    #         dPdV = -K/V
+    #         return dPdV
+
+    #     # V = sp.optimize.fsolve(press_diff, Vinit, fprime=press_deriv)
+    #     V_min = sp.optimize.fmin(press_diff, Vinit, disp=False)
+
+    #     if +press_diff(V_min) > +TOL:
+    #         if bounds_error:
+    #             raise ValueError(
+    #                 'The EOS is being sampled at an unphysical '
+    #                 'location! The target pressure is not accesible '
+    #                 'at this temperature.'
+    #             )
+    #         V = np.nan
+
+    #     else:
+    #         output = sp.optimize.minimize(
+    #             press_diff_sqr, [0.8*V_min], bounds=[(None, V_min)],
+    #             options={'disp':False})
+    #         V, = output.x
+
+    #     return V
 
     def gamma(self, V_a, T_a):
         V_a, T_a = core.fill_array(V_a, T_a)
