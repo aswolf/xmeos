@@ -128,26 +128,25 @@ def select_eos_fit_params(datamodel, fit_calcs, fix_params=[]):
             if (param not in eos_fit_params) and (param not in fix_params):
                 eos_fit_params.append(param)
 
-    return eos_fit_params
-#
-#
-#     param_names = eos_mod.param_names
-#     for ind, name in enumerate(datamodel['param_names']):
-#         if name in fit_params:
-#             param_isfree[ind] = True
-#
-#     datamodel['param_isfree'] = param_isfree
-#     datamodel['fit_params'] = fit_params
-#
-#
-#     # Assume a non-informative (wide-flat) prior
-#     Nparam = len(fit_params)
-#     param_values = get_fit_params(datamodel)
-#     param_errors = 1e16*np.ones(Nparam)
-#     datamodel['model_pdf'] = modfit.ModelPDF(fit_params, param_values,
-#                                          param_errors)
-#     # datamodel['fit_param_values'] = get_fit_params(datamodel)
-#     pass
+    # param_names = eos_mod.param_names
+    # for ind, name in enumerate(datamodel['eos_param_names']):
+    #     if name in eos_fit_params:
+    #         param_isfree[ind] = True
+    #
+    # datamodel['param_isfree'] = param_isfree
+
+    datamodel['eos_fit_params'] = eos_fit_params
+
+
+    # Assume a non-informative (wide-flat) prior
+    Nparam = len(eos_fit_params)
+    param_values = eos_mod.get_param_values(eos_fit_params)
+
+    param_errors = 1e16*np.ones(Nparam)
+    datamodel['model_pdf'] = modfit.ModelPDF(eos_fit_params, param_values,
+                                         param_errors)
+    # datamodel['fit_param_values'] = get_fit_params(datamodel)
+    pass
 #====================================================================
 def impose_prior_constraints(datamodel, param_names, param_means,
                              param_errors):
@@ -388,6 +387,8 @@ def _calc_resid_Cv(datamodel, resid_all, output, ignore_datatypes):
 #====================================================================
 def _calc_resid_exp_constraint(datamodel, resid_all, output, ignore_datatypes):
     exp_constraint = datamodel['data']['exp_constraint']
+    eos_mod = datamodel['eos_mod']
+    err_scale = datamodel['err_scale']
 
     if ((exp_constraint is None) or
         ('exp_constraint' in ignore_datatypes)):
